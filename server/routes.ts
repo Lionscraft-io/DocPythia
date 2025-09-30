@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { createZulipchatScraperFromEnv } from "./scraper/zulipchat";
 import { createAnalyzerFromEnv } from "./analyzer/gemini-analyzer";
+import { triggerJobManually } from "./scheduler";
 
 // Admin authentication middleware
 const adminAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -250,6 +251,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error during analysis:", error);
       res.status(500).json({ error: "Failed to analyze messages", details: error.message });
+    }
+  });
+
+  // POST /api/trigger-job - Manually trigger the scheduled job
+  app.post("/api/trigger-job", adminAuth, async (req, res) => {
+    try {
+      const bodyValidation = z.object({
+        scrapeLimit: z.coerce.number().int().positive().default(100),
+        analysisLimit: z.coerce.number().int().positive().default(50),
+        channelName: z.string().default("community-support"),
+      }).safeParse(req.body);
+
+      if (!bodyValidation.success) {
+        return res.status(400).json({ error: "Invalid request body", details: bodyValidation.error });
+      }
+
+      const { scrapeLimit, analysisLimit, channelName } = bodyValidation.data;
+      
+      console.log(`Manually triggering scheduled job...`);
+      
+      // Run the job in the background
+      triggerJobManually({
+        enabled: true,
+        cronSchedule: "",
+        scrapeLimit,
+        analysisLimit,
+        channelName,
+      }).catch(error => {
+        console.error("Error in manually triggered job:", error);
+      });
+      
+      res.json({ 
+        success: true,
+        message: "Scheduled job triggered. Check server logs for progress.",
+        config: { scrapeLimit, analysisLimit, channelName }
+      });
+    } catch (error: any) {
+      console.error("Error triggering job:", error);
+      res.status(500).json({ error: "Failed to trigger job", details: error.message });
     }
   });
 
