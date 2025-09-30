@@ -77,12 +77,31 @@ An AI-powered documentation website for NEAR validator operations that automatic
 
 ## Recent Changes (Sept 30, 2025)
 
-### Content Import from near-nodes.io (Latest)
-1. **Comprehensive Documentation**: Imported all content from near-nodes.io website
-2. **Navigation Structure**: Matches the original site's navbar with main sections (Validator Node, RPC Node, Archival Node)
-3. **Content Coverage**: Includes hardware requirements, setup guides, compilation instructions, and best practices
-4. **Import Script**: Created `server/scripts/import-near-nodes-content.ts` for populating database with structured content
-5. **Single-Page Format**: All content organized in hierarchical sections for easy navigation and AI analysis
+### Comprehensive Content Import from near-nodes.io (Latest - Sept 30, 2025)
+1. **Complete Documentation Import**: Successfully imported ALL content from near-nodes.io covering 24 comprehensive sections
+2. **Main Topics (5 sections)**:
+   - Overview: Introduction to NEAR node types
+   - Validator Node: 11 detailed subsections
+   - RPC Node: 4 subsections
+   - Archival Node: 4 subsections
+   - Best Practices: Security, performance, monitoring
+3. **Validator Node Coverage (11 subsections)**:
+   - Validator Bootcamp, Hardware Requirements, Compile from Source
+   - Windows Setup Guide, Validator Onboarding Guide
+   - Deploy on Mainnet, Staking and Delegation
+   - Upgradeable Staking Pool, Expose Node Metrics
+   - Debug RPC and Debug Pages, Failover and Backup Node
+4. **RPC Node Coverage (4 subsections)**:
+   - Hardware Requirements, Run RPC Node
+   - Run RPC with nearup, State Sync Configuration
+5. **Archival Node Coverage (4 subsections)**:
+   - Hardware Requirements, Run without nearup
+   - Run with nearup, Split Storage Archival (hot/cold storage)
+6. **Technical Details**:
+   - Fetched 15+ individual pages from near-nodes.io via web scraping
+   - Fixed bash variable escaping issues in template literals
+   - Hierarchical structure with proper level and orderIndex
+   - Database verified: 24 sections (5 main + 19 subsections)
 
 ### Version Control & Rollback System
 1. **Complete Version History**: Every approved change creates a snapshot in section_versions table
