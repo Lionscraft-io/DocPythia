@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { createZulipchatScraperFromEnv } from "./scraper/zulipchat";
-import { createAnalyzerFromEnv } from "./analyzer/openai-analyzer";
+import { createAnalyzerFromEnv } from "./analyzer/gemini-analyzer";
 
 // Admin authentication middleware
 const adminAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -225,7 +225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!analyzer) {
         return res.status(500).json({ 
-          error: "OpenAI analyzer not configured. Please set OPENAI_API_KEY environment variable." 
+          error: "Gemini analyzer not configured. Please set GEMINI_API_KEY environment variable." 
         });
       }
 

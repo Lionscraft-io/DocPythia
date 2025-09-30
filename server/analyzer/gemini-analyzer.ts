@@ -1,23 +1,23 @@
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { storage } from "../storage";
 import type { ScrapedMessage, DocumentationSection } from "@shared/schema";
 
 export interface AnalysisResult {
   relevant: boolean;
-  updateType?: "minor" | "major";
-  sectionId?: string;
-  summary?: string;
-  suggestedContent?: string;
+  updateType?: "minor" | "major" | null;
+  sectionId?: string | null;
+  summary?: string | null;
+  suggestedContent?: string | null;
   reasoning?: string;
 }
 
 export class MessageAnalyzer {
   private documentationSections: DocumentationSection[] = [];
-  private openai: OpenAI;
+  private ai: GoogleGenAI;
 
   constructor() {
-    // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // DON'T DELETE THIS COMMENT - Note that the newest Gemini model series is "gemini-2.5-flash" or "gemini-2.5-pro"
+    this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
   }
 
   async loadDocumentation() {
@@ -63,23 +63,36 @@ Respond with JSON in this exact format:
 }`;
 
     try {
-      const response = await this.openai.chat.completions.create({
-        model: "gpt-5",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert technical writer analyzing community messages for documentation updates. Always respond with valid JSON."
+      const systemPrompt = "You are an expert technical writer analyzing community messages for documentation updates. Always respond with valid JSON.";
+
+      const response = await this.ai.models.generateContent({
+        model: "gemini-2.5-pro",
+        config: {
+          systemInstruction: systemPrompt,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              relevant: { type: "boolean" },
+              updateType: { type: "string", enum: ["minor", "major"], nullable: true },
+              sectionId: { type: "string", nullable: true },
+              summary: { type: "string", nullable: true },
+              suggestedContent: { type: "string", nullable: true },
+              reasoning: { type: "string" },
+            },
+            required: ["relevant", "reasoning"],
           },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        response_format: { type: "json_object" },
+        },
+        contents: prompt,
       });
 
-      const result = JSON.parse(response.choices[0].message.content || "{}");
-      return result as AnalysisResult;
+      const rawJson = response.text;
+      if (!rawJson) {
+        throw new Error("Empty response from Gemini");
+      }
+
+      const result = JSON.parse(rawJson) as AnalysisResult;
+      return result;
     } catch (error: any) {
       console.error("Error analyzing message:", error.message);
       throw new Error(`Failed to analyze message: ${error.message}`);
@@ -153,10 +166,10 @@ Respond with JSON in this exact format:
 }
 
 export function createAnalyzerFromEnv(): MessageAnalyzer | null {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
-    console.warn("OpenAI API key not found in environment variables");
+    console.warn("Gemini API key not found in environment variables");
     return null;
   }
   
