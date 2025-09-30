@@ -6,7 +6,7 @@ import { relations } from "drizzle-orm";
 
 // Enums for constrained fields
 export const sectionTypeEnum = pgEnum("section_type", ["text", "info", "warning", "success"]);
-export const updateTypeEnum = pgEnum("update_type", ["minor", "major"]);
+export const updateTypeEnum = pgEnum("update_type", ["minor", "major", "add", "delete"]);
 export const updateStatusEnum = pgEnum("update_status", ["pending", "approved", "rejected", "auto-applied"]);
 export const actionTypeEnum = pgEnum("action_type", ["approved", "rejected", "auto-applied"]);
 export const messageSourceEnum = pgEnum("message_source", ["zulipchat", "telegram"]);
@@ -26,7 +26,7 @@ export const documentationSections = pgTable("documentation_sections", {
 // Pending updates table
 export const pendingUpdates = pgTable("pending_updates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sectionId: text("section_id").notNull().references(() => documentationSections.sectionId, { onDelete: "cascade" }),
+  sectionId: text("section_id").notNull(),
   type: updateTypeEnum("type").notNull(),
   summary: text("summary").notNull(),
   source: text("source").notNull(),
@@ -60,6 +60,16 @@ export const scrapedMessages = pgTable("scraped_messages", {
   messageTimestamp: timestamp("message_timestamp").notNull(),
   scrapedAt: timestamp("scraped_at").notNull().defaultNow(),
   analyzed: boolean("analyzed").notNull().default(false),
+});
+
+// Scrape metadata table to track last scrape timestamps for incremental scraping
+export const scrapeMetadata = pgTable("scrape_metadata", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  source: messageSourceEnum("source").notNull(),
+  channelName: text("channel_name").notNull(),
+  lastScrapeTimestamp: timestamp("last_scrape_timestamp"),
+  lastScrapeAt: timestamp("last_scrape_at").notNull().defaultNow(),
+  totalMessagesFetched: integer("total_messages_fetched").notNull().default(0),
 });
 
 // Relations
@@ -108,6 +118,11 @@ export const insertScrapedMessageSchema = createInsertSchema(scrapedMessages).om
   scrapedAt: true,
 });
 
+export const insertScrapeMetadataSchema = createInsertSchema(scrapeMetadata).omit({
+  id: true,
+  lastScrapeAt: true,
+});
+
 // Types
 export type DocumentationSection = typeof documentationSections.$inferSelect;
 export type InsertDocumentationSection = z.infer<typeof insertDocumentationSectionSchema>;
@@ -120,3 +135,6 @@ export type InsertUpdateHistory = z.infer<typeof insertUpdateHistorySchema>;
 
 export type ScrapedMessage = typeof scrapedMessages.$inferSelect;
 export type InsertScrapedMessage = z.infer<typeof insertScrapedMessageSchema>;
+
+export type ScrapeMetadata = typeof scrapeMetadata.$inferSelect;
+export type InsertScrapeMetadata = z.infer<typeof insertScrapeMetadataSchema>;

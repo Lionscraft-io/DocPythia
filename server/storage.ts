@@ -4,6 +4,7 @@ import {
   pendingUpdates,
   updateHistory,
   scrapedMessages,
+  scrapeMetadata,
   type DocumentationSection,
   type InsertDocumentationSection,
   type PendingUpdate,
@@ -12,6 +13,8 @@ import {
   type InsertUpdateHistory,
   type ScrapedMessage,
   type InsertScrapedMessage,
+  type ScrapeMetadata,
+  type InsertScrapeMetadata,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -51,6 +54,10 @@ export interface IStorage {
   createScrapedMessage(message: InsertScrapedMessage): Promise<ScrapedMessage>;
   markMessageAsAnalyzed(id: string): Promise<ScrapedMessage | undefined>;
   getMessageByMessageId(messageId: string): Promise<ScrapedMessage | undefined>;
+  
+  // Scrape metadata
+  getScrapeMetadata(source: "zulipchat" | "telegram", channelName: string): Promise<ScrapeMetadata | undefined>;
+  createOrUpdateScrapeMetadata(metadata: InsertScrapeMetadata): Promise<ScrapeMetadata>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -301,6 +308,48 @@ export class DatabaseStorage implements IStorage {
       .from(scrapedMessages)
       .where(eq(scrapedMessages.messageId, messageId));
     return message || undefined;
+  }
+
+  // Scrape metadata
+  async getScrapeMetadata(
+    source: "zulipchat" | "telegram",
+    channelName: string
+  ): Promise<ScrapeMetadata | undefined> {
+    const [metadata] = await db
+      .select()
+      .from(scrapeMetadata)
+      .where(
+        and(
+          eq(scrapeMetadata.source, source),
+          eq(scrapeMetadata.channelName, channelName)
+        )
+      );
+    return metadata || undefined;
+  }
+
+  async createOrUpdateScrapeMetadata(metadata: InsertScrapeMetadata): Promise<ScrapeMetadata> {
+    const existing = await this.getScrapeMetadata(metadata.source, metadata.channelName);
+    
+    if (existing) {
+      // Update existing record
+      const [updated] = await db
+        .update(scrapeMetadata)
+        .set({
+          lastScrapeTimestamp: metadata.lastScrapeTimestamp,
+          lastScrapeAt: new Date(),
+          totalMessagesFetched: existing.totalMessagesFetched + metadata.totalMessagesFetched,
+        })
+        .where(eq(scrapeMetadata.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new record
+      const [newMetadata] = await db
+        .insert(scrapeMetadata)
+        .values(metadata)
+        .returning();
+      return newMetadata;
+    }
   }
 }
 

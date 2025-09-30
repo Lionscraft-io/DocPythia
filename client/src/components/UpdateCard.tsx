@@ -6,7 +6,7 @@ import { useState } from "react";
 
 interface UpdateCardProps {
   id: string;
-  type: "minor" | "major";
+  type: "minor" | "major" | "add" | "delete";
   section: string;
   summary: string;
   source: string;
@@ -48,8 +48,11 @@ export function UpdateCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={type === "major" ? "default" : "secondary"} data-testid={`badge-type-${type}`}>
-            {type === "major" ? "Major" : "Minor"}
+          <Badge 
+            variant={type === "major" ? "default" : type === "add" ? "default" : type === "delete" ? "destructive" : "secondary"} 
+            data-testid={`badge-type-${type}`}
+          >
+            {type === "major" ? "Major" : type === "add" ? "Add Section" : type === "delete" ? "Delete Section" : "Minor"}
           </Badge>
           <Badge variant="outline" className={`${config.color} text-white`} data-testid={`badge-status-${status}`}>
             <StatusIcon className="mr-1 h-3 w-3" />
