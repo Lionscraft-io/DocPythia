@@ -134,7 +134,7 @@ Respond with JSON in this exact format:
             result.updateType = "major";
           }
           
-          await storage.createPendingUpdate({
+          const pendingUpdate = await storage.createPendingUpdate({
             sectionId: section ? result.sectionId : this.documentationSections[0]?.sectionId || "introduction",
             type: result.updateType,
             summary: section ? result.summary : `[TRIAGE] AI suggested unknown section "${result.sectionId}". ${result.summary}`,
@@ -151,7 +151,15 @@ Respond with JSON in this exact format:
           // Auto-apply minor updates only if section was valid
           if (result.updateType === "minor" && result.suggestedContent && section) {
             await storage.updateDocumentationSection(result.sectionId, result.suggestedContent);
-            console.log(`  ✓ Auto-applied minor update`);
+            
+            // Create audit history entry for auto-applied update
+            await storage.createUpdateHistory({
+              updateId: pendingUpdate.id,
+              action: "auto-applied",
+              performedBy: "AI Auto-Approval",
+            });
+            
+            console.log(`  ✓ Auto-applied minor update with audit log`);
           }
         }
         
