@@ -22,7 +22,7 @@ export default function Home() {
                 Automatically updated with the latest community insights.
               </p>
               <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-                <Link href="/validator">
+                <Link href="/docs">
                   <Button size="lg" data-testid="button-get-started">
                     Get Started
                   </Button>
@@ -48,19 +48,19 @@ export default function Home() {
                   title="Validator Node"
                   description="Participate in consensus and produce blocks and/or chunks on the NEAR network."
                   icon={Server}
-                  href="/validator"
+                  href="/docs#validator"
                 />
                 <NodeTypeCard
                   title="RPC Node"
                   description="Service providers that provide public RPC endpoints for developers to use."
                   icon={Database}
-                  href="/rpc"
+                  href="/docs#rpc"
                 />
                 <NodeTypeCard
                   title="Archival Node"
                   description="Store full blockchain data and build an archive of historical states."
                   icon={Archive}
-                  href="/archival"
+                  href="/docs#archival"
                 />
               </div>
             </div>
@@ -137,9 +137,9 @@ export default function Home() {
                 Choose your node type and follow our comprehensive guides to get started.
               </p>
               <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-                <Link href="/validator">
+                <Link href="/docs">
                   <Button size="lg" data-testid="button-cta-validator">
-                    Start with Validator
+                    View Documentation
                   </Button>
                 </Link>
                 <Link href="/admin">
