@@ -177,25 +177,73 @@ export class DatabaseStorage implements IStorage {
         throw new Error("Cannot approve update: status must be pending");
       }
 
-      // Apply the change to the documentation if diffAfter is provided
+      // Handle different operation types
       let section: DocumentationSection | undefined;
-      if (update.diffAfter) {
-        const [updated] = await tx
-          .update(documentationSections)
-          .set({ content: update.diffAfter, updatedAt: new Date() })
-          .where(eq(documentationSections.sectionId, update.sectionId))
+      
+      if (update.type === "add") {
+        // Create a new section
+        if (!update.diffAfter) {
+          throw new Error("Cannot add section: no content provided");
+        }
+        
+        // Extract title from summary or use section ID
+        const titleMatch = update.summary.match(/Add new section: "([^"]+)"/);
+        const title = titleMatch ? titleMatch[1] : update.sectionId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        
+        // Get the max orderIndex to place new section at the end
+        const sections = await tx.select().from(documentationSections);
+        const maxOrder = Math.max(...sections.map(s => s.orderIndex), 0);
+        
+        const [newSection] = await tx
+          .insert(documentationSections)
+          .values({
+            sectionId: update.sectionId,
+            title,
+            content: update.diffAfter,
+            level: 1, // Default to top level
+            orderIndex: maxOrder + 1,
+          })
           .returning();
-        section = updated;
-      } else {
+        section = newSection;
+        
+      } else if (update.type === "delete") {
+        // Delete an existing section
         const [existing] = await tx
           .select()
           .from(documentationSections)
           .where(eq(documentationSections.sectionId, update.sectionId));
+        
+        if (!existing) {
+          throw new Error("Cannot delete section: section not found");
+        }
+        
         section = existing;
-      }
+        
+        // Delete the section
+        await tx
+          .delete(documentationSections)
+          .where(eq(documentationSections.sectionId, update.sectionId));
+          
+      } else {
+        // Update existing section (minor or major)
+        if (update.diffAfter) {
+          const [updated] = await tx
+            .update(documentationSections)
+            .set({ content: update.diffAfter, updatedAt: new Date() })
+            .where(eq(documentationSections.sectionId, update.sectionId))
+            .returning();
+          section = updated;
+        } else {
+          const [existing] = await tx
+            .select()
+            .from(documentationSections)
+            .where(eq(documentationSections.sectionId, update.sectionId));
+          section = existing;
+        }
 
-      if (!section) {
-        throw new Error("Documentation section not found");
+        if (!section) {
+          throw new Error("Documentation section not found");
+        }
       }
 
       // Mark update as approved

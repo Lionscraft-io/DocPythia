@@ -151,17 +151,29 @@ export class ZulipchatScraper {
         analyzed: false,
       });
 
-      // Track latest timestamp and message ID
-      if (!latestTimestamp || msgTimestamp > latestTimestamp) {
-        latestTimestamp = msgTimestamp;
-        latestMessageId = message.id.toString();
-      }
-
       storedCount++;
     }
 
-    // Update scrape metadata
-    if (storedCount > 0 || !metadata) {
+    // Always track the maximum message ID and timestamp from ALL messages processed
+    // This ensures the anchor advances even when messages share timestamps
+    for (const message of messages) {
+      const msgTimestamp = new Date(message.timestamp * 1000);
+      const msgId = message.id.toString();
+      
+      // Track latest timestamp
+      if (!latestTimestamp || msgTimestamp > latestTimestamp) {
+        latestTimestamp = msgTimestamp;
+      }
+      
+      // Track maximum message ID (Zulip IDs are sequential)
+      if (!latestMessageId || parseInt(msgId) > parseInt(latestMessageId)) {
+        latestMessageId = msgId;
+      }
+    }
+
+    // Always update scrape metadata to track last scrape time
+    // Even if storedCount is 0, we want to record that we checked
+    if (messages.length > 0 || !metadata) {
       await storage.createOrUpdateScrapeMetadata({
         source: "zulipchat",
         channelName: channelName,
