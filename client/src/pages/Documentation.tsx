@@ -27,6 +27,27 @@ export default function Documentation() {
       level: s.level!,
     }));
 
+  // Calculate time since last update
+  const lastUpdated = sections.length > 0 
+    ? sections.reduce((latest, section) => {
+        const sectionDate = new Date(section.updatedAt);
+        return sectionDate > latest ? sectionDate : latest;
+      }, new Date(0))
+    : null;
+
+  const formatTimeSince = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
+    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+    return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+  };
+
   if (isLoading) {
     return (
       <div className="h-screen flex flex-col">
@@ -46,11 +67,16 @@ export default function Documentation() {
         {/* Left Navigation Sidebar */}
         <aside className="w-64 border-r bg-background overflow-y-auto" data-testid="sidebar-navigation">
           <div className="p-6">
-            <div className="flex items-center gap-2 mb-6">
+            <div className="mb-6 space-y-2">
               <Badge variant="outline" className="gap-1" data-testid="badge-ai-updated">
                 <Bot className="h-3 w-3" />
                 AI-Updated
               </Badge>
+              {lastUpdated && (
+                <p className="text-xs text-muted-foreground" data-testid="text-last-updated">
+                  Last updated {formatTimeSince(lastUpdated)}
+                </p>
+              )}
             </div>
             <TableOfContents items={tocItems} activeId="overview" />
           </div>
