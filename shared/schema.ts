@@ -67,6 +67,7 @@ export const scrapeMetadata = pgTable("scrape_metadata", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   source: messageSourceEnum("source").notNull(),
   channelName: text("channel_name").notNull(),
+  lastMessageId: text("last_message_id"), // Store last Zulip message ID for anchor
   lastScrapeTimestamp: timestamp("last_scrape_timestamp"),
   lastScrapeAt: timestamp("last_scrape_at").notNull().defaultNow(),
   totalMessagesFetched: integer("total_messages_fetched").notNull().default(0),

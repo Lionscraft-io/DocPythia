@@ -335,6 +335,7 @@ export class DatabaseStorage implements IStorage {
       const [updated] = await db
         .update(scrapeMetadata)
         .set({
+          lastMessageId: metadata.lastMessageId,
           lastScrapeTimestamp: metadata.lastScrapeTimestamp,
           lastScrapeAt: new Date(),
           totalMessagesFetched: existing.totalMessagesFetched + metadata.totalMessagesFetched,

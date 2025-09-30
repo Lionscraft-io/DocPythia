@@ -42,15 +42,20 @@ An AI-powered documentation website for NEAR validator operations that automatic
   - level (hierarchy), type (warning/info/success)
   - orderIndex for sorting
 - `pending_updates`: Store AI-generated update suggestions
-  - sectionId (references documentation), type (minor/major)
+  - sectionId, type (minor/major/add/delete)
   - summary, source, status (pending/approved/rejected/auto-applied)
   - diffBefore/diffAfter for comparison
+  - For "add": sectionId is proposed, diffBefore is null
+  - For "delete": diffAfter is null
 - `update_history`: Audit log of all actions
   - updateId (references pending_updates), action, performedBy
 - `scraped_messages`: Store messages from Zulipchat
   - messageId, source, channelName, topicName
   - senderEmail, senderName, content
   - messageTimestamp, analyzed flag
+- `scrape_metadata`: Track last scrape for incremental updates
+  - source, channelName, lastMessageId, lastScrapeTimestamp
+  - totalMessagesFetched
 
 ### Security
 - Admin endpoints protected with Bearer token authentication
@@ -62,12 +67,22 @@ An AI-powered documentation website for NEAR validator operations that automatic
 
 ## Recent Changes (Sept 30, 2025)
 
-### Automated Content Pipeline (Latest)
-1. Implemented Zulipchat scraper using REST API
+### Incremental Scraping & AI Enhancements (Latest)
+1. **Incremental Scraping System**: Added scrape metadata tracking with lastMessageId for reliable incremental updates
+2. **Full Scrape Support**: Created performFullScrape() for initial bulk import (501 historical messages imported)
+3. **AI Add/Delete Sections**: Enhanced analyzer to suggest adding new sections and deleting outdated ones
+4. **Operation Types**: Expanded from minor/major to include "add" (new sections) and "delete" (remove sections)
+5. **Scripts Added**:
+   - `npx tsx server/scripts/full-scrape.ts`: One-time historical scrape
+   - `npx tsx server/scripts/analyze-messages.ts`: Bulk AI analysis
+6. **Daily Automation**: Scheduler now uses incremental scraping (only fetches new messages since last run)
+
+### Automated Content Pipeline
+1. Implemented Zulipchat scraper using REST API with message ID-based pagination
 2. Integrated Google Gemini (gemini-2.5-pro) for AI analysis
 3. Created daily scheduler using node-cron
 4. Added section ID validation to prevent database constraint failures
-5. Implemented hybrid workflow: minor updates auto-applied, major updates require review
+5. Implemented hybrid workflow: minor updates auto-applied, major/add/delete updates require review
 6. Added manual trigger API endpoint: POST /api/trigger-job
 7. Comprehensive logging for debugging and monitoring
 8. Successfully tested complete workflow: scraping → analysis → update creation → auto-application

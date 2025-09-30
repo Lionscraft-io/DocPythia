@@ -85,21 +85,15 @@ export class ZulipchatScraper {
     let messages: ZulipMessage[];
     let metadata = await storage.getScrapeMetadata("zulipchat", channelName);
     
-    if (incremental && metadata?.lastScrapeTimestamp) {
-      // Incremental scrape: fetch messages since last scrape
-      console.log(`  Last scrape: ${metadata.lastScrapeTimestamp.toISOString()}`);
-      console.log(`  Fetching messages since last scrape...`);
+    if (incremental && metadata?.lastMessageId) {
+      // Incremental scrape: fetch messages since last scrape using message ID
+      console.log(`  Last message ID: ${metadata.lastMessageId}`);
+      console.log(`  Fetching newer messages...`);
       
-      // Use the last message timestamp as anchor and fetch newer messages
-      const lastTimestamp = Math.floor(metadata.lastScrapeTimestamp.getTime() / 1000);
-      
-      // Fetch messages with anchor at last timestamp, getting messages after it
-      const narrow = [
-        { operator: "stream", operand: channelName },
-        { operator: "date", operand: new Date(lastTimestamp * 1000).toISOString().split('T')[0] }
-      ];
+      // Use message ID as anchor and fetch messages after it
+      const narrow = [{ operator: "stream", operand: channelName }];
       const params = new URLSearchParams({
-        anchor: lastTimestamp.toString(),
+        anchor: metadata.lastMessageId,
         num_before: "0",
         num_after: numMessages.toString(),
         narrow: JSON.stringify(narrow),
@@ -120,7 +114,8 @@ export class ZulipchatScraper {
       }
 
       const data: ZulipMessagesResponse = await response.json();
-      messages = data.messages.filter(msg => msg.timestamp > lastTimestamp);
+      // Filter out the anchor message itself
+      messages = data.messages.filter(msg => msg.id.toString() !== metadata.lastMessageId);
     } else {
       // Full scrape: fetch all messages (paginated)
       console.log(`  Performing full scrape (${numMessages} messages)...`);
@@ -130,6 +125,7 @@ export class ZulipchatScraper {
     let storedCount = 0;
     let skippedCount = 0;
     let latestTimestamp: Date | null = metadata?.lastScrapeTimestamp || null;
+    let latestMessageId: string | null = metadata?.lastMessageId || null;
 
     for (const message of messages) {
       const msgTimestamp = new Date(message.timestamp * 1000);
@@ -155,9 +151,10 @@ export class ZulipchatScraper {
         analyzed: false,
       });
 
-      // Track latest timestamp
+      // Track latest timestamp and message ID
       if (!latestTimestamp || msgTimestamp > latestTimestamp) {
         latestTimestamp = msgTimestamp;
+        latestMessageId = message.id.toString();
       }
 
       storedCount++;
@@ -168,6 +165,7 @@ export class ZulipchatScraper {
       await storage.createOrUpdateScrapeMetadata({
         source: "zulipchat",
         channelName: channelName,
+        lastMessageId: latestMessageId,
         lastScrapeTimestamp: latestTimestamp,
         totalMessagesFetched: storedCount,
       });
@@ -185,6 +183,8 @@ export class ZulipchatScraper {
     let anchor: string | number = "newest";
     let hasMore = true;
     let batchCount = 0;
+    let latestMessageId: string | null = null;
+    let latestTimestamp: Date | null = null;
 
     while (hasMore && batchCount < 100) { // Safety limit of 100 batches
       batchCount++;
@@ -198,7 +198,8 @@ export class ZulipchatScraper {
       }
 
       let storedCount = 0;
-      let latestTimestamp: Date | null = null;
+      let batchLatestTimestamp: Date | null = null;
+      let batchLatestMessageId: string | null = null;
 
       for (const message of messages) {
         const msgTimestamp = new Date(message.timestamp * 1000);
@@ -218,8 +219,9 @@ export class ZulipchatScraper {
           analyzed: false,
         });
 
-        if (!latestTimestamp || msgTimestamp > latestTimestamp) {
-          latestTimestamp = msgTimestamp;
+        if (!batchLatestTimestamp || msgTimestamp > batchLatestTimestamp) {
+          batchLatestTimestamp = msgTimestamp;
+          batchLatestMessageId = message.id.toString();
         }
 
         storedCount++;
@@ -228,21 +230,34 @@ export class ZulipchatScraper {
       totalStored += storedCount;
       console.log(`  Batch ${batchCount}: ${storedCount} new messages stored`);
 
-      // Update anchor to the oldest message ID for next batch
-      if (messages.length > 0) {
-        anchor = messages[messages.length - 1].id;
+      // Update overall latest timestamp and message ID
+      if (batchLatestTimestamp && (!latestTimestamp || batchLatestTimestamp > latestTimestamp)) {
+        latestTimestamp = batchLatestTimestamp;
+        latestMessageId = batchLatestMessageId;
       }
+
+      // ALWAYS update anchor to the oldest message ID in this batch for next iteration
+      // This ensures we move backward through history even when all messages are duplicates
+      const oldestMessageId = messages[messages.length - 1].id;
+      if (oldestMessageId === anchor) {
+        // Anchor didn't change - we're stuck. This means we've reached the end.
+        console.log(`  Reached end of message history (anchor unchanged)`);
+        hasMore = false;
+        break;
+      }
+      anchor = oldestMessageId;
 
       // If we got fewer messages than requested, we've reached the end
       if (messages.length < batchSize) {
         hasMore = false;
       }
 
-      // Update metadata after each batch
+      // Update metadata after each batch with new messages
       if (storedCount > 0) {
         await storage.createOrUpdateScrapeMetadata({
           source: "zulipchat",
           channelName: channelName,
+          lastMessageId: latestMessageId,
           lastScrapeTimestamp: latestTimestamp,
           totalMessagesFetched: storedCount,
         });
