@@ -12,9 +12,37 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
+  
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: "include",
+  });
+
+  await throwIfResNotOk(res);
+  return res;
+}
+
+export async function adminApiRequest(
+  method: string,
+  url: string,
+  data?: unknown | undefined,
+): Promise<Response> {
+  const adminToken = sessionStorage.getItem("admin_token");
+  if (!adminToken) {
+    throw new Error("Admin token not found. Please login.");
+  }
+  
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${adminToken}`,
+    ...(data ? { "Content-Type": "application/json" } : {}),
+  };
+  
+  const res = await fetch(url, {
+    method,
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -26,11 +54,24 @@ export async function apiRequest(
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
+  requiresAuth?: boolean;
 }) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
+  ({ on401: unauthorizedBehavior, requiresAuth = false }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+    const headers: Record<string, string> = {};
+    
+    if (requiresAuth) {
+      const adminToken = sessionStorage.getItem("admin_token");
+      if (!adminToken) {
+        throw new Error("Admin token not found. Please login.");
+      }
+      headers['Authorization'] = `Bearer ${adminToken}`;
+    }
+    
+    const res = await fetch(url, {
       credentials: "include",
+      headers,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

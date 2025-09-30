@@ -1,102 +1,126 @@
-import { useState } from "react";
+import { useEffect } from "react";
+import { useLocation } from "wouter";
 import { Header } from "@/components/Header";
 import { UpdateCard } from "@/components/UpdateCard";
 import { StatsCard } from "@/components/StatsCard";
-import { FileText, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { FileText, CheckCircle2, Clock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, adminApiRequest, getQueryFn } from "@/lib/queryClient";
+import type { PendingUpdate } from "@shared/schema";
 
 export default function Admin() {
   const { toast } = useToast();
-  const [updates, setUpdates] = useState<Array<{
-    id: string;
-    type: "minor" | "major";
-    section: string;
-    summary: string;
-    source: string;
-    timestamp: string;
-    status: "pending" | "approved" | "rejected" | "auto-applied";
-    diff?: {
-      before: string;
-      after: string;
-    };
-  }>>([
-    {
-      id: "1",
-      type: "major",
-      section: "Validator / Hardware Requirements",
-      summary: "Updated minimum CPU requirements based on recent network performance data from Zulipchat discussions",
-      source: "Zulipchat #community-support",
-      timestamp: "2 hours ago",
-      status: "pending",
-      diff: {
-        before: "Minimum 4 CPU cores required for running a validator node",
-        after: "Minimum 8 CPU cores recommended for optimal validator performance and reliability",
-      },
+  const [, setLocation] = useLocation();
+  
+  useEffect(() => {
+    const token = sessionStorage.getItem("admin_token");
+    if (!token) {
+      setLocation("/admin/login");
+    }
+  }, [setLocation]);
+  
+  const { data: updates = [], isLoading, error } = useQuery<PendingUpdate[]>({
+    queryKey: ["/api/updates"],
+    queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+  });
+
+  useEffect(() => {
+    if (error && (error.message.includes("401") || error.message.includes("403"))) {
+      sessionStorage.removeItem("admin_token");
+      setLocation("/admin/login");
+    }
+  }, [error, setLocation]);
+
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await adminApiRequest("POST", `/api/updates/${id}/approve`, {});
     },
-    {
-      id: "2",
-      type: "minor",
-      section: "RPC / Configuration",
-      summary: "Fixed typo in RPC endpoint configuration example",
-      source: "Zulipchat #community-support",
-      timestamp: "4 hours ago",
-      status: "auto-applied",
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/updates"] });
+      toast({
+        title: "Update Approved",
+        description: "The documentation has been updated successfully.",
+      });
     },
-    {
-      id: "3",
-      type: "major",
-      section: "Archival / Storage",
-      summary: "Added new section about storage optimization strategies for archival nodes",
-      source: "Zulipchat #community-support",
-      timestamp: "1 day ago",
-      status: "pending",
-      diff: {
-        before: "Plan for adequate storage space",
-        after: "Implement tiered storage strategy: NVMe for recent data, HDD for historical states older than 6 months",
-      },
+    onError: (error: any) => {
+      if (error.message.includes("401") || error.message.includes("403")) {
+        sessionStorage.removeItem("admin_token");
+        setLocation("/admin/login");
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to approve update.",
+          variant: "destructive",
+        });
+      }
     },
-    {
-      id: "4",
-      type: "minor",
-      section: "Validator / Monitoring",
-      summary: "Updated monitoring tool recommendations",
-      source: "Zulipchat #community-support",
-      timestamp: "2 days ago",
-      status: "approved",
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await adminApiRequest("POST", `/api/updates/${id}/reject`, {});
     },
-    {
-      id: "5",
-      type: "major",
-      section: "RPC / Security",
-      summary: "Proposed changes to DDoS protection section were not applicable",
-      source: "Zulipchat #community-support",
-      timestamp: "3 days ago",
-      status: "rejected",
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/updates"] });
+      toast({
+        title: "Update Rejected",
+        description: "The proposed change has been rejected.",
+        variant: "destructive",
+      });
     },
-  ]);
+    onError: (error: any) => {
+      if (error.message.includes("401") || error.message.includes("403")) {
+        sessionStorage.removeItem("admin_token");
+        setLocation("/admin/login");
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to reject update.",
+          variant: "destructive",
+        });
+      }
+    },
+  });
 
   const handleApprove = (id: string) => {
-    setUpdates(updates.map(u => u.id === id ? { ...u, status: "approved" as "approved" } : u));
-    toast({
-      title: "Update Approved",
-      description: "The documentation has been updated successfully.",
-    });
+    approveMutation.mutate(id);
   };
 
   const handleReject = (id: string) => {
-    setUpdates(updates.map(u => u.id === id ? { ...u, status: "rejected" as "rejected" } : u));
-    toast({
-      title: "Update Rejected",
-      description: "The proposed change has been rejected.",
-      variant: "destructive",
-    });
+    rejectMutation.mutate(id);
   };
 
   const pendingCount = updates.filter(u => u.status === "pending").length;
   const approvedCount = updates.filter(u => u.status === "approved").length;
   const autoAppliedCount = updates.filter(u => u.status === "auto-applied").length;
+
+  const formatTimestamp = (timestamp: Date | string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
+    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+    return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <div className="container flex-1 py-8">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Loading updates...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -166,7 +190,18 @@ export default function Admin() {
                 .map(update => (
                   <UpdateCard
                     key={update.id}
-                    {...update}
+                    id={update.id}
+                    type={update.type}
+                    section={update.sectionId}
+                    summary={update.summary}
+                    source={update.source}
+                    timestamp={formatTimestamp(update.createdAt)}
+                    status={update.status}
+                    diff={
+                      update.diffBefore && update.diffAfter
+                        ? { before: update.diffBefore, after: update.diffAfter }
+                        : undefined
+                    }
                     onApprove={handleApprove}
                     onReject={handleReject}
                   />
@@ -178,7 +213,21 @@ export default function Admin() {
             {updates
               .filter(u => u.status === "approved")
               .map(update => (
-                <UpdateCard key={update.id} {...update} />
+                <UpdateCard
+                  key={update.id}
+                  id={update.id}
+                  type={update.type}
+                  section={update.sectionId}
+                  summary={update.summary}
+                  source={update.source}
+                  timestamp={formatTimestamp(update.createdAt)}
+                  status={update.status}
+                  diff={
+                    update.diffBefore && update.diffAfter
+                      ? { before: update.diffBefore, after: update.diffAfter }
+                      : undefined
+                  }
+                />
               ))}
           </TabsContent>
 
@@ -186,7 +235,16 @@ export default function Admin() {
             {updates
               .filter(u => u.status === "auto-applied")
               .map(update => (
-                <UpdateCard key={update.id} {...update} />
+                <UpdateCard
+                  key={update.id}
+                  id={update.id}
+                  type={update.type}
+                  section={update.sectionId}
+                  summary={update.summary}
+                  source={update.source}
+                  timestamp={formatTimestamp(update.createdAt)}
+                  status={update.status}
+                />
               ))}
           </TabsContent>
 
@@ -194,7 +252,18 @@ export default function Admin() {
             {updates.map(update => (
               <UpdateCard
                 key={update.id}
-                {...update}
+                id={update.id}
+                type={update.type}
+                section={update.sectionId}
+                summary={update.summary}
+                source={update.source}
+                timestamp={formatTimestamp(update.createdAt)}
+                status={update.status}
+                diff={
+                  update.diffBefore && update.diffAfter
+                    ? { before: update.diffBefore, after: update.diffAfter }
+                    : undefined
+                }
                 onApprove={update.status === "pending" ? handleApprove : undefined}
                 onReject={update.status === "pending" ? handleReject : undefined}
               />
@@ -205,3 +274,4 @@ export default function Admin() {
     </div>
   );
 }
+
