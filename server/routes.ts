@@ -38,6 +38,11 @@ const approveRejectBodySchema = z.object({
   reviewedBy: z.string().optional(),
 });
 
+const editUpdateBodySchema = z.object({
+  summary: z.string().optional(),
+  diffAfter: z.string().optional(),
+});
+
 const sectionIdSchema = z.object({
   sectionId: z.string().min(1),
 });
@@ -109,6 +114,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ error: error.message });
       }
       res.status(500).json({ error: "Failed to approve update" });
+    }
+  });
+
+  app.patch("/api/updates/:id", adminAuth, async (req, res) => {
+    try {
+      const paramsValidation = updateIdSchema.safeParse(req.params);
+      if (!paramsValidation.success) {
+        return res.status(400).json({ error: "Invalid update ID" });
+      }
+      
+      const bodyValidation = editUpdateBodySchema.safeParse(req.body);
+      if (!bodyValidation.success) {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      
+      const update = await storage.updatePendingUpdate(
+        paramsValidation.data.id,
+        bodyValidation.data
+      );
+      
+      if (!update) {
+        return res.status(404).json({ error: "Update not found" });
+      }
+      
+      res.json(update);
+    } catch (error: any) {
+      console.error("Error updating pending update:", error);
+      res.status(500).json({ error: "Failed to update pending update" });
     }
   });
 

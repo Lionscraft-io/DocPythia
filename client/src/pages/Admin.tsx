@@ -84,12 +84,41 @@ export default function Admin() {
     },
   });
 
+  const editMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { summary?: string; diffAfter?: string } }) => {
+      return await adminApiRequest("PATCH", `/api/updates/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/updates"] });
+      toast({
+        title: "Update Edited",
+        description: "The change proposal has been updated.",
+      });
+    },
+    onError: (error: any) => {
+      if (error.message.includes("401") || error.message.includes("403")) {
+        sessionStorage.removeItem("admin_token");
+        setLocation("/admin/login");
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to edit update.",
+          variant: "destructive",
+        });
+      }
+    },
+  });
+
   const handleApprove = (id: string) => {
     approveMutation.mutate(id);
   };
 
   const handleReject = (id: string) => {
     rejectMutation.mutate(id);
+  };
+
+  const handleEdit = (id: string, data: { summary?: string; diffAfter?: string }) => {
+    editMutation.mutate({ id, data });
   };
 
   const pendingCount = updates.filter(u => u.status === "pending").length;
@@ -204,6 +233,7 @@ export default function Admin() {
                     }
                     onApprove={handleApprove}
                     onReject={handleReject}
+                    onEdit={handleEdit}
                   />
                 ))
             )}

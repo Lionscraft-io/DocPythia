@@ -115,6 +115,18 @@ export class DatabaseStorage implements IStorage {
     return update || undefined;
   }
 
+  async updatePendingUpdate(
+    id: string,
+    data: { summary?: string; diffAfter?: string }
+  ): Promise<PendingUpdate | undefined> {
+    const [updated] = await db
+      .update(pendingUpdates)
+      .set(data)
+      .where(eq(pendingUpdates.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
   async createPendingUpdate(update: InsertPendingUpdate): Promise<PendingUpdate> {
     const [newUpdate] = await db
       .insert(pendingUpdates)

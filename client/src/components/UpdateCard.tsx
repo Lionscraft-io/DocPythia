@@ -1,7 +1,10 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, X, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, X, Clock, ChevronDown, ChevronUp, Edit } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useState } from "react";
 
 interface UpdateCardProps {
@@ -18,6 +21,7 @@ interface UpdateCardProps {
   };
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
+  onEdit?: (id: string, data: { summary?: string; diffAfter?: string }) => void;
 }
 
 export function UpdateCard({
@@ -31,8 +35,12 @@ export function UpdateCard({
   diff,
   onApprove,
   onReject,
+  onEdit,
 }: UpdateCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editedSummary, setEditedSummary] = useState(summary);
+  const [editedContent, setEditedContent] = useState(diff?.after || "");
 
   const statusConfig = {
     pending: { color: "bg-chart-3", icon: Clock, label: "Pending Review" },
@@ -64,6 +72,15 @@ export function UpdateCard({
         </div>
         {status === "pending" && (
           <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditOpen(true)}
+              data-testid={`button-edit-${id}`}
+            >
+              <Edit className="mr-1 h-4 w-4" />
+              Edit
+            </Button>
             <Button
               size="sm"
               variant="default"
@@ -135,6 +152,70 @@ export function UpdateCard({
           </div>
         )}
       </CardContent>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Change Proposal</DialogTitle>
+            <DialogDescription>
+              Modify the AI-generated content before approving.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-summary">Summary</Label>
+              <Textarea
+                id="edit-summary"
+                value={editedSummary}
+                onChange={(e) => setEditedSummary(e.target.value)}
+                rows={2}
+                data-testid="textarea-edit-summary"
+              />
+            </div>
+            {diff && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-content">
+                  {type === "delete" ? "Content to be deleted" : "New Content"}
+                </Label>
+                <Textarea
+                  id="edit-content"
+                  value={editedContent}
+                  onChange={(e) => setEditedContent(e.target.value)}
+                  rows={12}
+                  className="font-mono text-sm"
+                  data-testid="textarea-edit-content"
+                  disabled={type === "delete"}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditOpen(false);
+                setEditedSummary(summary);
+                setEditedContent(diff?.after || "");
+              }}
+              data-testid="button-cancel-edit"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                onEdit?.(id, {
+                  summary: editedSummary !== summary ? editedSummary : undefined,
+                  diffAfter: editedContent !== diff?.after ? editedContent : undefined,
+                });
+                setEditOpen(false);
+              }}
+              data-testid="button-save-edit"
+            >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
