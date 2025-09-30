@@ -31,7 +31,7 @@ export default function Documentation() {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
-        <div className="container flex-1 py-8">
+        <div className="container px-6 md:px-8 flex-1 py-8">
           <div className="flex items-center justify-center h-64">
             <p className="text-muted-foreground">Loading documentation...</p>
           </div>
@@ -44,7 +44,7 @@ export default function Documentation() {
     <div className="min-h-screen flex flex-col">
       <Header />
       
-      <div className="container flex-1 py-8">
+      <div className="container px-6 md:px-8 flex-1 py-8">
         <div className="flex items-center gap-2 mb-6">
           <Badge variant="outline" className="gap-1" data-testid="badge-ai-updated">
             <Bot className="h-3 w-3" />

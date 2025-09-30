@@ -12,7 +12,7 @@ export default function Home() {
       
       <main className="flex-1">
         <section className="relative py-20 md:py-32">
-          <div className="container">
+          <div className="container px-6 md:px-8">
             <div className="mx-auto max-w-3xl text-center space-y-6">
               <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl" data-testid="heading-hero">
                 NEAR Nodes
@@ -38,7 +38,7 @@ export default function Home() {
         </section>
 
         <section className="py-16 bg-muted/30">
-          <div className="container">
+          <div className="container px-6 md:px-8">
             <div className="mx-auto max-w-5xl">
               <h2 className="text-3xl font-bold text-center mb-12" data-testid="heading-node-types">
                 Node Types
@@ -68,7 +68,7 @@ export default function Home() {
         </section>
 
         <section className="py-16">
-          <div className="container">
+          <div className="container px-6 md:px-8">
             <div className="mx-auto max-w-5xl">
               <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold mb-4" data-testid="heading-ai-powered">
@@ -128,7 +128,7 @@ export default function Home() {
         </section>
 
         <section className="py-16 bg-card">
-          <div className="container">
+          <div className="container px-6 md:px-8">
             <div className="mx-auto max-w-3xl text-center space-y-6">
               <h2 className="text-3xl font-bold" data-testid="heading-cta">
                 Ready to run a NEAR node?
@@ -154,7 +154,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t py-8 mt-auto">
-        <div className="container">
+        <div className="container px-6 md:px-8">
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <p className="text-sm text-muted-foreground">
               © 2025 NEAR Nodes. Documentation powered by AI.

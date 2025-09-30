@@ -23,7 +23,7 @@ export default function AdminLogin() {
     <div className="min-h-screen flex flex-col">
       <Header />
       
-      <div className="container flex-1 flex items-center justify-center py-8">
+      <div className="container px-6 md:px-8 flex-1 flex items-center justify-center py-8">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">

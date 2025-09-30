@@ -11,7 +11,7 @@ interface HeaderProps {
 export function Header({ onMenuClick }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center gap-4">
+      <div className="container flex h-16 items-center gap-4 px-6 md:px-8">
         <Button
           variant="ghost"
           size="icon"
@@ -22,11 +22,11 @@ export function Header({ onMenuClick }: HeaderProps) {
           <Menu className="h-5 w-5" />
         </Button>
         
-        <Link href="/" className="flex items-center gap-2" data-testid="link-home">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-            <span className="text-lg font-bold text-primary-foreground">N</span>
+        <Link href="/" className="flex items-center gap-3" data-testid="link-home">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
+            <span className="text-xl font-bold text-primary-foreground">N</span>
           </div>
-          <span className="hidden font-bold sm:inline-block text-lg">NEAR Nodes</span>
+          <span className="hidden font-bold sm:inline-block text-xl">NEAR Nodes</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-6 flex-1">
