@@ -1,6 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info, AlertTriangle, CheckCircle2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface DocSection {
   id: string;
@@ -60,8 +62,10 @@ export function DocContent({ sections }: DocContentProps) {
                 </h3>
               )}
               {section.content && (
-                <div className="leading-relaxed whitespace-pre-line text-foreground" data-testid={`content-${section.id}`}>
-                  {section.content}
+                <div className="leading-relaxed text-foreground" data-testid={`content-${section.id}`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {section.content}
+                  </ReactMarkdown>
                 </div>
               )}
             </>
