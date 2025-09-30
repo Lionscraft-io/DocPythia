@@ -119,7 +119,7 @@ export default function Documentation() {
 
         {/* Right Content Area */}
         <main className="flex-1 overflow-y-auto" data-testid="main-content">
-          <div className="container max-w-4xl px-8 py-8">
+          <div className="max-w-5xl mx-auto px-8 py-8">
             <DocContent sections={formattedSections} />
           </div>
         </main>
