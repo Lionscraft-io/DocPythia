@@ -23,10 +23,12 @@ An AI-powered documentation website for NEAR validator operations that automatic
 
 ### Documentation System
 - Single-page documentation structure for easier AI content comparison
-- Hierarchical sections with levels and ordering
+- Content sourced from near-nodes.io with matching navigation structure
+- Hierarchical sections: NEAR Nodes Overview, Validator Node, RPC Node, Archival Node
+- Subsections include hardware requirements, setup guides, and best practices
 - Special content types: warnings, info, success callouts
 - Real-time updates from database
-- Table of contents with section navigation
+- Table of contents with section navigation and active highlighting
 
 ### Admin Dashboard
 - Secure token-based authentication
@@ -75,7 +77,14 @@ An AI-powered documentation website for NEAR validator operations that automatic
 
 ## Recent Changes (Sept 30, 2025)
 
-### Version Control & Rollback System (Latest)
+### Content Import from near-nodes.io (Latest)
+1. **Comprehensive Documentation**: Imported all content from near-nodes.io website
+2. **Navigation Structure**: Matches the original site's navbar with main sections (Validator Node, RPC Node, Archival Node)
+3. **Content Coverage**: Includes hardware requirements, setup guides, compilation instructions, and best practices
+4. **Import Script**: Created `server/scripts/import-near-nodes-content.ts` for populating database with structured content
+5. **Single-Page Format**: All content organized in hierarchical sections for easy navigation and AI analysis
+
+### Version Control & Rollback System
 1. **Complete Version History**: Every approved change creates a snapshot in section_versions table
 2. **Full Rollback Support**: Admins can revert any section to any previous version
 3. **Operation Tracking**: All operations (add/edit/delete/rollback) tracked with parent version links
