@@ -29,41 +29,39 @@ export default function Documentation() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="h-screen flex flex-col">
         <Header />
-        <div className="container px-6 md:px-8 flex-1 py-8">
-          <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">Loading documentation...</p>
-          </div>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Loading documentation...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col">
       <Header />
       
-      <div className="container px-6 md:px-8 flex-1 py-8">
-        <div className="flex items-center gap-2 mb-6">
-          <Badge variant="outline" className="gap-1" data-testid="badge-ai-updated">
-            <Bot className="h-3 w-3" />
-            AI-Updated
-          </Badge>
-          <span className="text-sm text-muted-foreground">Last updated 2 hours ago</span>
-        </div>
-
-        <div className="flex gap-8">
-          <main className="flex-1 max-w-3xl">
-            <DocContent sections={formattedSections} />
-          </main>
-
-          <aside className="hidden xl:block w-64 shrink-0">
-            <div className="sticky top-24">
-              <TableOfContents items={tocItems} activeId="overview" />
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Navigation Sidebar */}
+        <aside className="w-64 border-r bg-background overflow-y-auto" data-testid="sidebar-navigation">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Badge variant="outline" className="gap-1" data-testid="badge-ai-updated">
+                <Bot className="h-3 w-3" />
+                AI-Updated
+              </Badge>
             </div>
-          </aside>
-        </div>
+            <TableOfContents items={tocItems} activeId="overview" />
+          </div>
+        </aside>
+
+        {/* Right Content Area */}
+        <main className="flex-1 overflow-y-auto" data-testid="main-content">
+          <div className="container max-w-4xl px-8 py-8">
+            <DocContent sections={formattedSections} />
+          </div>
+        </main>
       </div>
     </div>
   );
