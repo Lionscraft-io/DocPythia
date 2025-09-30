@@ -24,9 +24,12 @@ export function Header({ onMenuClick }: HeaderProps) {
         
         <Link href="/" className="flex items-center gap-3" data-testid="link-home">
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
-            <span className="text-xl font-bold text-primary-foreground">N</span>
+            <span className="text-xl font-bold text-primary-foreground">K</span>
           </div>
-          <span className="hidden font-bold sm:inline-block text-xl">NEAR Nodes</span>
+          <div className="hidden sm:block">
+            <div className="font-bold text-xl">KNOW</div>
+            <div className="text-xs text-muted-foreground -mt-1">Knowledge for NEAR Operations & Workflows</div>
+          </div>
         </Link>
 
         <nav className="hidden md:flex items-center gap-6 flex-1">
