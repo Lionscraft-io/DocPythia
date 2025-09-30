@@ -70,11 +70,11 @@ export default function Documentation() {
             <div className="mb-6 space-y-2">
               <Badge variant="outline" className="gap-1" data-testid="badge-ai-updated">
                 <Bot className="h-3 w-3" />
-                AI-Updated
+                KNOW Agent
               </Badge>
               {lastUpdated && (
                 <p className="text-xs text-muted-foreground" data-testid="text-last-updated">
-                  Last AI-Agent update {formatTimeSince(lastUpdated)}
+                  Last update {formatTimeSince(lastUpdated)}
                 </p>
               )}
             </div>
