@@ -32,9 +32,11 @@ An AI-powered documentation website for NEAR validator operations that automatic
 - Secure token-based authentication
 - Pending updates review interface
 - Approve/reject workflow with diffs
+- Edit proposals before approval
 - Update history tracking
+- Version history and rollback system
 - Statistics and counts by status
-- Tabbed interface: Pending, Approved, Auto-Applied, All
+- Tabbed interface: Pending, Approved, Auto-Applied, History, All
 
 ### Database Schema
 - `documentation_sections`: Store all documentation content
@@ -47,6 +49,12 @@ An AI-powered documentation website for NEAR validator operations that automatic
   - diffBefore/diffAfter for comparison
   - For "add": sectionId is proposed, diffBefore is null
   - For "delete": diffAfter is null
+- `section_versions`: Version history snapshots
+  - Stores complete section state at each change
+  - op: add, edit, delete, rollback
+  - parentVersionId: links to previous version
+  - fromUpdateId: references originating update
+  - createdBy: tracks who made the change
 - `update_history`: Audit log of all actions
   - updateId (references pending_updates), action, performedBy
 - `scraped_messages`: Store messages from Zulipchat
@@ -67,7 +75,16 @@ An AI-powered documentation website for NEAR validator operations that automatic
 
 ## Recent Changes (Sept 30, 2025)
 
-### Incremental Scraping & AI Enhancements (Latest)
+### Version Control & Rollback System (Latest)
+1. **Complete Version History**: Every approved change creates a snapshot in section_versions table
+2. **Full Rollback Support**: Admins can revert any section to any previous version
+3. **Operation Tracking**: All operations (add/edit/delete/rollback) tracked with parent version links
+4. **Audit Trail**: Complete history with diffs between versions
+5. **History Tab**: New admin UI showing version timeline with visual diffs and one-click revert
+6. **Edit Before Approval**: Admins can modify AI-generated proposals before approving them
+7. **Deleted Section Recovery**: Rollback can restore previously deleted sections
+
+### Incremental Scraping & AI Enhancements
 1. **Incremental Scraping System**: Added scrape metadata tracking with lastMessageId for reliable incremental updates
 2. **Full Scrape Support**: Created performFullScrape() for initial bulk import (501 historical messages imported)
 3. **AI Add/Delete Sections**: Enhanced analyzer to suggest adding new sections and deleting outdated ones
