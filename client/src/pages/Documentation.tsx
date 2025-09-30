@@ -56,15 +56,20 @@ export default function Documentation() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActiveId(entry.target.id);
-          }
-        });
+        const intersecting = entries.filter(entry => entry.isIntersecting);
+        if (intersecting.length > 0) {
+          const topmost = intersecting.reduce((closest, entry) => {
+            const currentTop = entry.boundingClientRect.top;
+            const closestTop = closest.boundingClientRect.top;
+            return currentTop < closestTop ? entry : closest;
+          });
+          setActiveId(topmost.target.id);
+        }
       },
       {
-        rootMargin: "-20% 0px -70% 0px",
-        threshold: 0,
+        root: mainContent,
+        rootMargin: "0px 0px -80% 0px",
+        threshold: 0.01,
       }
     );
 
