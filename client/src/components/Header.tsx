@@ -32,9 +32,6 @@ export function Header({ onMenuClick }: HeaderProps) {
         </Link>
 
         <nav className="hidden md:flex items-center gap-6 flex-1">
-          <Link href="/docs" className="text-sm font-medium hover-elevate px-3 py-2 rounded-md" data-testid="link-docs">
-            Documentation
-          </Link>
           <Link href="/admin" className="text-sm font-medium text-muted-foreground hover-elevate px-3 py-2 rounded-md" data-testid="link-admin">
             Admin
           </Link>
