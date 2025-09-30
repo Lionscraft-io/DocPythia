@@ -125,24 +125,30 @@ Respond with JSON in this exact format:
         if (result.relevant && result.updateType && result.sectionId && result.summary) {
           relevantCount++;
           
-          // Create a pending update
+          // Validate section ID exists to prevent FK constraint failures
           const section = this.documentationSections.find(s => s.sectionId === result.sectionId);
           
+          if (!section) {
+            console.log(`  ⚠ Warning: AI returned unknown sectionId "${result.sectionId}". Converting to major update for manual review.`);
+            // Convert to major update and flag for manual review
+            result.updateType = "major";
+          }
+          
           await storage.createPendingUpdate({
-            sectionId: result.sectionId,
+            sectionId: section ? result.sectionId : this.documentationSections[0]?.sectionId || "introduction",
             type: result.updateType,
-            summary: result.summary,
+            summary: section ? result.summary : `[TRIAGE] AI suggested unknown section "${result.sectionId}". ${result.summary}`,
             source: `Zulipchat message from ${message.senderName} on ${message.messageTimestamp.toISOString()}`,
-            status: result.updateType === "minor" ? "auto-applied" : "pending",
+            status: result.updateType === "minor" && section ? "auto-applied" : "pending",
             diffBefore: section?.content || null,
             diffAfter: result.suggestedContent || null,
-            reviewedBy: result.updateType === "minor" ? "AI Auto-Approval" : null,
+            reviewedBy: result.updateType === "minor" && section ? "AI Auto-Approval" : null,
           });
           
           updatesCreated++;
-          console.log(`  ✓ Created ${result.updateType} update for section ${result.sectionId}`);
+          console.log(`  ✓ Created ${result.updateType} update for section ${section?.sectionId || "introduction"}`);
           
-          // Auto-apply minor updates
+          // Auto-apply minor updates only if section was valid
           if (result.updateType === "minor" && result.suggestedContent && section) {
             await storage.updateDocumentationSection(result.sectionId, result.suggestedContent);
             console.log(`  ✓ Auto-applied minor update`);
