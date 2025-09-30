@@ -10,6 +10,7 @@ export const updateTypeEnum = pgEnum("update_type", ["minor", "major", "add", "d
 export const updateStatusEnum = pgEnum("update_status", ["pending", "approved", "rejected", "auto-applied"]);
 export const actionTypeEnum = pgEnum("action_type", ["approved", "rejected", "auto-applied"]);
 export const messageSourceEnum = pgEnum("message_source", ["zulipchat", "telegram"]);
+export const versionOpEnum = pgEnum("version_op", ["add", "edit", "delete", "rollback"]);
 
 // Documentation sections table
 export const documentationSections = pgTable("documentation_sections", {
@@ -73,6 +74,23 @@ export const scrapeMetadata = pgTable("scrape_metadata", {
   totalMessagesFetched: integer("total_messages_fetched").notNull().default(0),
 });
 
+// Section versions table for rollback functionality
+export const sectionVersions = pgTable("section_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sectionId: text("section_id").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  level: integer("level"),
+  type: sectionTypeEnum("type"),
+  orderIndex: integer("order_index").notNull(),
+  op: versionOpEnum("op").notNull(),
+  parentVersionId: varchar("parent_version_id"),
+  fromUpdateId: varchar("from_update_id").references(() => pendingUpdates.id, { onDelete: "set null" }),
+  fromHistoryId: varchar("from_history_id").references(() => updateHistory.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdBy: text("created_by"),
+});
+
 // Relations
 export const documentationSectionsRelations = relations(documentationSections, ({ many }) => ({
   pendingUpdates: many(pendingUpdates),
@@ -95,6 +113,17 @@ export const updateHistoryRelations = relations(updateHistory, ({ one }) => ({
 
 export const scrapedMessagesRelations = relations(scrapedMessages, ({ many }) => ({
   pendingUpdates: many(pendingUpdates),
+}));
+
+export const sectionVersionsRelations = relations(sectionVersions, ({ one }) => ({
+  pendingUpdate: one(pendingUpdates, {
+    fields: [sectionVersions.fromUpdateId],
+    references: [pendingUpdates.id],
+  }),
+  updateHistory: one(updateHistory, {
+    fields: [sectionVersions.fromHistoryId],
+    references: [updateHistory.id],
+  }),
 }));
 
 // Insert schemas
@@ -124,6 +153,11 @@ export const insertScrapeMetadataSchema = createInsertSchema(scrapeMetadata).omi
   lastScrapeAt: true,
 });
 
+export const insertSectionVersionSchema = createInsertSchema(sectionVersions).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type DocumentationSection = typeof documentationSections.$inferSelect;
 export type InsertDocumentationSection = z.infer<typeof insertDocumentationSectionSchema>;
@@ -139,3 +173,6 @@ export type InsertScrapedMessage = z.infer<typeof insertScrapedMessageSchema>;
 
 export type ScrapeMetadata = typeof scrapeMetadata.$inferSelect;
 export type InsertScrapeMetadata = z.infer<typeof insertScrapeMetadataSchema>;
+
+export type SectionVersion = typeof sectionVersions.$inferSelect;
+export type InsertSectionVersion = z.infer<typeof insertSectionVersionSchema>;

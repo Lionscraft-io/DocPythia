@@ -5,6 +5,7 @@ import {
   updateHistory,
   scrapedMessages,
   scrapeMetadata,
+  sectionVersions,
   type DocumentationSection,
   type InsertDocumentationSection,
   type PendingUpdate,
@@ -15,6 +16,8 @@ import {
   type InsertScrapedMessage,
   type ScrapeMetadata,
   type InsertScrapeMetadata,
+  type SectionVersion,
+  type InsertSectionVersion,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -47,6 +50,11 @@ export interface IStorage {
   // Update history
   createUpdateHistory(history: InsertUpdateHistory): Promise<UpdateHistory>;
   getUpdateHistory(): Promise<UpdateHistory[]>;
+  
+  // Section versions
+  createSectionVersion(version: InsertSectionVersion): Promise<SectionVersion>;
+  getSectionHistory(sectionId: string): Promise<SectionVersion[]>;
+  rollbackSection(sectionId: string, versionId: string, performedBy?: string): Promise<{ section: DocumentationSection; version: SectionVersion }>;
   
   // Scraped messages
   getScrapedMessages(): Promise<ScrapedMessage[]>;
@@ -168,6 +176,112 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(updateHistory.performedAt));
   }
 
+  // Section versions
+  async createSectionVersion(version: InsertSectionVersion): Promise<SectionVersion> {
+    const [newVersion] = await db
+      .insert(sectionVersions)
+      .values(version)
+      .returning();
+    return newVersion;
+  }
+
+  async getSectionHistory(sectionId: string): Promise<SectionVersion[]> {
+    return await db
+      .select()
+      .from(sectionVersions)
+      .where(eq(sectionVersions.sectionId, sectionId))
+      .orderBy(desc(sectionVersions.createdAt));
+  }
+
+  async rollbackSection(
+    sectionId: string,
+    versionId: string,
+    performedBy?: string
+  ): Promise<{ section: DocumentationSection; version: SectionVersion }> {
+    return await db.transaction(async (tx) => {
+      // Get the target version to restore
+      const [targetVersion] = await tx
+        .select()
+        .from(sectionVersions)
+        .where(eq(sectionVersions.id, versionId));
+
+      if (!targetVersion) {
+        throw new Error("Version not found");
+      }
+
+      if (targetVersion.sectionId !== sectionId) {
+        throw new Error("Version does not belong to this section");
+      }
+
+      // Get latest version before rollback for parentVersionId
+      const [latestVersion] = await tx
+        .select()
+        .from(sectionVersions)
+        .where(eq(sectionVersions.sectionId, sectionId))
+        .orderBy(desc(sectionVersions.createdAt))
+        .limit(1);
+
+      // Check if section currently exists
+      const [existingSection] = await tx
+        .select()
+        .from(documentationSections)
+        .where(eq(documentationSections.sectionId, sectionId));
+
+      let section: DocumentationSection;
+
+      if (existingSection) {
+        // Update existing section
+        const [updated] = await tx
+          .update(documentationSections)
+          .set({
+            title: targetVersion.title,
+            content: targetVersion.content,
+            level: targetVersion.level,
+            type: targetVersion.type,
+            orderIndex: targetVersion.orderIndex,
+            updatedAt: new Date(),
+          })
+          .where(eq(documentationSections.sectionId, sectionId))
+          .returning();
+        section = updated;
+      } else {
+        // Reinsert deleted section
+        const [newSection] = await tx
+          .insert(documentationSections)
+          .values({
+            sectionId: targetVersion.sectionId,
+            title: targetVersion.title,
+            content: targetVersion.content,
+            level: targetVersion.level,
+            type: targetVersion.type,
+            orderIndex: targetVersion.orderIndex,
+          })
+          .returning();
+        section = newSection;
+      }
+
+      // Create rollback version snapshot
+      const [rollbackVersion] = await tx
+        .insert(sectionVersions)
+        .values({
+          sectionId: targetVersion.sectionId,
+          title: targetVersion.title,
+          content: targetVersion.content,
+          level: targetVersion.level,
+          type: targetVersion.type,
+          orderIndex: targetVersion.orderIndex,
+          op: "rollback",
+          parentVersionId: latestVersion?.id || null,
+          fromUpdateId: null,
+          fromHistoryId: null,
+          createdBy: performedBy || null,
+        })
+        .returning();
+
+      return { section, version: rollbackVersion };
+    });
+  }
+
   // Transactional approval: apply documentation change, update status, and log history
   async approveUpdate(
     updateId: string,
@@ -189,8 +303,17 @@ export class DatabaseStorage implements IStorage {
         throw new Error("Cannot approve update: status must be pending");
       }
 
+      // Get latest version for parentVersionId
+      const [latestVersion] = await tx
+        .select()
+        .from(sectionVersions)
+        .where(eq(sectionVersions.sectionId, update.sectionId))
+        .orderBy(desc(sectionVersions.createdAt))
+        .limit(1);
+
       // Handle different operation types
       let section: DocumentationSection | undefined;
+      let versionOp: "add" | "edit" | "delete";
       
       if (update.type === "add") {
         // Create a new section
@@ -217,9 +340,10 @@ export class DatabaseStorage implements IStorage {
           })
           .returning();
         section = newSection;
+        versionOp = "add";
         
       } else if (update.type === "delete") {
-        // Delete an existing section
+        // Delete an existing section - capture snapshot before deletion
         const [existing] = await tx
           .select()
           .from(documentationSections)
@@ -230,8 +354,9 @@ export class DatabaseStorage implements IStorage {
         }
         
         section = existing;
+        versionOp = "delete";
         
-        // Delete the section
+        // Delete the section AFTER we have the snapshot
         await tx
           .delete(documentationSections)
           .where(eq(documentationSections.sectionId, update.sectionId));
@@ -256,6 +381,7 @@ export class DatabaseStorage implements IStorage {
         if (!section) {
           throw new Error("Documentation section not found");
         }
+        versionOp = "edit";
       }
 
       // Mark update as approved
@@ -278,6 +404,23 @@ export class DatabaseStorage implements IStorage {
           performedBy: reviewedBy || null,
         })
         .returning();
+
+      // Create version snapshot
+      await tx
+        .insert(sectionVersions)
+        .values({
+          sectionId: section.sectionId,
+          title: section.title,
+          content: section.content,
+          level: section.level,
+          type: section.type,
+          orderIndex: section.orderIndex,
+          op: versionOp,
+          parentVersionId: latestVersion?.id || null,
+          fromUpdateId: updateId,
+          fromHistoryId: newHistory.id,
+          createdBy: reviewedBy || null,
+        });
 
       return { update: approvedUpdate, section, history: newHistory };
     });

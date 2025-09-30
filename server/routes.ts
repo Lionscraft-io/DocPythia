@@ -47,6 +47,11 @@ const sectionIdSchema = z.object({
   sectionId: z.string().min(1),
 });
 
+const rollbackBodySchema = z.object({
+  versionId: z.string().uuid(),
+  performedBy: z.string().optional(),
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Documentation routes (public)
   app.get("/api/docs", async (req, res) => {
@@ -74,6 +79,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching section:", error);
       res.status(500).json({ error: "Failed to fetch section" });
+    }
+  });
+
+  // Section version history routes (admin only)
+  app.get("/api/sections/:sectionId/history", adminAuth, async (req, res) => {
+    try {
+      const validation = sectionIdSchema.safeParse(req.params);
+      if (!validation.success) {
+        return res.status(400).json({ error: "Invalid section ID" });
+      }
+      
+      const history = await storage.getSectionHistory(validation.data.sectionId);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching section history:", error);
+      res.status(500).json({ error: "Failed to fetch section history" });
+    }
+  });
+
+  app.post("/api/sections/:sectionId/rollback", adminAuth, async (req, res) => {
+    try {
+      const paramsValidation = sectionIdSchema.safeParse(req.params);
+      if (!paramsValidation.success) {
+        return res.status(400).json({ error: "Invalid section ID" });
+      }
+      
+      const bodyValidation = rollbackBodySchema.safeParse(req.body);
+      if (!bodyValidation.success) {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      
+      const result = await storage.rollbackSection(
+        paramsValidation.data.sectionId,
+        bodyValidation.data.versionId,
+        bodyValidation.data.performedBy
+      );
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error rolling back section:", error);
+      if (error.message === "Version not found") {
+        return res.status(404).json({ error: error.message });
+      }
+      if (error.message === "Version does not belong to this section") {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: "Failed to rollback section" });
     }
   });
 

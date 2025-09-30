@@ -1,18 +1,21 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Header } from "@/components/Header";
 import { UpdateCard } from "@/components/UpdateCard";
+import { VersionHistoryCard } from "@/components/VersionHistoryCard";
 import { StatsCard } from "@/components/StatsCard";
-import { FileText, CheckCircle2, Clock } from "lucide-react";
+import { FileText, CheckCircle2, Clock, History } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, adminApiRequest, getQueryFn } from "@/lib/queryClient";
-import type { PendingUpdate } from "@shared/schema";
+import type { PendingUpdate, DocumentationSection, SectionVersion } from "@shared/schema";
 
 export default function Admin() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [selectedSection, setSelectedSection] = useState<string>("");
   
   useEffect(() => {
     const token = sessionStorage.getItem("admin_token");
@@ -24,6 +27,16 @@ export default function Admin() {
   const { data: updates = [], isLoading, error } = useQuery<PendingUpdate[]>({
     queryKey: ["/api/updates"],
     queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+  });
+
+  const { data: sections = [] } = useQuery<DocumentationSection[]>({
+    queryKey: ["/api/docs"],
+  });
+
+  const { data: history = [] } = useQuery<SectionVersion[]>({
+    queryKey: [`/api/sections/${selectedSection}/history`],
+    queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+    enabled: !!selectedSection,
   });
 
   useEffect(() => {
@@ -121,6 +134,38 @@ export default function Admin() {
     editMutation.mutate({ id, data });
   };
 
+  const rollbackMutation = useMutation({
+    mutationFn: async ({ sectionId, versionId }: { sectionId: string; versionId: string }) => {
+      return await adminApiRequest("POST", `/api/sections/${sectionId}/rollback`, { versionId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/docs"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/sections/${selectedSection}/history`] });
+      toast({
+        title: "Version Restored",
+        description: "The documentation section has been rolled back successfully.",
+      });
+    },
+    onError: (error: any) => {
+      if (error.message.includes("401") || error.message.includes("403")) {
+        sessionStorage.removeItem("admin_token");
+        setLocation("/admin/login");
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to rollback section.",
+          variant: "destructive",
+        });
+      }
+    },
+  });
+
+  const handleRevert = (versionId: string) => {
+    if (selectedSection) {
+      rollbackMutation.mutate({ sectionId: selectedSection, versionId });
+    }
+  };
+
   const pendingCount = updates.filter(u => u.status === "pending").length;
   const approvedCount = updates.filter(u => u.status === "approved").length;
   const autoAppliedCount = updates.filter(u => u.status === "auto-applied").length;
@@ -203,6 +248,10 @@ export default function Admin() {
             <TabsTrigger value="auto-applied" data-testid="tab-auto-applied">
               Auto-Applied
             </TabsTrigger>
+            <TabsTrigger value="history" data-testid="tab-history">
+              <History className="mr-1 h-4 w-4" />
+              History
+            </TabsTrigger>
             <TabsTrigger value="all" data-testid="tab-all">
               All Updates
             </TabsTrigger>
@@ -276,6 +325,53 @@ export default function Admin() {
                   status={update.status}
                 />
               ))}
+          </TabsContent>
+
+          <TabsContent value="history" className="space-y-4">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Select Section</label>
+                <Select value={selectedSection} onValueChange={setSelectedSection}>
+                  <SelectTrigger data-testid="select-section">
+                    <SelectValue placeholder="Choose a documentation section" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sections.map(section => (
+                      <SelectItem key={section.sectionId} value={section.sectionId}>
+                        {section.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedSection && (
+                <>
+                  {history.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-muted-foreground">No version history available</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {history.map((version, index) => (
+                        <VersionHistoryCard
+                          key={version.id}
+                          version={version}
+                          previousVersion={history[index + 1]}
+                          onRevert={handleRevert}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!selectedSection && (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">Select a section to view its version history</p>
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="all" className="space-y-4">
