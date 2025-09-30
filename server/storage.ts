@@ -3,15 +3,18 @@ import {
   documentationSections,
   pendingUpdates,
   updateHistory,
+  scrapedMessages,
   type DocumentationSection,
   type InsertDocumentationSection,
   type PendingUpdate,
   type InsertPendingUpdate,
   type UpdateHistory,
   type InsertUpdateHistory,
+  type ScrapedMessage,
+  type InsertScrapedMessage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
   // Documentation sections
@@ -41,6 +44,13 @@ export interface IStorage {
   // Update history
   createUpdateHistory(history: InsertUpdateHistory): Promise<UpdateHistory>;
   getUpdateHistory(): Promise<UpdateHistory[]>;
+  
+  // Scraped messages
+  getScrapedMessages(): Promise<ScrapedMessage[]>;
+  getUnanalyzedMessages(): Promise<ScrapedMessage[]>;
+  createScrapedMessage(message: InsertScrapedMessage): Promise<ScrapedMessage>;
+  markMessageAsAnalyzed(id: string): Promise<ScrapedMessage | undefined>;
+  getMessageByMessageId(messageId: string): Promise<ScrapedMessage | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -250,6 +260,47 @@ export class DatabaseStorage implements IStorage {
 
       return { update: rejectedUpdate, history: newHistory };
     });
+  }
+
+  // Scraped messages
+  async getScrapedMessages(): Promise<ScrapedMessage[]> {
+    return await db
+      .select()
+      .from(scrapedMessages)
+      .orderBy(desc(scrapedMessages.messageTimestamp));
+  }
+
+  async getUnanalyzedMessages(): Promise<ScrapedMessage[]> {
+    return await db
+      .select()
+      .from(scrapedMessages)
+      .where(eq(scrapedMessages.analyzed, false))
+      .orderBy(scrapedMessages.messageTimestamp);
+  }
+
+  async createScrapedMessage(message: InsertScrapedMessage): Promise<ScrapedMessage> {
+    const [newMessage] = await db
+      .insert(scrapedMessages)
+      .values(message)
+      .returning();
+    return newMessage;
+  }
+
+  async markMessageAsAnalyzed(id: string): Promise<ScrapedMessage | undefined> {
+    const [updated] = await db
+      .update(scrapedMessages)
+      .set({ analyzed: true })
+      .where(eq(scrapedMessages.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getMessageByMessageId(messageId: string): Promise<ScrapedMessage | undefined> {
+    const [message] = await db
+      .select()
+      .from(scrapedMessages)
+      .where(eq(scrapedMessages.messageId, messageId));
+    return message || undefined;
   }
 }
 

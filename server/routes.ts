@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
+import { createZulipchatScraperFromEnv } from "./scraper/zulipchat";
 
 // Admin authentication middleware
 const adminAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -146,6 +147,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching history:", error);
       res.status(500).json({ error: "Failed to fetch history" });
+    }
+  });
+
+  // Scraped messages routes (admin only)
+  app.get("/api/messages", adminAuth, async (req, res) => {
+    try {
+      const messages = await storage.getScrapedMessages();
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
+
+  app.get("/api/messages/unanalyzed", adminAuth, async (req, res) => {
+    try {
+      const messages = await storage.getUnanalyzedMessages();
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching unanalyzed messages:", error);
+      res.status(500).json({ error: "Failed to fetch unanalyzed messages" });
+    }
+  });
+
+  // Scraper endpoint (admin only)
+  app.post("/api/scrape", adminAuth, async (req, res) => {
+    try {
+      const scraper = createZulipchatScraperFromEnv();
+      
+      if (!scraper) {
+        return res.status(500).json({ 
+          error: "Zulipchat scraper not configured. Please set ZULIP_BOT_EMAIL and ZULIP_API_KEY environment variables." 
+        });
+      }
+
+      // Test connection first to fail fast on bad credentials
+      const connectionOk = await scraper.testConnection();
+      if (!connectionOk) {
+        return res.status(500).json({ 
+          error: "Failed to connect to Zulipchat. Please check your credentials." 
+        });
+      }
+
+      const bodyValidation = z.object({
+        channel: z.string().default("community-support"),
+        numMessages: z.coerce.number().int().positive().default(100),
+      }).safeParse(req.body);
+
+      if (!bodyValidation.success) {
+        return res.status(400).json({ error: "Invalid request body", details: bodyValidation.error });
+      }
+
+      const { channel, numMessages } = bodyValidation.data;
+      
+      console.log(`Starting scrape of ${channel} channel...`);
+      const storedCount = await scraper.scrapeAndStoreMessages(channel, numMessages);
+      
+      res.json({ 
+        success: true, 
+        channel, 
+        requestedMessages: numMessages,
+        storedMessages: storedCount,
+        message: `Successfully scraped and stored ${storedCount} new messages from ${channel}` 
+      });
+    } catch (error: any) {
+      console.error("Error during scraping:", error);
+      res.status(500).json({ error: "Failed to scrape messages", details: error.message });
     }
   });
 

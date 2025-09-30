@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -9,6 +9,7 @@ export const sectionTypeEnum = pgEnum("section_type", ["text", "info", "warning"
 export const updateTypeEnum = pgEnum("update_type", ["minor", "major"]);
 export const updateStatusEnum = pgEnum("update_status", ["pending", "approved", "rejected", "auto-applied"]);
 export const actionTypeEnum = pgEnum("action_type", ["approved", "rejected", "auto-applied"]);
+export const messageSourceEnum = pgEnum("message_source", ["zulipchat", "telegram"]);
 
 // Documentation sections table
 export const documentationSections = pgTable("documentation_sections", {
@@ -46,6 +47,21 @@ export const updateHistory = pgTable("update_history", {
   performedBy: text("performed_by"),
 });
 
+// Scraped messages table
+export const scrapedMessages = pgTable("scraped_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: text("message_id").notNull().unique(),
+  source: messageSourceEnum("source").notNull(),
+  channelName: text("channel_name").notNull(),
+  topicName: text("topic_name"),
+  senderEmail: text("sender_email"),
+  senderName: text("sender_name"),
+  content: text("content").notNull(),
+  messageTimestamp: timestamp("message_timestamp").notNull(),
+  scrapedAt: timestamp("scraped_at").notNull().defaultNow(),
+  analyzed: boolean("analyzed").notNull().default(false),
+});
+
 // Relations
 export const documentationSectionsRelations = relations(documentationSections, ({ many }) => ({
   pendingUpdates: many(pendingUpdates),
@@ -66,6 +82,10 @@ export const updateHistoryRelations = relations(updateHistory, ({ one }) => ({
   }),
 }));
 
+export const scrapedMessagesRelations = relations(scrapedMessages, ({ many }) => ({
+  pendingUpdates: many(pendingUpdates),
+}));
+
 // Insert schemas
 export const insertDocumentationSectionSchema = createInsertSchema(documentationSections).omit({
   id: true,
@@ -83,6 +103,11 @@ export const insertUpdateHistorySchema = createInsertSchema(updateHistory).omit(
   performedAt: true,
 });
 
+export const insertScrapedMessageSchema = createInsertSchema(scrapedMessages).omit({
+  id: true,
+  scrapedAt: true,
+});
+
 // Types
 export type DocumentationSection = typeof documentationSections.$inferSelect;
 export type InsertDocumentationSection = z.infer<typeof insertDocumentationSectionSchema>;
@@ -92,3 +117,6 @@ export type InsertPendingUpdate = z.infer<typeof insertPendingUpdateSchema>;
 
 export type UpdateHistory = typeof updateHistory.$inferSelect;
 export type InsertUpdateHistory = z.infer<typeof insertUpdateHistorySchema>;
+
+export type ScrapedMessage = typeof scrapedMessages.$inferSelect;
+export type InsertScrapedMessage = z.infer<typeof insertScrapedMessageSchema>;
