@@ -77,7 +77,16 @@ An AI-powered documentation website for NEAR validator operations that automatic
 
 ## Recent Changes (Sept 30, 2025)
 
-### Comprehensive Content Import from near-nodes.io (Latest - Sept 30, 2025)
+### UI Improvements (Latest - Sept 30, 2025)
+1. **Markdown Rendering**: Added react-markdown and remark-gfm for proper markdown parsing
+   - Content now correctly displays headers, bold text, tables, lists, and code blocks
+   - GitHub-flavored markdown support for enhanced formatting
+2. **Hierarchical Navigation**: Updated Table of Contents to show proper indentation
+   - Level 1 sections (main categories) displayed in bold without indentation
+   - Level 2 sections (subsections) indented with medium font weight
+   - Clear visual hierarchy in the navigation sidebar
+
+### Comprehensive Content Import from near-nodes.io (Sept 30, 2025)
 1. **Complete Documentation Import**: Successfully imported ALL content from near-nodes.io covering 24 comprehensive sections
 2. **Main Topics (5 sections)**:
    - Overview: Introduction to NEAR node types
