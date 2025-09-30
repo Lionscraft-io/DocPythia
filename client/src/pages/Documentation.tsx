@@ -74,7 +74,7 @@ export default function Documentation() {
               </Badge>
               {lastUpdated && (
                 <p className="text-xs text-muted-foreground" data-testid="text-last-updated">
-                  Last updated {formatTimeSince(lastUpdated)}
+                  Last AI-Agent update {formatTimeSince(lastUpdated)}
                 </p>
               )}
             </div>
