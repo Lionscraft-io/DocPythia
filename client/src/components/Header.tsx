@@ -3,6 +3,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { Search, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import logoPath from "@assets/Near_logo.svg_1759241297990.png";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -23,9 +24,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         </Button>
         
         <Link href="/" className="flex items-center gap-3" data-testid="link-home">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
-            <span className="text-xl font-bold text-primary-foreground">K</span>
-          </div>
+          <img src={logoPath} alt="NEAR Logo" className="h-9 w-9" />
           <div className="hidden sm:block">
             <div className="font-bold text-xl">KNOW</div>
             <div className="text-xs text-muted-foreground -mt-1">Knowledge for NEAR Operations & Workflows</div>
