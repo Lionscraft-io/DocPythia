@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { createZulipchatScraperFromEnv } from "./scraper/zulipchat";
+import { createAnalyzerFromEnv } from "./analyzer/openai-analyzer";
 
 // Admin authentication middleware
 const adminAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -214,6 +215,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error during scraping:", error);
       res.status(500).json({ error: "Failed to scrape messages", details: error.message });
+    }
+  });
+
+  // Analyzer endpoint (admin only)
+  app.post("/api/analyze", adminAuth, async (req, res) => {
+    try {
+      const analyzer = createAnalyzerFromEnv();
+      
+      if (!analyzer) {
+        return res.status(500).json({ 
+          error: "OpenAI analyzer not configured. Please set OPENAI_API_KEY environment variable." 
+        });
+      }
+
+      const bodyValidation = z.object({
+        limit: z.coerce.number().int().positive().default(10),
+      }).safeParse(req.body);
+
+      if (!bodyValidation.success) {
+        return res.status(400).json({ error: "Invalid request body", details: bodyValidation.error });
+      }
+
+      const { limit } = bodyValidation.data;
+      
+      console.log(`Starting analysis of up to ${limit} unanalyzed messages...`);
+      const results = await analyzer.analyzeUnanalyzedMessages(limit);
+      
+      res.json({ 
+        success: true,
+        ...results,
+        message: `Analyzed ${results.analyzed} messages. Found ${results.relevant} relevant updates. Created ${results.updatesCreated} pending updates.`
+      });
+    } catch (error: any) {
+      console.error("Error during analysis:", error);
+      res.status(500).json({ error: "Failed to analyze messages", details: error.message });
     }
   });
 
