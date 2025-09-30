@@ -22,9 +22,10 @@ export function TableOfContents({ items, activeId }: TableOfContentsProps) {
             href={`#${item.id}`}
             className={cn(
               "block text-sm hover-elevate rounded-md px-2 py-1.5 transition-colors",
+              item.level === 1 && "font-bold",
               item.level === 3 && "pl-4",
               activeId === item.id
-                ? "font-medium text-primary"
+                ? "text-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}
             data-testid={`link-toc-${item.id}`}

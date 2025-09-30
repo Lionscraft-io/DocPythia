@@ -4,9 +4,11 @@ import { TableOfContents } from "@/components/TableOfContents";
 import { Badge } from "@/components/ui/badge";
 import { Bot } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import type { DocumentationSection } from "@shared/schema";
 
 export default function Documentation() {
+  const [activeId, setActiveId] = useState<string>("");
   const { data: sections = [], isLoading } = useQuery<DocumentationSection[]>({
     queryKey: ["/api/docs"],
   });
@@ -48,6 +50,32 @@ export default function Documentation() {
     return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
   };
 
+  useEffect(() => {
+    const mainContent = document.querySelector('[data-testid="main-content"]');
+    if (!mainContent) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveId(entry.target.id);
+          }
+        });
+      },
+      {
+        rootMargin: "-20% 0px -70% 0px",
+        threshold: 0,
+      }
+    );
+
+    const headings = mainContent.querySelectorAll('[id]');
+    headings.forEach((heading) => observer.observe(heading));
+
+    return () => {
+      headings.forEach((heading) => observer.unobserve(heading));
+    };
+  }, [sections]);
+
   if (isLoading) {
     return (
       <div className="h-screen flex flex-col">
@@ -80,7 +108,7 @@ export default function Documentation() {
                 </p>
               )}
             </div>
-            <TableOfContents items={tocItems} activeId="overview" />
+            <TableOfContents items={tocItems} activeId={activeId} />
           </div>
         </aside>
 
