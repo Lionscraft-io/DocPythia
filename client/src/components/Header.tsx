@@ -24,7 +24,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         </Button>
         
         <Link href="/" className="flex items-center gap-3" data-testid="link-home">
-          <img src={logoPath} alt="NEAR Logo" className="h-9 w-9" />
+          <img src={logoPath} alt="NEAR Logo" className="h-8 w-auto" />
           <div className="hidden sm:block">
             <div className="font-bold text-xl">KNOW</div>
             <div className="text-xs text-muted-foreground -mt-1">Knowledge for NEAR Operations & Workflows</div>
