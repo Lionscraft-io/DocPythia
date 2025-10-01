@@ -77,11 +77,21 @@ An AI-powered documentation website for NEAR validator operations that automatic
 
 ## Recent Changes (Sept 30, 2025)
 
-### UI Improvements (Latest - Sept 30, 2025)
-1. **Markdown Rendering**: Added react-markdown and remark-gfm for proper markdown parsing
+### UI Improvements (Latest - Oct 1, 2025)
+1. **Search Functionality**: Implemented full-text search across documentation
+   - Real-time filtering of sections by title and content (case-insensitive)
+   - Search results counter showing number of matching sections
+   - Empty state message when no results found
+   - Table of contents updates dynamically with filtered results
+   - Performance optimized with memoization
+2. **Content Layout**: Improved documentation readability
+   - Increased content width from 896px to 1024px for better use of space
+   - Centered content with reduced white space
+   - Responsive design maintained across screen sizes
+3. **Markdown Rendering**: Added react-markdown and remark-gfm for proper markdown parsing
    - Content now correctly displays headers, bold text, tables, lists, and code blocks
    - GitHub-flavored markdown support for enhanced formatting
-2. **Hierarchical Navigation**: Updated Table of Contents to show proper indentation
+4. **Hierarchical Navigation**: Updated Table of Contents to show proper indentation
    - Level 1 sections (main categories) displayed in bold without indentation
    - Level 2 sections (subsections) indented with medium font weight
    - Clear visual hierarchy in the navigation sidebar
