@@ -4,24 +4,38 @@ import { TableOfContents } from "@/components/TableOfContents";
 import { Badge } from "@/components/ui/badge";
 import { Bot } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { DocumentationSection } from "@shared/schema";
 
 export default function Documentation() {
   const [activeId, setActiveId] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const { data: sections = [], isLoading } = useQuery<DocumentationSection[]>({
     queryKey: ["/api/docs"],
   });
 
-  const formattedSections = sections.map((section) => ({
-    id: section.sectionId,
-    title: section.title,
-    content: section.content,
-    level: section.level ?? undefined,
-    type: section.type ?? undefined,
-  }));
+  const formattedSections = useMemo(() => 
+    sections.map((section) => ({
+      id: section.sectionId,
+      title: section.title,
+      content: section.content,
+      level: section.level ?? undefined,
+      type: section.type ?? undefined,
+    })), [sections]
+  );
 
-  const tocItems = formattedSections
+  // Filter sections based on search query
+  const filteredSections = useMemo(() => {
+    if (!searchQuery.trim()) return formattedSections;
+    
+    const searchLower = searchQuery.toLowerCase();
+    return formattedSections.filter((section) =>
+      section.title.toLowerCase().includes(searchLower) ||
+      section.content.toLowerCase().includes(searchLower)
+    );
+  }, [formattedSections, searchQuery]);
+
+  const tocItems = filteredSections
     .filter((s) => s.level && s.level <= 3 && !s.type)
     .map((s) => ({
       id: s.id,
@@ -79,12 +93,12 @@ export default function Documentation() {
     return () => {
       headings.forEach((heading) => observer.unobserve(heading));
     };
-  }, [sections]);
+  }, [filteredSections]);
 
   if (isLoading) {
     return (
       <div className="h-screen flex flex-col">
-        <Header />
+        <Header searchValue={searchQuery} onSearchChange={setSearchQuery} />
         <div className="flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">Loading documentation...</p>
         </div>
@@ -94,7 +108,7 @@ export default function Documentation() {
 
   return (
     <div className="h-screen flex flex-col">
-      <Header />
+      <Header searchValue={searchQuery} onSearchChange={setSearchQuery} />
       
       <div className="flex-1 flex overflow-hidden">
         {/* Left Navigation Sidebar */}
@@ -120,7 +134,27 @@ export default function Documentation() {
         {/* Right Content Area */}
         <main className="flex-1 overflow-y-auto" data-testid="main-content">
           <div className="max-w-5xl mx-auto px-8 py-8">
-            <DocContent sections={formattedSections} />
+            {searchQuery && filteredSections.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">
+                  No results found for "{searchQuery}"
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Try a different search term
+                </p>
+              </div>
+            ) : (
+              <>
+                {searchQuery && (
+                  <div className="mb-6">
+                    <p className="text-sm text-muted-foreground" data-testid="text-search-results">
+                      Found {filteredSections.length} result{filteredSections.length !== 1 ? 's' : ''} for "{searchQuery}"
+                    </p>
+                  </div>
+                )}
+                <DocContent sections={filteredSections} />
+              </>
+            )}
           </div>
         </main>
       </div>

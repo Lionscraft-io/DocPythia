@@ -7,9 +7,11 @@ import logoPath from "@assets/Near_logo.svg_1759241297990.png";
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
 }
 
-export function Header({ onMenuClick }: HeaderProps) {
+export function Header({ onMenuClick, searchValue = "", onSearchChange }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center gap-4 px-6 md:px-8">
@@ -45,6 +47,8 @@ export function Header({ onMenuClick }: HeaderProps) {
               placeholder="Search documentation..."
               className="pl-9"
               data-testid="input-search"
+              value={searchValue}
+              onChange={(e) => onSearchChange?.(e.target.value)}
             />
           </div>
           <ThemeToggle />
