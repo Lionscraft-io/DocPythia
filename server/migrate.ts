@@ -21,6 +21,9 @@ export async function initializeDatabase() {
     }
 
     console.log('✅ Database initialized successfully');
+
+    // Check if we need to seed initial data
+    await seedInitialDataIfNeeded();
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);
 
@@ -29,10 +32,48 @@ export async function initializeDatabase() {
       console.log('🔄 Attempting to push schema directly...');
       await pushSchema();
       console.log('✅ Schema pushed successfully');
+
+      // Try to seed after successful schema push
+      await seedInitialDataIfNeeded();
     } catch (pushError) {
       console.error('❌ Schema push failed:', pushError.message);
       throw new Error(`Database initialization failed: ${error.message}`);
     }
+  }
+}
+
+async function seedInitialDataIfNeeded() {
+  try {
+    // Check if documentation sections table has data
+    const { documentationSections } = await import('./schema');
+    const { count, sql } = await import('drizzle-orm');
+
+    const result = await db.select({ count: count() }).from(documentationSections);
+    const sectionCount = result[0]?.count || 0;
+
+    if (sectionCount === 0) {
+      console.log('📦 No documentation found, importing initial content...');
+
+      // Check if import script exists
+      const importScriptPath = path.join(process.cwd(), 'server', 'scripts', 'import-near-nodes-content.ts');
+
+      if (fs.existsSync(importScriptPath)) {
+        const { execSync } = await import('child_process');
+        console.log('🚀 Running import script...');
+        execSync('npx tsx server/scripts/import-near-nodes-content.ts', {
+          stdio: 'inherit',
+          cwd: process.cwd()
+        });
+        console.log('✅ Initial documentation imported successfully');
+      } else {
+        console.log('⚠️  Import script not found, skipping initial data seed');
+      }
+    } else {
+      console.log(`✓ Found ${sectionCount} existing documentation sections, skipping import`);
+    }
+  } catch (error) {
+    console.error('⚠️  Warning: Could not check/seed initial data:', error.message);
+    console.log('   You can manually populate data using: POST /api/trigger-job');
   }
 }
 

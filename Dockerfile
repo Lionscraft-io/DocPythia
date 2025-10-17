@@ -39,13 +39,9 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Copy startup script and server scripts for initialization
-COPY scripts/permanent/startup.sh ./scripts/permanent/startup.sh
+# Copy server scripts for potential runtime initialization
 COPY server ./server
 COPY shared ./shared
-
-# Make startup script executable
-RUN chmod +x ./scripts/permanent/startup.sh
 
 # Create a non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -53,6 +49,7 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Change ownership of the app directory
 RUN chown -R nextjs:nodejs /app
+
 USER nextjs
 
 # Expose the port that App Runner expects
@@ -67,5 +64,5 @@ ENV WIDGET_DOMAIN=https://euk5cmmqyr.eu-central-1.awsapprunner.com
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8080/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-# Start the application with initialization
-CMD ["./scripts/permanent/startup.sh"]
+# Start the application
+CMD ["node", "dist/index.js"]
