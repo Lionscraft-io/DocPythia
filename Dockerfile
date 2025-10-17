@@ -21,7 +21,8 @@ ARG WIDGET_DOMAIN=https://euk5cmmqyr.eu-central-1.awsapprunner.com
 ENV VITE_WIDGET_DOMAIN=$WIDGET_DOMAIN
 
 # Build the application (use production vite config, then esbuild with config)
-RUN npx vite build --config vite.config.production.ts && \
+RUN npx tailwindcss -i ./client/src/index.css -o ./client/src/output.css --minify && \
+    npx vite build --config vite.config.production.ts && \
     node esbuild.config.js
 
 # Production stage
