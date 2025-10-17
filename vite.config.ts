@@ -31,6 +31,9 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
+  css: {
+    postcss: path.resolve(import.meta.dirname, "postcss.config.js"),
+  },
   server: {
     fs: {
       strict: true,

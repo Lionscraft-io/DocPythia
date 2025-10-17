@@ -18,4 +18,7 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
   },
+  css: {
+    postcss: path.resolve(__dirname, "postcss.config.js"),
+  },
 });
