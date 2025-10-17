@@ -1,12 +1,17 @@
 import type { Config } from "tailwindcss";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default {
   darkMode: ["class"],
   content: [
-    // Paths relative to Vite root (which is ./client)
-    "./**/*.{html,js,jsx,ts,tsx}",
-    "./index.html",
-    "./src/**/*.{js,jsx,ts,tsx}",
+    // Absolute paths from project root to client directory
+    join(__dirname, "client/**/*.{html,js,jsx,ts,tsx}"),
+    join(__dirname, "client/index.html"),
+    join(__dirname, "client/src/**/*.{js,jsx,ts,tsx}"),
   ],
   theme: {
     extend: {
