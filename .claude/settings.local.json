@@ -13,7 +13,9 @@
       "Bash(git mv:*)",
       "Bash(mv:*)",
       "Bash(cp:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(npx vite build:*)",
+      "Bash(node esbuild.config.js)"
     ],
     "deny": [],
     "ask": []

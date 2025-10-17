@@ -18,7 +18,7 @@ All new features must include:
 /docs/specs/               - Technical specifications
 /docs/stories/             - Feature stories
 /docs/temp/           - New or unclassified docs → `/docs/temp/` until approved
-/scripts/permanent/   - Long-term scripts
+/scripts/permanent/   - Long-term scripts which will be reused
 /scripts/new/         - New or in-review scripts
 /scripts/claude/      - AI-generated or experimental scripts
 /docs/                - Approved documentation

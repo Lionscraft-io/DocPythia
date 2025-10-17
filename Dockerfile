@@ -16,9 +16,9 @@ COPY . .
 # Set production environment for build
 ENV NODE_ENV=production
 
-# Add build argument for domain (defaults to production domain)
-ARG WIDGET_DOMAIN=https://experthub.lionscraft.io
-ENV WIDGET_DOMAIN=$WIDGET_DOMAIN
+# Add build argument for domain (defaults to App Runner domain)
+ARG WIDGET_DOMAIN=https://euk5cmmqyr.eu-central-1.awsapprunner.com
+ENV VITE_WIDGET_DOMAIN=$WIDGET_DOMAIN
 
 # Build the application (use production vite config, then esbuild with config)
 RUN npx vite build --config vite.config.production.ts && \
@@ -39,6 +39,14 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
+# Copy startup script and server scripts for initialization
+COPY scripts/permanent/startup.sh ./scripts/permanent/startup.sh
+COPY server ./server
+COPY shared ./shared
+
+# Make startup script executable
+RUN chmod +x ./scripts/permanent/startup.sh
+
 # Create a non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
@@ -53,11 +61,11 @@ EXPOSE 8080
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=8080
-ENV WIDGET_DOMAIN=https://experthub.lionscraft.io
+ENV WIDGET_DOMAIN=https://euk5cmmqyr.eu-central-1.awsapprunner.com
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8080/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-# Start the application
-CMD ["node", "dist/index.js"]
+# Start the application with initialization
+CMD ["./scripts/permanent/startup.sh"]
