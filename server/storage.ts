@@ -18,7 +18,7 @@ import {
   type InsertScrapeMetadata,
   type SectionVersion,
   type InsertSectionVersion,
-} from "@shared/schema";
+} from "./schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 

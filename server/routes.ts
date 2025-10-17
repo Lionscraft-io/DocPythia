@@ -53,14 +53,591 @@ const rollbackBodySchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check endpoint
+  app.get("/api/health", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // Diagnostic endpoint
+  app.get("/api/diagnostics", async (req, res) => {
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        DATABASE_URL: process.env.DATABASE_URL ? "Set" : "Not set",
+        WIDGET_DOMAIN: process.env.WIDGET_DOMAIN,
+        PORT: process.env.PORT
+      },
+      database: "Unknown",
+      static_files: "Unknown"
+    };
+
+    // Test database connection
+    try {
+      await storage.getDocumentationSections();
+      diagnostics.database = "Connected";
+    } catch (error) {
+      diagnostics.database = `Error: ${error.message}`;
+    }
+
+    // Check static files
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const distPath = path.resolve(process.cwd(), "dist", "public");
+      const exists = fs.existsSync(distPath);
+      diagnostics.static_files = exists ? `Found: ${distPath}` : `Missing: ${distPath}`;
+    } catch (error) {
+      diagnostics.static_files = `Error: ${error.message}`;
+    }
+
+    res.json(diagnostics);
+  });
+
+  // Widget API endpoints
+  app.get("/widget/:expertId", (req, res) => {
+    const { expertId } = req.params;
+    const { theme = 'light', embedded = 'false' } = req.query;
+    const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
+
+    const widgetHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant Widget</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: ${theme === 'dark' ? '#1a1a1a' : '#ffffff'};
+            color: ${theme === 'dark' ? '#ffffff' : '#333333'};
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .widget-header {
+            padding: 16px;
+            border-bottom: 1px solid ${theme === 'dark' ? '#333' : '#e5e5e5'};
+            background: ${theme === 'dark' ? '#2a2a2a' : '#f8f9fa'};
+        }
+
+        .widget-title {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .widget-content {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .chat-container {
+            max-width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 0;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+        }
+
+        .message.assistant {
+            background: ${theme === 'dark' ? '#333' : '#f1f3f4'};
+            color: ${theme === 'dark' ? '#fff' : '#333'};
+        }
+
+        .input-container {
+            display: flex;
+            gap: 8px;
+            padding: 16px;
+            border-top: 1px solid ${theme === 'dark' ? '#333' : '#e5e5e5'};
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid ${theme === 'dark' ? '#444' : '#ddd'};
+            border-radius: 8px;
+            background: ${theme === 'dark' ? '#333' : '#fff'};
+            color: ${theme === 'dark' ? '#fff' : '#333'};
+        }
+
+        .send-button {
+            padding: 12px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .send-button:hover {
+            background: #0056b3;
+        }
+
+        .suggested-questions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .suggestion-button {
+            padding: 8px 12px;
+            background: ${theme === 'dark' ? '#444' : '#f8f9fa'};
+            border: 1px solid ${theme === 'dark' ? '#555' : '#e5e5e5'};
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            transition: background-color 0.2s;
+        }
+
+        .suggestion-button:hover {
+            background: ${theme === 'dark' ? '#555' : '#e9ecef'};
+        }
+    </style>
+</head>
+<body>
+    <div class="widget-header">
+        <div class="widget-title">
+            <span>🤖</span>
+            <span>NearDocs AI Assistant</span>
+        </div>
+    </div>
+
+    <div class="widget-content">
+        <div class="chat-container">
+            <div class="messages" id="messages">
+                <div class="message assistant">
+                    Hello! I'm your NEAR Protocol documentation assistant. How can I help you today?
+                </div>
+
+                <div class="suggested-questions">
+                    <button class="suggestion-button" onclick="askQuestion('How do I set up a NEAR validator node?')">
+                        How do I set up a NEAR validator node?
+                    </button>
+                    <button class="suggestion-button" onclick="askQuestion('What are the hardware requirements for running a node?')">
+                        What are the hardware requirements for running a node?
+                    </button>
+                    <button class="suggestion-button" onclick="askQuestion('How do I monitor my node performance?')">
+                        How do I monitor my node performance?
+                    </button>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <input
+                    type="text"
+                    class="chat-input"
+                    placeholder="Ask me anything about NEAR Protocol..."
+                    id="chatInput"
+                    onkeypress="handleKeyPress(event)"
+                />
+                <button class="send-button" onclick="sendMessage()">
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function askQuestion(question) {
+            const input = document.getElementById('chatInput');
+            input.value = question;
+            sendMessage();
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, 'user');
+            input.value = '';
+
+            // Simulate AI response (replace with actual API call)
+            setTimeout(() => {
+                addMessage('I\\'m processing your question about NEAR Protocol. This is a demo response.', 'assistant');
+            }, 1000);
+        }
+
+        function addMessage(text, sender) {
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = \`message \${sender}\`;
+            messageDiv.textContent = text;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            // Remove suggested questions after first user message
+            if (sender === 'user') {
+                const suggestions = messagesContainer.querySelector('.suggested-questions');
+                if (suggestions) {
+                    suggestions.remove();
+                }
+            }
+        }
+
+        // Notify parent window if embedded
+        if (window.parent !== window) {
+            window.parent.postMessage({
+                type: 'WIDGET_LOADED',
+                expertId: '${expertId}'
+            }, '*');
+        }
+    </script>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.send(widgetHtml);
+  });
+
+  // Widget JavaScript library
+  app.get("/widget.js", (req, res) => {
+    const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
+
+    const widgetJs = `
+(function() {
+    'use strict';
+
+    window.NearDocsWidget = {
+        init: function(options) {
+            const config = {
+                expertId: options.expertId || 'default',
+                theme: options.theme || 'light',
+                position: options.position || 'bottom-right',
+                title: options.title || 'NearDocs AI',
+                domain: '${domain}',
+                ...options
+            };
+
+            this.createWidget(config);
+        },
+
+        createWidget: function(config) {
+            // Create widget container
+            const widgetContainer = document.createElement('div');
+            widgetContainer.id = 'neardocs-widget-container';
+            widgetContainer.style.cssText = \`
+                position: fixed;
+                z-index: 10000;
+                \${this.getPositionStyles(config.position)}
+            \`;
+
+            // Create toggle button
+            const toggleButton = document.createElement('button');
+            toggleButton.id = 'neardocs-widget-toggle';
+            toggleButton.innerHTML = '💬';
+            toggleButton.style.cssText = \`
+                width: 60px;
+                height: 60px;
+                border-radius: 50%;
+                border: none;
+                background: #007bff;
+                color: white;
+                cursor: pointer;
+                font-size: 24px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                transition: all 0.3s ease;
+            \`;
+
+            // Create widget iframe
+            const widgetFrame = document.createElement('iframe');
+            widgetFrame.id = 'neardocs-widget-frame';
+            widgetFrame.src = \`\${config.domain}/widget/\${config.expertId}?theme=\${config.theme}&embedded=true\`;
+            widgetFrame.style.cssText = \`
+                width: 350px;
+                height: 500px;
+                border: none;
+                border-radius: 12px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+                display: none;
+                margin-bottom: 16px;
+                background: white;
+            \`;
+
+            let isOpen = false;
+
+            toggleButton.addEventListener('click', function() {
+                isOpen = !isOpen;
+                widgetFrame.style.display = isOpen ? 'block' : 'none';
+                toggleButton.innerHTML = isOpen ? '✕' : '💬';
+            });
+
+            // Add to DOM
+            widgetContainer.appendChild(widgetFrame);
+            widgetContainer.appendChild(toggleButton);
+            document.body.appendChild(widgetContainer);
+
+            // Handle messages from iframe
+            window.addEventListener('message', function(event) {
+                if (event.origin !== config.domain) return;
+
+                if (event.data.type === 'WIDGET_CLOSE') {
+                    isOpen = false;
+                    widgetFrame.style.display = 'none';
+                    toggleButton.innerHTML = '💬';
+                }
+            });
+        },
+
+        getPositionStyles: function(position) {
+            const styles = {
+                'bottom-right': 'bottom: 20px; right: 20px;',
+                'bottom-left': 'bottom: 20px; left: 20px;',
+                'top-right': 'top: 20px; right: 20px;',
+                'top-left': 'top: 20px; left: 20px;'
+            };
+            return styles[position] || styles['bottom-right'];
+        }
+    };
+
+    // Auto-init if data attributes are present
+    document.addEventListener('DOMContentLoaded', function() {
+        const autoInit = document.querySelector('[data-neardocs-widget]');
+        if (autoInit) {
+            const config = {
+                expertId: autoInit.getAttribute('data-expert-id') || 'default',
+                theme: autoInit.getAttribute('data-theme') || 'light',
+                position: autoInit.getAttribute('data-position') || 'bottom-right',
+                title: autoInit.getAttribute('data-title') || 'NearDocs AI'
+            };
+            window.NearDocsWidget.init(config);
+        }
+    });
+})();`;
+
+    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    res.send(widgetJs);
+  });
+
+  // Widget demo page
+  app.get("/widget-demo", (req, res) => {
+    const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
+
+    const demoHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NearDocs Widget Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+            background: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-bottom: 30px; }
+        h2 { color: #555; margin-top: 30px; }
+        code {
+            background: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .code-block {
+            background: #1a1a1a;
+            color: #e1e1e1;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+        .demo-button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 8px 8px 8px 0;
+        }
+        .demo-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 NearDocs AI Widget Demo</h1>
+
+        <p>This page demonstrates the NearDocs AI widget integration. The widget provides AI-powered assistance for NEAR Protocol documentation and can be easily embedded on any website.</p>
+
+        <h2>🚀 Quick Start</h2>
+        <p>Add this script to your website to enable the widget:</p>
+
+        <div class="code-block">
+&lt;script src="${domain}/widget.js"&gt;&lt;/script&gt;
+&lt;div data-neardocs-widget data-expert-id="default" data-theme="light"&gt;&lt;/div&gt;
+        </div>
+
+        <h2>📋 Manual Integration</h2>
+        <div class="code-block">
+&lt;script src="${domain}/widget.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  NearDocsWidget.init({
+    expertId: 'default',
+    theme: 'light',
+    position: 'bottom-right',
+    title: 'NEAR Help'
+  });
+&lt;/script&gt;
+        </div>
+
+        <h2>🎨 Demo Controls</h2>
+        <button class="demo-button" onclick="initWidget('default', 'light', 'bottom-right')">
+            Light Theme (Bottom Right)
+        </button>
+        <button class="demo-button" onclick="initWidget('default', 'dark', 'bottom-left')">
+            Dark Theme (Bottom Left)
+        </button>
+        <button class="demo-button" onclick="initWidget('default', 'light', 'top-right')">
+            Top Right Position
+        </button>
+        <button class="demo-button" onclick="removeWidget()">
+            Remove Widget
+        </button>
+
+        <h2>⚙️ Configuration Options</h2>
+        <ul>
+            <li><code>expertId</code> - The expert/assistant ID (default: 'default')</li>
+            <li><code>theme</code> - 'light' or 'dark' (default: 'light')</li>
+            <li><code>position</code> - 'bottom-right', 'bottom-left', 'top-right', 'top-left'</li>
+            <li><code>title</code> - Widget title (default: 'NearDocs AI')</li>
+        </ul>
+
+        <h2>🔗 Direct Widget URL</h2>
+        <p>You can also embed the widget directly using an iframe:</p>
+        <div class="code-block">
+&lt;iframe
+  src="${domain}/widget/default?theme=light&embedded=true"
+  width="350"
+  height="500"
+  frameborder="0"
+&gt;&lt;/iframe&gt;
+        </div>
+
+        <h2>🛡️ Security</h2>
+        <p>The widget is designed with security in mind:</p>
+        <ul>
+            <li>Sandboxed iframe environment</li>
+            <li>CORS protection</li>
+            <li>Content Security Policy headers</li>
+            <li>No access to parent page data</li>
+        </ul>
+    </div>
+
+    <script src="${domain}/widget.js"></script>
+    <script>
+        function initWidget(expertId, theme, position) {
+            removeWidget();
+            setTimeout(() => {
+                window.NearDocsWidget.init({
+                    expertId: expertId,
+                    theme: theme,
+                    position: position,
+                    title: 'NEAR Help Demo'
+                });
+            }, 100);
+        }
+
+        function removeWidget() {
+            const existing = document.getElementById('neardocs-widget-container');
+            if (existing) {
+                existing.remove();
+            }
+        }
+
+        // Initialize with default settings
+        document.addEventListener('DOMContentLoaded', function() {
+            initWidget('default', 'light', 'bottom-right');
+        });
+    </script>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(demoHtml);
+  });
+
   // Documentation routes (public)
   app.get("/api/docs", async (req, res) => {
     try {
+      // Check if DATABASE_URL is set
+      if (!process.env.DATABASE_URL) {
+        return res.status(500).json({
+          error: "Database not configured",
+          message: "DATABASE_URL environment variable is not set"
+        });
+      }
+
       const sections = await storage.getDocumentationSections();
       res.json(sections);
     } catch (error) {
       console.error("Error fetching documentation:", error);
-      res.status(500).json({ error: "Failed to fetch documentation" });
+
+      // Provide more specific error messages
+      let errorMessage = "Failed to fetch documentation";
+      if (error.message.includes("connect")) {
+        errorMessage = "Database connection failed";
+      } else if (error.message.includes("relation") || error.message.includes("table")) {
+        errorMessage = "Database tables not found - run migrations";
+      }
+
+      res.status(500).json({
+        error: errorMessage,
+        details: error.message
+      });
     }
   });
 

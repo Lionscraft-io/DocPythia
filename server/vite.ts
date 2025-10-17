@@ -1,12 +1,25 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
-import viteConfig from "../vite.config";
-import { nanoid } from "nanoid";
 
-const viteLogger = createLogger();
+// These imports are only available in development
+let createViteServer: any;
+let createLogger: any;
+let nanoid: any;
+
+// Dynamically import development dependencies
+async function loadDevDependencies() {
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await import("vite");
+    const nanoidModule = await import("nanoid");
+    createViteServer = vite.createServer;
+    createLogger = vite.createLogger;
+    nanoid = nanoidModule.nanoid;
+  }
+}
+
+let viteLogger: any;
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -20,15 +33,24 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
+  // This function should only be called in development
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("setupVite should not be called in production");
+  }
+
+  // Load development dependencies
+  await loadDevDependencies();
+  viteLogger = createLogger();
+
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
     allowedHosts: true as const,
   };
 
+  // Create vite server with config file discovery
   const vite = await createViteServer({
-    ...viteConfig,
-    configFile: false,
+    configFile: "vite.config.ts",
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
@@ -46,8 +68,7 @@ export async function setupVite(app: Express, server: Server) {
 
     try {
       const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "..",
+        process.cwd(),
         "client",
         "index.html",
       );
@@ -68,7 +89,7 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  const distPath = path.resolve(process.cwd(), "dist", "public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(

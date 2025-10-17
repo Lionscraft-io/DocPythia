@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { storage } from "../storage";
-import type { ScrapedMessage, DocumentationSection } from "@shared/schema";
+import type { ScrapedMessage, DocumentationSection } from "../schema";
 
 export interface AnalysisResult {
   relevant: boolean;

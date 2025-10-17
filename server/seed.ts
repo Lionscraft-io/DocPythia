@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { documentationSections, type InsertDocumentationSection } from "@shared/schema";
+import { documentationSections, type InsertDocumentationSection } from "./schema";
 
 const sections: InsertDocumentationSection[] = [
   {

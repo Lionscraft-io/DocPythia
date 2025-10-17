@@ -1,7 +1,11 @@
+// Load environment variables FIRST
+import "./env";
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startScheduler } from "./scheduler";
+import { initializeDatabase } from "./migrate";
 
 const app = express();
 app.use(express.json());
@@ -38,6 +42,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize database first
+  await initializeDatabase();
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
