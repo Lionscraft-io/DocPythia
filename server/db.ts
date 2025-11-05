@@ -1,9 +1,6 @@
-// Database configuration - supports both local PostgreSQL and Neon serverless
-import pg from 'pg';
-import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
-import * as schema from "./schema";
-
-const { Client } = pg;
+// Database configuration - Prisma Client
+// Migrated from Drizzle ORM - Wayne (2025-10-29)
+import { PrismaClient } from '@prisma/client';
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -11,29 +8,10 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Determine if we're using Neon serverless or local PostgreSQL
-const isNeonServerless = process.env.DATABASE_URL.includes('neon.tech') ||
-                         process.env.DATABASE_URL.includes('neon.database.host');
+// Create singleton Prisma Client instance
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+});
 
-let db;
-
-if (isNeonServerless) {
-  // Use Neon serverless configuration (dynamic import for optional dependency)
-  const { Pool, neonConfig } = await import('@neondatabase/serverless');
-  const { drizzle } = await import('drizzle-orm/neon-serverless');
-  const ws = await import("ws");
-
-  neonConfig.webSocketConstructor = ws.default;
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  db = drizzle({ client: pool, schema });
-} else {
-  // Use standard PostgreSQL configuration
-  const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-  });
-
-  await client.connect();
-  db = drizzleNodePostgres({ client, schema });
-}
-
-export { db };
+export { prisma as db };
+export default prisma;

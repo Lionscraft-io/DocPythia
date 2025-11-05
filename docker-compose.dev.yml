@@ -1,0 +1,29 @@
+version: '3.8'
+
+# Development docker-compose override
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # PostgreSQL database for development
+  db:
+    ports:
+      - "${DB_PORT:-5433}:5432"  # Expose DB on host port 5433 to avoid conflicts
+
+  # NearDocsAI application in development mode
+  app:
+    build:
+      context: .
+      target: builder  # Use builder stage for dev (has dev dependencies)
+    command: npm run dev
+    volumes:
+      # Mount source code for hot reload
+      - ./client:/app/client
+      - ./server:/app/server
+      - ./shared:/app/shared
+      - ./package.json:/app/package.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./vite.config.ts:/app/vite.config.ts
+      # Exclude node_modules to use container's version
+      - /app/node_modules
+    environment:
+      NODE_ENV: development

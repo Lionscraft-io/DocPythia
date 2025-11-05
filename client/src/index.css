@@ -91,6 +91,20 @@
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
+  /* Admin Dashboard CSS Variables */
+  --bg-base: #f9fafb;
+  --bg-surface: #ffffff;
+  --bg-accent: #eef2ff;
+  --border-color: #e5e7eb;
+  --text-main: #1f2937;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --radius-md: 0.5rem;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.08);
+
   /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
 
   /* Fallback for older browsers */
@@ -238,7 +252,8 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply text-foreground font-sans antialiased;
+    background: var(--bg-base);
   }
 }
 
@@ -351,5 +366,24 @@
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
+  }
+
+  /* Admin Dashboard Custom Styles */
+  .admin-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease-in-out;
+  }
+
+  .admin-card:hover {
+    box-shadow: var(--shadow-md);
+  }
+
+  .admin-badge {
+    border-radius: 0.375rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
   }
 }

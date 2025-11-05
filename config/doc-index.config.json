@@ -1,0 +1,197 @@
+{
+  "includePatterns": [
+    "docs/**/*.md",
+    "guides/**/*.md",
+    "api/**/*.md",
+    "tutorials/**/*.md"
+  ],
+  "excludePatterns": [
+    "**/node_modules/**",
+    "**/build/**",
+    "**/dist/**",
+    "**/_*.md",
+    "**/CONTRIBUTING.md",
+    "**/README.md"
+  ],
+  "excludeTitles": [
+    "Skip to main content",
+    "Quick Links",
+    "Resources",
+    "Community",
+    "Developers",
+    "Copyright"
+  ],
+  "maxPages": 50,
+  "maxSectionsPerPage": 5,
+  "maxSummaryLength": 150,
+  "compactFormat": {
+    "includeSummaries": false,
+    "includeSections": true,
+    "maxSectionsInCompact": 3
+  },
+  "documentationHierarchy": {
+    "overview": [
+      "Conflux Basics > What is Conflux?",
+      "Conflux Basics > Consensus > Proof of Work",
+      "Conflux Basics > Consensus > The Tree-Graph",
+      "Conflux Basics > Consensus > GHAST",
+      "Conflux Basics > Consensus > Proof of Stake > PoS Technical Overview",
+      "Conflux Basics > Consensus > Proof of Stake > Why Introducing PoS?",
+      "Conflux Basics > Consensus > Proof of Stake > Penalties and Slashing",
+      "Conflux Basics > Glossary",
+      "Conflux Basics > Economics",
+      "Conflux Basics > Ecosystem"
+    ],
+    "core_concepts": [
+      "Spaces",
+      "Wallets",
+      "Smart Contracts",
+      "Transactions",
+      "Accounts and Addresses",
+      "Gas and Fees > Base Fee",
+      "Conflux Governance > Governance Overview",
+      "Conflux Governance > CIPs"
+    ],
+    "user_guides": [
+      "Transferring Funds > Across Spaces",
+      "Transferring Funds > Across Chains",
+      "Transferring Funds > Zero Gravity",
+      "Transferring Funds > Meson",
+      "Transferring Funds > From Exchanges > Binance",
+      "Transferring Funds > From Exchanges > OKX",
+      "Wallets > Fluent",
+      "Wallets > Ledger"
+    ],
+    "run_a_node": [
+      "Overview",
+      "Running a Node",
+      "Node Types",
+      "Snapshot Tool",
+      "Upgrade a Node",
+      "Advanced > Downloading the Conflux Client",
+      "Advanced > Compiling the Conflux Client",
+      "Advanced > Node Configuration",
+      "Advanced > Configuration Files",
+      "Advanced > CLI Sub-commands",
+      "Advanced > Official Bootnodes",
+      "Advanced > Running a Light Node",
+      "Advanced > Running a Full Node",
+      "Advanced > Running an Archive Node",
+      "Advanced > Running an Independent Chain",
+      "Nodes FAQs",
+      "Troubleshooting"
+    ],
+    "mining_and_staking": [
+      "PoW Mining > Mining Using External Mining Software",
+      "PoW Mining > Running a Mining Node",
+      "PoS Staking > PoS Staking Overview",
+      "PoS Staking > Become a Solo Validator",
+      "PoS Staking > Staking Through a PoS Pool",
+      "PoS Staking > Running a PoS Staking Pool",
+      "PoS Staking > Run a PoS Node on AWS",
+      "PoS Staking > Safe Node Restart Procedure"
+    ],
+    "hard_forks": [
+      "v2.0",
+      "v2.1",
+      "v2.3",
+      "v2.4",
+      "v3.0"
+    ],
+    "smart_contracts": [
+      "Smart Contracts Development",
+      "Merkle Tree",
+      "Solidity Basics",
+      "Token Standards",
+      "Smart Contract Security > Access Control Vulnerabilities",
+      "Smart Contract Security > Bad Randomness",
+      "Smart Contract Security > Bypass Contract Check",
+      "Smart Contract Security > Denial of Service Attacks",
+      "Smart Contract Security > Safe Downcasting",
+      "Smart Contract Security > ERC20 Transfer Issues",
+      "Smart Contract Security > Excessive Function Restrictions",
+      "Smart Contract Security > Flashloan Governance Attacks",
+      "Smart Contract Security > Improper Input Validation",
+      "Smart Contract Security > Balance Accounting",
+      "Smart Contract Security > msg.value in Loops",
+      "Smart Contract Security > Integer Overflow",
+      "Smart Contract Security > Price Manipulation",
+      "Smart Contract Security > Private Variables Security",
+      "Smart Contract Security > Re-entrancy Attacks",
+      "Smart Contract Security > Selector Collision Attack",
+      "Smart Contract Security > Signature Replay Attacks",
+      "Smart Contract Security > Tx Origin Attacks",
+      "Smart Contract Security > Unchecked Low-Level Calls"
+    ],
+    "gas_optimization": [
+      "Memory vs Calldata",
+      "Comparison Operators",
+      "Using Assembly to Revert with an Error Message",
+      "Using Assembly for Math Operations",
+      "Reducing Gas Costs through Reduction of Non-Zero Bytes",
+      "Bitmap & Bitwise Operation",
+      "Bytes32 vs String",
+      "Clone vs New/Create2",
+      "Constant vs Immutable",
+      "ResetVariable",
+      "ERC20Permit",
+      "Error",
+      "Fixed-Size/Dynamic Arrays",
+      "Better Increment",
+      "Efficient Initialization",
+      "Local Variables",
+      "Mapping vs Dynamic Array",
+      "MethodId Optimization",
+      "MethodId Sort Optimization",
+      "Modifiers vs Internal Functions",
+      "Use Monolithic Contract Architecture",
+      "Implement Multicall in Router-like Contracts",
+      "Non-Zero Balances",
+      "Alternatives to OpenZeppelin",
+      "Packing",
+      "Predicting Contract Addresses Using Account Nonce",
+      "Low-Cost Reentrancy Guard",
+      "Using selfdestruct in Constructors",
+      "Short-Circuiting",
+      "SSTORE2",
+      "Efficient Use of Storage Pointers",
+      "Optimize Timestamps and Block Numbers",
+      "Uint Types Gas Comparison",
+      "Unchecked",
+      "Using Assembly for Function Calls",
+      "Using SUB or XOR Instead of ISZERO(EQ)",
+      "Using Vanity Address",
+      "Using Payable",
+      "UUPS vs Transparent Proxy"
+    ],
+    "tools": [
+      "use-wallet",
+      "Web3 Paywall"
+    ],
+    "nfts": [
+      "IPFS Overview",
+      "Uploading Files to IPFS using Pinata"
+    ],
+    "grants": [
+      "Open Technical Grants"
+    ],
+    "node_development": [
+      "The Conflux Consensus Layer Design and Implementation",
+      "Rigorous Testing Tools for Conflux",
+      "Stratum Protocol in Conflux-Rust",
+      "Block Synchronization Process",
+      "Test Framework",
+      "Introduction to Transaction Traces"
+    ],
+    "faq": [
+      "Community FAQs",
+      "Additional Resources > Papers",
+      "Additional Resources > Articles",
+      "Additional Resources > Videos"
+    ],
+    "contributing": [
+      "How to Contribute",
+      "Reward Guidelines"
+    ]
+  }
+}

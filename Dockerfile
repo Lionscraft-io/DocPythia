@@ -13,6 +13,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Generate Prisma Client from schema
+RUN npx prisma generate
+
 # Set production environment for build
 ENV NODE_ENV=production
 
@@ -21,8 +24,7 @@ ARG WIDGET_DOMAIN=https://euk5cmmqyr.eu-central-1.awsapprunner.com
 ENV VITE_WIDGET_DOMAIN=$WIDGET_DOMAIN
 
 # Build the application (use production vite config, then esbuild with config)
-RUN npx tailwindcss -i ./client/src/index.css -o ./client/src/output.css --minify && \
-    npx vite build --config vite.config.production.ts && \
+RUN npx vite build --config vite.config.production.ts && \
     node esbuild.config.js
 
 # Production stage
@@ -34,8 +36,14 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
+# Copy Prisma schema and migrations for database initialization
+COPY prisma ./prisma
+
 # Install only production dependencies
 RUN npm ci --only=production && npm cache clean --force
+
+# Generate Prisma Client in production stage
+RUN npx prisma generate
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
@@ -47,6 +55,10 @@ COPY shared ./shared
 # Create a non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
+
+# Create cache directory for LLM responses
+RUN mkdir -p /cache/llm && \
+    chown -R nextjs:nodejs /cache
 
 # Change ownership of the app directory
 RUN chown -R nextjs:nodejs /app

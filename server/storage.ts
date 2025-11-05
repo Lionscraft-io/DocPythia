@@ -1,41 +1,101 @@
-// Referenced from blueprint:javascript_database
-import {
-  documentationSections,
-  pendingUpdates,
-  updateHistory,
-  scrapedMessages,
-  scrapeMetadata,
-  sectionVersions,
-  type DocumentationSection,
-  type InsertDocumentationSection,
-  type PendingUpdate,
-  type InsertPendingUpdate,
-  type UpdateHistory,
-  type InsertUpdateHistory,
-  type ScrapedMessage,
-  type InsertScrapedMessage,
-  type ScrapeMetadata,
-  type InsertScrapeMetadata,
-  type SectionVersion,
-  type InsertSectionVersion,
-} from "./schema";
+// Database storage layer - Prisma Client
+// Migrated from Drizzle ORM - Wayne (2025-10-29)
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import type {
+  DocumentationSection,
+  PendingUpdate,
+  UpdateHistory,
+  ScrapedMessage,
+  ScrapeMetadata,
+  SectionVersion,
+  Prisma
+} from '@prisma/client';
+
+// Insert types - simplified versions without relations
+export type InsertDocumentationSection = {
+  sectionId: string;
+  title: string;
+  content: string;
+  level?: number | null;
+  type?: "text" | "info" | "warning" | "success" | null;
+  orderIndex: number;
+};
+
+export type InsertPendingUpdate = {
+  sectionId: string;
+  type: "minor" | "major" | "add" | "delete";
+  summary: string;
+  source: string;
+  status?: "pending" | "approved" | "rejected" | "auto_applied";
+  diffBefore?: string | null;
+  diffAfter?: string | null;
+  reviewedBy?: string | null;
+};
+
+export type InsertUpdateHistory = {
+  updateId: string;
+  action: "approved" | "rejected" | "auto_applied";
+  performedBy?: string | null;
+};
+
+export type InsertScrapedMessage = {
+  messageId: string;
+  source: "zulipchat" | "telegram";
+  channelName: string;
+  topicName?: string | null;
+  senderEmail?: string | null;
+  senderName?: string | null;
+  content: string;
+  messageTimestamp: Date;
+  analyzed?: boolean;
+};
+
+export type InsertScrapeMetadata = {
+  source: "zulipchat" | "telegram";
+  channelName: string;
+  lastMessageId?: string | null;
+  lastScrapeTimestamp?: Date | null;
+  totalMessagesFetched?: number;
+};
+
+export type InsertSectionVersion = {
+  sectionId: string;
+  title: string;
+  content: string;
+  level?: number | null;
+  type?: "text" | "info" | "warning" | "success" | null;
+  orderIndex: number;
+  op: "add" | "edit" | "delete" | "rollback";
+  parentVersionId?: string | null;
+  fromUpdateId?: string | null;
+  fromHistoryId?: string | null;
+  createdBy?: string | null;
+};
+
+// Re-export Prisma-generated types
+export type {
+  DocumentationSection,
+  PendingUpdate,
+  UpdateHistory,
+  ScrapedMessage,
+  ScrapeMetadata,
+  SectionVersion,
+};
 
 export interface IStorage {
   // Documentation sections
   getDocumentationSections(): Promise<DocumentationSection[]>;
   getDocumentationSection(sectionId: string): Promise<DocumentationSection | undefined>;
-  createDocumentationSection(section: InsertDocumentationSection): Promise<DocumentationSection>;
+  createDocumentationSection(section: Omit<InsertDocumentationSection, 'id' | 'updatedAt'>): Promise<DocumentationSection>;
   updateDocumentationSection(sectionId: string, content: string): Promise<DocumentationSection>;
-  
+
   // Pending updates
   getPendingUpdates(): Promise<PendingUpdate[]>;
   getPendingUpdate(id: string): Promise<PendingUpdate | undefined>;
-  createPendingUpdate(update: InsertPendingUpdate): Promise<PendingUpdate>;
+  createPendingUpdate(update: Omit<InsertPendingUpdate, 'id' | 'createdAt' | 'reviewedAt'>): Promise<PendingUpdate>;
   updatePendingUpdateStatus(
     id: string,
-    status: "pending" | "approved" | "rejected" | "auto-applied",
+    status: "pending" | "approved" | "rejected" | "auto_applied",
     reviewedBy?: string
   ): Promise<PendingUpdate | undefined>;
   approveUpdate(
@@ -46,80 +106,72 @@ export interface IStorage {
     updateId: string,
     reviewedBy?: string
   ): Promise<{ update: PendingUpdate; history: UpdateHistory }>;
-  
+
   // Update history
-  createUpdateHistory(history: InsertUpdateHistory): Promise<UpdateHistory>;
+  createUpdateHistory(history: Omit<InsertUpdateHistory, 'id' | 'performedAt'>): Promise<UpdateHistory>;
   getUpdateHistory(): Promise<UpdateHistory[]>;
-  
+
   // Section versions
-  createSectionVersion(version: InsertSectionVersion): Promise<SectionVersion>;
+  createSectionVersion(version: Omit<InsertSectionVersion, 'id' | 'createdAt'>): Promise<SectionVersion>;
   getSectionHistory(sectionId: string): Promise<SectionVersion[]>;
   rollbackSection(sectionId: string, versionId: string, performedBy?: string): Promise<{ section: DocumentationSection; version: SectionVersion }>;
-  
+
   // Scraped messages
   getScrapedMessages(): Promise<ScrapedMessage[]>;
   getUnanalyzedMessages(): Promise<ScrapedMessage[]>;
-  createScrapedMessage(message: InsertScrapedMessage): Promise<ScrapedMessage>;
+  createScrapedMessage(message: Omit<InsertScrapedMessage, 'id' | 'scrapedAt'>): Promise<ScrapedMessage>;
   markMessageAsAnalyzed(id: string): Promise<ScrapedMessage | undefined>;
   getMessageByMessageId(messageId: string): Promise<ScrapedMessage | undefined>;
-  
+
   // Scrape metadata
   getScrapeMetadata(source: "zulipchat" | "telegram", channelName: string): Promise<ScrapeMetadata | undefined>;
-  createOrUpdateScrapeMetadata(metadata: InsertScrapeMetadata): Promise<ScrapeMetadata>;
+  createOrUpdateScrapeMetadata(metadata: Omit<InsertScrapeMetadata, 'id' | 'lastScrapeAt'>): Promise<ScrapeMetadata>;
 }
 
 export class DatabaseStorage implements IStorage {
   // Documentation sections
   async getDocumentationSections(): Promise<DocumentationSection[]> {
-    return await db
-      .select()
-      .from(documentationSections)
-      .orderBy(documentationSections.orderIndex);
+    return await db.documentationSection.findMany({
+      orderBy: { orderIndex: 'asc' }
+    });
   }
 
   async getDocumentationSection(sectionId: string): Promise<DocumentationSection | undefined> {
-    const [section] = await db
-      .select()
-      .from(documentationSections)
-      .where(eq(documentationSections.sectionId, sectionId));
+    const section = await db.documentationSection.findUnique({
+      where: { sectionId }
+    });
     return section || undefined;
   }
 
   async createDocumentationSection(
-    section: InsertDocumentationSection
+    section: Omit<InsertDocumentationSection, 'id' | 'updatedAt'>
   ): Promise<DocumentationSection> {
-    const [newSection] = await db
-      .insert(documentationSections)
-      .values(section)
-      .returning();
-    return newSection;
+    return await db.documentationSection.create({
+      data: section as any
+    });
   }
 
   async updateDocumentationSection(
     sectionId: string,
     content: string
   ): Promise<DocumentationSection> {
-    const [updated] = await db
-      .update(documentationSections)
-      .set({ content, updatedAt: new Date() })
-      .where(eq(documentationSections.sectionId, sectionId))
-      .returning();
-    return updated;
+    return await db.documentationSection.update({
+      where: { sectionId },
+      data: { content, updatedAt: new Date() }
+    });
   }
 
   // Pending updates
   async getPendingUpdates(): Promise<PendingUpdate[]> {
-    return await db
-      .select()
-      .from(pendingUpdates)
-      .orderBy(desc(pendingUpdates.createdAt));
+    return await db.pendingUpdate.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
   }
 
   async getPendingUpdate(id: string): Promise<PendingUpdate | undefined> {
-    const [update] = await db
-      .select()
-      .from(pendingUpdates)
-      .where(eq(pendingUpdates.id, id));
+    const update = await db.pendingUpdate.findUnique({
+      where: { id }
+    });
     return update || undefined;
   }
 
@@ -127,70 +179,64 @@ export class DatabaseStorage implements IStorage {
     id: string,
     data: { summary?: string; diffAfter?: string }
   ): Promise<PendingUpdate | undefined> {
-    const [updated] = await db
-      .update(pendingUpdates)
-      .set(data)
-      .where(eq(pendingUpdates.id, id))
-      .returning();
+    const updated = await db.pendingUpdate.update({
+      where: { id },
+      data
+    });
     return updated || undefined;
   }
 
-  async createPendingUpdate(update: InsertPendingUpdate): Promise<PendingUpdate> {
-    const [newUpdate] = await db
-      .insert(pendingUpdates)
-      .values(update)
-      .returning();
-    return newUpdate;
+  async createPendingUpdate(update: Omit<InsertPendingUpdate, 'id' | 'createdAt' | 'reviewedAt'>): Promise<PendingUpdate> {
+    return await db.pendingUpdate.create({
+      data: update as any
+    });
   }
 
   async updatePendingUpdateStatus(
     id: string,
-    status: "pending" | "approved" | "rejected" | "auto-applied",
+    status: "pending" | "approved" | "rejected" | "auto_applied",
     reviewedBy?: string
   ): Promise<PendingUpdate | undefined> {
-    const [updated] = await db
-      .update(pendingUpdates)
-      .set({
+    const updated = await db.pendingUpdate.update({
+      where: { id },
+      data: {
         status,
         reviewedAt: new Date(),
         reviewedBy: reviewedBy || null,
-      })
-      .where(eq(pendingUpdates.id, id))
-      .returning();
+      }
+    });
     return updated || undefined;
   }
 
   // Update history
-  async createUpdateHistory(history: InsertUpdateHistory): Promise<UpdateHistory> {
-    const [newHistory] = await db
-      .insert(updateHistory)
-      .values(history)
-      .returning();
-    return newHistory;
+  async createUpdateHistory(history: Omit<InsertUpdateHistory, 'id' | 'performedAt'>): Promise<UpdateHistory> {
+    return await db.updateHistory.create({
+      data: {
+        updateId: history.updateId,
+        action: history.action,
+        performedBy: history.performedBy || null,
+      }
+    });
   }
 
   async getUpdateHistory(): Promise<UpdateHistory[]> {
-    return await db
-      .select()
-      .from(updateHistory)
-      .orderBy(desc(updateHistory.performedAt));
+    return await db.updateHistory.findMany({
+      orderBy: { performedAt: 'desc' }
+    });
   }
 
   // Section versions
-  async createSectionVersion(version: InsertSectionVersion): Promise<SectionVersion> {
-    const [newVersion] = await db
-      .insert(sectionVersions)
-      .values(version)
-      .returning();
-    return newVersion;
+  async createSectionVersion(version: Omit<InsertSectionVersion, 'id' | 'createdAt'>): Promise<SectionVersion> {
+    return await db.sectionVersion.create({
+      data: version as any
+    });
   }
 
   async getSectionHistory(sectionId: string): Promise<SectionVersion[]> {
-    return await db
-      .select()
-      .from(sectionVersions)
-      .where(eq(sectionVersions.sectionId, sectionId))
-      .orderBy(desc(sectionVersions.createdAt));
+    return await db.sectionVersion.findMany({
+      where: { sectionId },
+      orderBy: { createdAt: 'desc' }
+    });
   }
 
   async rollbackSection(
@@ -198,12 +244,11 @@ export class DatabaseStorage implements IStorage {
     versionId: string,
     performedBy?: string
   ): Promise<{ section: DocumentationSection; version: SectionVersion }> {
-    return await db.transaction(async (tx) => {
+    return await db.$transaction(async (tx) => {
       // Get the target version to restore
-      const [targetVersion] = await tx
-        .select()
-        .from(sectionVersions)
-        .where(eq(sectionVersions.id, versionId));
+      const targetVersion = await tx.sectionVersion.findUnique({
+        where: { id: versionId }
+      });
 
       if (!targetVersion) {
         throw new Error("Version not found");
@@ -214,56 +259,48 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Get latest version before rollback for parentVersionId
-      const [latestVersion] = await tx
-        .select()
-        .from(sectionVersions)
-        .where(eq(sectionVersions.sectionId, sectionId))
-        .orderBy(desc(sectionVersions.createdAt))
-        .limit(1);
+      const latestVersion = await tx.sectionVersion.findFirst({
+        where: { sectionId },
+        orderBy: { createdAt: 'desc' }
+      });
 
       // Check if section currently exists
-      const [existingSection] = await tx
-        .select()
-        .from(documentationSections)
-        .where(eq(documentationSections.sectionId, sectionId));
+      const existingSection = await tx.documentationSection.findUnique({
+        where: { sectionId }
+      });
 
       let section: DocumentationSection;
 
       if (existingSection) {
         // Update existing section
-        const [updated] = await tx
-          .update(documentationSections)
-          .set({
+        section = await tx.documentationSection.update({
+          where: { sectionId },
+          data: {
             title: targetVersion.title,
             content: targetVersion.content,
             level: targetVersion.level,
             type: targetVersion.type,
             orderIndex: targetVersion.orderIndex,
             updatedAt: new Date(),
-          })
-          .where(eq(documentationSections.sectionId, sectionId))
-          .returning();
-        section = updated;
+          }
+        });
       } else {
         // Reinsert deleted section
-        const [newSection] = await tx
-          .insert(documentationSections)
-          .values({
+        section = await tx.documentationSection.create({
+          data: {
             sectionId: targetVersion.sectionId,
             title: targetVersion.title,
             content: targetVersion.content,
             level: targetVersion.level,
             type: targetVersion.type,
             orderIndex: targetVersion.orderIndex,
-          })
-          .returning();
-        section = newSection;
+          }
+        });
       }
 
       // Create rollback version snapshot
-      const [rollbackVersion] = await tx
-        .insert(sectionVersions)
-        .values({
+      const rollbackVersion = await tx.sectionVersion.create({
+        data: {
           sectionId: targetVersion.sectionId,
           title: targetVersion.title,
           content: targetVersion.content,
@@ -275,8 +312,8 @@ export class DatabaseStorage implements IStorage {
           fromUpdateId: null,
           fromHistoryId: null,
           createdBy: performedBy || null,
-        })
-        .returning();
+        }
+      });
 
       return { section, version: rollbackVersion };
     });
@@ -287,12 +324,11 @@ export class DatabaseStorage implements IStorage {
     updateId: string,
     reviewedBy?: string
   ): Promise<{ update: PendingUpdate; section: DocumentationSection; history: UpdateHistory }> {
-    return await db.transaction(async (tx) => {
+    return await db.$transaction(async (tx) => {
       // Get the pending update
-      const [update] = await tx
-        .select()
-        .from(pendingUpdates)
-        .where(eq(pendingUpdates.id, updateId));
+      const update = await tx.pendingUpdate.findUnique({
+        where: { id: updateId }
+      });
 
       if (!update) {
         throw new Error("Update not found");
@@ -304,78 +340,70 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Get latest version for parentVersionId
-      const [latestVersion] = await tx
-        .select()
-        .from(sectionVersions)
-        .where(eq(sectionVersions.sectionId, update.sectionId))
-        .orderBy(desc(sectionVersions.createdAt))
-        .limit(1);
+      const latestVersion = await tx.sectionVersion.findFirst({
+        where: { sectionId: update.sectionId },
+        orderBy: { createdAt: 'desc' }
+      });
 
       // Handle different operation types
       let section: DocumentationSection | undefined;
       let versionOp: "add" | "edit" | "delete";
-      
+
       if (update.type === "add") {
         // Create a new section
         if (!update.diffAfter) {
           throw new Error("Cannot add section: no content provided");
         }
-        
+
         // Extract title from summary or use section ID
         const titleMatch = update.summary.match(/Add new section: "([^"]+)"/);
-        const title = titleMatch ? titleMatch[1] : update.sectionId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        
+        const title = titleMatch ? titleMatch[1] : update.sectionId.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+
         // Get the max orderIndex to place new section at the end
-        const sections = await tx.select().from(documentationSections);
-        const maxOrder = Math.max(...sections.map(s => s.orderIndex), 0);
-        
-        const [newSection] = await tx
-          .insert(documentationSections)
-          .values({
+        const sections = await tx.documentationSection.findMany();
+        const maxOrder = Math.max(...sections.map((s) => s.orderIndex), 0);
+
+        section = await tx.documentationSection.create({
+          data: {
             sectionId: update.sectionId,
             title,
             content: update.diffAfter,
             level: 1, // Default to top level
             orderIndex: maxOrder + 1,
-          })
-          .returning();
-        section = newSection;
+          }
+        });
         versionOp = "add";
-        
+
       } else if (update.type === "delete") {
         // Delete an existing section - capture snapshot before deletion
-        const [existing] = await tx
-          .select()
-          .from(documentationSections)
-          .where(eq(documentationSections.sectionId, update.sectionId));
-        
+        const existing = await tx.documentationSection.findUnique({
+          where: { sectionId: update.sectionId }
+        });
+
         if (!existing) {
           throw new Error("Cannot delete section: section not found");
         }
-        
+
         section = existing;
         versionOp = "delete";
-        
+
         // Delete the section AFTER we have the snapshot
-        await tx
-          .delete(documentationSections)
-          .where(eq(documentationSections.sectionId, update.sectionId));
-          
+        await tx.documentationSection.delete({
+          where: { sectionId: update.sectionId }
+        });
+
       } else {
         // Update existing section (minor or major)
         if (update.diffAfter) {
-          const [updated] = await tx
-            .update(documentationSections)
-            .set({ content: update.diffAfter, updatedAt: new Date() })
-            .where(eq(documentationSections.sectionId, update.sectionId))
-            .returning();
-          section = updated;
+          section = await tx.documentationSection.update({
+            where: { sectionId: update.sectionId },
+            data: { content: update.diffAfter, updatedAt: new Date() }
+          });
         } else {
-          const [existing] = await tx
-            .select()
-            .from(documentationSections)
-            .where(eq(documentationSections.sectionId, update.sectionId));
-          section = existing;
+          const existing = await tx.documentationSection.findUnique({
+            where: { sectionId: update.sectionId }
+          });
+          section = existing || undefined;
         }
 
         if (!section) {
@@ -385,30 +413,32 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Mark update as approved
-      const [approvedUpdate] = await tx
-        .update(pendingUpdates)
-        .set({
+      const approvedUpdate = await tx.pendingUpdate.update({
+        where: { id: updateId },
+        data: {
           status: "approved",
           reviewedAt: new Date(),
           reviewedBy: reviewedBy || null,
-        })
-        .where(eq(pendingUpdates.id, updateId))
-        .returning();
+        }
+      });
 
       // Create history record
-      const [newHistory] = await tx
-        .insert(updateHistory)
-        .values({
+      const newHistory = await tx.updateHistory.create({
+        data: {
           updateId,
           action: "approved",
           performedBy: reviewedBy || null,
-        })
-        .returning();
+        }
+      });
+
+      // Ensure section was assigned (should always be true based on logic above)
+      if (!section) {
+        throw new Error("Internal error: section not assigned");
+      }
 
       // Create version snapshot
-      await tx
-        .insert(sectionVersions)
-        .values({
+      await tx.sectionVersion.create({
+        data: {
           sectionId: section.sectionId,
           title: section.title,
           content: section.content,
@@ -420,7 +450,8 @@ export class DatabaseStorage implements IStorage {
           fromUpdateId: updateId,
           fromHistoryId: newHistory.id,
           createdBy: reviewedBy || null,
-        });
+        }
+      });
 
       return { update: approvedUpdate, section, history: newHistory };
     });
@@ -431,12 +462,11 @@ export class DatabaseStorage implements IStorage {
     updateId: string,
     reviewedBy?: string
   ): Promise<{ update: PendingUpdate; history: UpdateHistory }> {
-    return await db.transaction(async (tx) => {
+    return await db.$transaction(async (tx) => {
       // Get the pending update
-      const [update] = await tx
-        .select()
-        .from(pendingUpdates)
-        .where(eq(pendingUpdates.id, updateId));
+      const update = await tx.pendingUpdate.findUnique({
+        where: { id: updateId }
+      });
 
       if (!update) {
         throw new Error("Update not found");
@@ -448,25 +478,23 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Mark update as rejected
-      const [rejectedUpdate] = await tx
-        .update(pendingUpdates)
-        .set({
+      const rejectedUpdate = await tx.pendingUpdate.update({
+        where: { id: updateId },
+        data: {
           status: "rejected",
           reviewedAt: new Date(),
           reviewedBy: reviewedBy || null,
-        })
-        .where(eq(pendingUpdates.id, updateId))
-        .returning();
+        }
+      });
 
       // Create history record
-      const [newHistory] = await tx
-        .insert(updateHistory)
-        .values({
+      const newHistory = await tx.updateHistory.create({
+        data: {
           updateId,
           action: "rejected",
           performedBy: reviewedBy || null,
-        })
-        .returning();
+        }
+      });
 
       return { update: rejectedUpdate, history: newHistory };
     });
@@ -474,42 +502,36 @@ export class DatabaseStorage implements IStorage {
 
   // Scraped messages
   async getScrapedMessages(): Promise<ScrapedMessage[]> {
-    return await db
-      .select()
-      .from(scrapedMessages)
-      .orderBy(desc(scrapedMessages.messageTimestamp));
+    return await db.scrapedMessage.findMany({
+      orderBy: { messageTimestamp: 'desc' }
+    });
   }
 
   async getUnanalyzedMessages(): Promise<ScrapedMessage[]> {
-    return await db
-      .select()
-      .from(scrapedMessages)
-      .where(eq(scrapedMessages.analyzed, false))
-      .orderBy(scrapedMessages.messageTimestamp);
+    return await db.scrapedMessage.findMany({
+      where: { analyzed: false },
+      orderBy: { messageTimestamp: 'asc' }
+    });
   }
 
-  async createScrapedMessage(message: InsertScrapedMessage): Promise<ScrapedMessage> {
-    const [newMessage] = await db
-      .insert(scrapedMessages)
-      .values(message)
-      .returning();
-    return newMessage;
+  async createScrapedMessage(message: Omit<InsertScrapedMessage, 'id' | 'scrapedAt'>): Promise<ScrapedMessage> {
+    return await db.scrapedMessage.create({
+      data: message as any
+    });
   }
 
   async markMessageAsAnalyzed(id: string): Promise<ScrapedMessage | undefined> {
-    const [updated] = await db
-      .update(scrapedMessages)
-      .set({ analyzed: true })
-      .where(eq(scrapedMessages.id, id))
-      .returning();
+    const updated = await db.scrapedMessage.update({
+      where: { id },
+      data: { analyzed: true }
+    });
     return updated || undefined;
   }
 
   async getMessageByMessageId(messageId: string): Promise<ScrapedMessage | undefined> {
-    const [message] = await db
-      .select()
-      .from(scrapedMessages)
-      .where(eq(scrapedMessages.messageId, messageId));
+    const message = await db.scrapedMessage.findUnique({
+      where: { messageId }
+    });
     return message || undefined;
   }
 
@@ -518,41 +540,34 @@ export class DatabaseStorage implements IStorage {
     source: "zulipchat" | "telegram",
     channelName: string
   ): Promise<ScrapeMetadata | undefined> {
-    const [metadata] = await db
-      .select()
-      .from(scrapeMetadata)
-      .where(
-        and(
-          eq(scrapeMetadata.source, source),
-          eq(scrapeMetadata.channelName, channelName)
-        )
-      );
+    const metadata = await db.scrapeMetadata.findFirst({
+      where: {
+        source,
+        channelName
+      }
+    });
     return metadata || undefined;
   }
 
-  async createOrUpdateScrapeMetadata(metadata: InsertScrapeMetadata): Promise<ScrapeMetadata> {
+  async createOrUpdateScrapeMetadata(metadata: Omit<InsertScrapeMetadata, 'id' | 'lastScrapeAt'>): Promise<ScrapeMetadata> {
     const existing = await this.getScrapeMetadata(metadata.source, metadata.channelName);
-    
+
     if (existing) {
       // Update existing record
-      const [updated] = await db
-        .update(scrapeMetadata)
-        .set({
+      return await db.scrapeMetadata.update({
+        where: { id: existing.id },
+        data: {
           lastMessageId: metadata.lastMessageId,
           lastScrapeTimestamp: metadata.lastScrapeTimestamp,
           lastScrapeAt: new Date(),
-          totalMessagesFetched: existing.totalMessagesFetched + metadata.totalMessagesFetched,
-        })
-        .where(eq(scrapeMetadata.id, existing.id))
-        .returning();
-      return updated;
+          totalMessagesFetched: (existing.totalMessagesFetched ?? 0) + (metadata.totalMessagesFetched ?? 0),
+        }
+      });
     } else {
       // Create new record
-      const [newMetadata] = await db
-        .insert(scrapeMetadata)
-        .values(metadata)
-        .returning();
-      return newMetadata;
+      return await db.scrapeMetadata.create({
+        data: metadata as any
+      });
     }
   }
 }

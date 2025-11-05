@@ -1,31 +1,47 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db as prisma } from "./db";
 import { z } from "zod";
 import { createZulipchatScraperFromEnv } from "./scraper/zulipchat";
 import { createAnalyzerFromEnv } from "./analyzer/gemini-analyzer";
 import { triggerJobManually } from "./scheduler";
+import { getConfig } from "./config/loader";
+import { gitFetcher } from "./git-fetcher.js";
+import { docIndexGenerator } from "./stream/doc-index-generator.js";
+import { geminiEmbedder, GeminiEmbedder } from "./embeddings/gemini-embedder.js";
+import { vectorStore } from "./vector-store.js";
+// RAG context manager removed - using vectorStore directly for widget endpoint
+import { llmCache } from "./llm/llm-cache.js";
 
 // Admin authentication middleware
 const adminAuth = (req: Request, res: Response, next: NextFunction) => {
+  // Check if admin auth is disabled (for development)
+  const disableAuth = process.env.DISABLE_ADMIN_AUTH?.toLowerCase() === 'true';
+
+  if (disableAuth) {
+    console.warn('⚠️  ADMIN AUTH DISABLED - This should only be used in development!');
+    return next();
+  }
+
   const adminToken = process.env.ADMIN_TOKEN;
-  
+
   if (!adminToken) {
     console.error("FATAL: ADMIN_TOKEN environment variable is not set");
     return res.status(500).json({ error: "Server configuration error" });
   }
-  
+
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
   }
-  
+
   const token = authHeader.substring(7);
   if (token !== adminToken) {
     return res.status(403).json({ error: "Forbidden: Invalid admin token" });
   }
-  
+
   next();
 };
 
@@ -77,7 +93,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.getDocumentationSections();
       diagnostics.database = "Connected";
     } catch (error) {
-      diagnostics.database = `Error: ${error.message}`;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      diagnostics.database = `Error: ${errorMessage}`;
     }
 
     // Check static files
@@ -88,10 +105,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const exists = fs.existsSync(distPath);
       diagnostics.static_files = exists ? `Found: ${distPath}` : `Missing: ${distPath}`;
     } catch (error) {
-      diagnostics.static_files = `Error: ${error.message}`;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      diagnostics.static_files = `Error: ${errorMessage}`;
     }
 
     res.json(diagnostics);
+  });
+
+  // Public configuration endpoint
+  app.get("/api/config", (req, res) => {
+    try {
+      const config = getConfig();
+
+      // Return safe subset (no secrets)
+      res.json({
+        project: config.project,
+        branding: config.branding,
+        widget: {
+          enabled: config.widget.enabled,
+          title: config.widget.title,
+          welcomeMessage: config.widget.welcomeMessage,
+          suggestedQuestions: config.widget.suggestedQuestions,
+          position: config.widget.position,
+          theme: config.widget.theme,
+          primaryColor: config.widget.primaryColor,
+        },
+        features: {
+          chatEnabled: config.features.chatEnabled,
+          versionHistoryEnabled: config.features.versionHistoryEnabled,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching config:", error);
+      res.status(500).json({
+        error: "Failed to load configuration",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
   });
 
   // Widget API endpoints
@@ -627,17 +677,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching documentation:", error);
 
       // Provide more specific error messages
+      const details = error instanceof Error ? error.message : String(error);
       let errorMessage = "Failed to fetch documentation";
-      if (error.message.includes("connect")) {
+      if (details.includes("connect")) {
         errorMessage = "Database connection failed";
-      } else if (error.message.includes("relation") || error.message.includes("table")) {
+      } else if (details.includes("relation") || details.includes("table")) {
         errorMessage = "Database tables not found - run migrations";
       }
 
       res.status(500).json({
         error: errorMessage,
-        details: error.message
+        details
       });
+    }
+  });
+
+  // Public Git documentation stats endpoint (must be before :sectionId wildcard)
+  app.get("/api/docs/git-stats", async (req, res) => {
+    try {
+      const syncState = await prisma.gitSyncState.findFirst({
+        where: {
+          gitUrl: process.env.DOCS_GIT_URL || 'https://github.com/near/docs'
+        }
+      });
+
+      if (!syncState) {
+        return res.json({
+          gitUrl: process.env.DOCS_GIT_URL || 'https://github.com/near/docs',
+          branch: process.env.DOCS_GIT_BRANCH || 'main',
+          lastSyncAt: null,
+          lastCommitHash: null,
+          status: 'idle',
+          totalDocuments: 0,
+          documentsWithEmbeddings: 0
+        });
+      }
+
+      // Get document counts
+      const stats = await vectorStore.getStats();
+
+      res.json({
+        gitUrl: syncState.gitUrl,
+        branch: syncState.branch,
+        lastSyncAt: syncState.lastSyncAt,
+        lastCommitHash: syncState.lastCommitHash,
+        status: syncState.syncStatus,
+        totalDocuments: stats.totalDocuments,
+        documentsWithEmbeddings: stats.documentsWithEmbeddings
+      });
+    } catch (error) {
+      console.error('Error fetching git stats:', error);
+      res.status(500).json({ error: 'Failed to fetch git stats' });
     }
   });
 
@@ -930,9 +1020,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { scrapeLimit, analysisLimit, channelName } = bodyValidation.data;
-      
+
       console.log(`Manually triggering scheduled job...`);
-      
+
       // Run the job in the background
       triggerJobManually({
         enabled: true,
@@ -943,8 +1033,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).catch(error => {
         console.error("Error in manually triggered job:", error);
       });
-      
-      res.json({ 
+
+      res.json({
         success: true,
         message: "Scheduled job triggered. Check server logs for progress.",
         config: { scrapeLimit, analysisLimit, channelName }
@@ -954,6 +1044,382 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to trigger job", details: error.message });
     }
   });
+
+  // RAG Documentation Sync endpoint (admin only)
+  app.post("/api/docs/sync", adminAuth, async (req, res) => {
+    try {
+      const bodyValidation = z.object({
+        force: z.boolean().optional().default(false),
+      }).safeParse(req.body);
+
+      if (!bodyValidation.success) {
+        return res.status(400).json({ error: "Invalid request body", details: bodyValidation.error });
+      }
+
+      const { force } = bodyValidation.data;
+      const startTime = Date.now();
+
+      console.log(`Starting documentation sync (force: ${force})...`);
+
+      // Update sync status to 'syncing'
+      await gitFetcher.updateSyncStatus('syncing');
+
+      try {
+        // Check for updates
+        const updateInfo = await gitFetcher.checkForUpdates();
+
+        if (!updateInfo.hasUpdates && !force) {
+          // Even if no updates, mark sync as completed and update hash
+          await gitFetcher.updateCommitHash(updateInfo.currentHash);
+          await gitFetcher.updateSyncStatus('completed');
+
+          // Invalidate doc-index cache to regenerate with current filter config
+          await docIndexGenerator.invalidateCache();
+
+          // Get total document count
+          const stats = await vectorStore.getStats();
+
+          return res.json({
+            success: true,
+            hadUpdates: false,
+            currentHash: updateInfo.currentHash,
+            previousHash: updateInfo.storedHash,
+            summary: { added: 0, modified: 0, deleted: 0, filesProcessed: [] },
+            totalDocuments: stats.totalDocuments,
+            duration: Date.now() - startTime
+          });
+        }
+
+        // Fetch changed files
+        const changedFiles = await gitFetcher.fetchChangedFiles(
+          updateInfo.storedHash || 'HEAD~1',
+          updateInfo.currentHash
+        );
+
+        const summary = {
+          added: 0,
+          modified: 0,
+          deleted: 0,
+          filesProcessed: [] as string[]
+        };
+
+        // Process deletions
+        for (const file of changedFiles.filter(f => f.changeType === 'deleted')) {
+          await vectorStore.deleteDocument(file.path);
+          summary.deleted++;
+          summary.filesProcessed.push(file.path);
+        }
+
+        // Process additions and modifications
+        for (const file of changedFiles.filter(f => f.changeType !== 'deleted')) {
+          try {
+            // Check if file already has embedding for this commit (resume logic)
+            const existing = await vectorStore.getDocument(file.path, file.commitHash);
+            if (existing && !force) {
+              console.log(`Skipping ${file.path} - already embedded for this commit`);
+              summary.filesProcessed.push(file.path);
+              continue;
+            }
+
+            // Prepare content with more aggressive truncation for large files
+            const preparedContent = GeminiEmbedder.prepareText(file.content, 6000); // ~24KB to be safe
+            const embedding = await geminiEmbedder.embedText(preparedContent);
+            const title = GeminiEmbedder.extractTitle(file.content);
+
+            await vectorStore.upsertDocument({
+              filePath: file.path,
+              title,
+              content: file.content,
+              gitHash: file.commitHash,
+              gitUrl: process.env.DOCS_GIT_URL || 'https://github.com/near/docs',
+              embedding
+            });
+
+            if (file.changeType === 'added') summary.added++;
+            else summary.modified++;
+            summary.filesProcessed.push(file.path);
+          } catch (fileError: any) {
+            console.error(`Failed to process file ${file.path}:`, fileError.message);
+            // Log error but continue with next file
+            summary.filesProcessed.push(`${file.path} (FAILED: ${fileError.message})`);
+          }
+        }
+
+        // Update sync state
+        await gitFetcher.updateCommitHash(updateInfo.currentHash);
+        await gitFetcher.updateSyncStatus('completed');
+
+        // Invalidate doc-index cache to regenerate with current filter config
+        await docIndexGenerator.invalidateCache();
+
+        // Get total document count
+        const stats = await vectorStore.getStats();
+
+        console.log(`Documentation sync completed in ${Date.now() - startTime}ms`);
+
+        res.json({
+          success: true,
+          hadUpdates: true,
+          currentHash: updateInfo.currentHash,
+          previousHash: updateInfo.storedHash,
+          summary,
+          totalDocuments: stats.totalDocuments,
+          duration: Date.now() - startTime
+        });
+
+      } catch (syncError: any) {
+        await gitFetcher.updateSyncStatus('error', syncError.message);
+        throw syncError;
+      }
+
+    } catch (error: any) {
+      console.error('Documentation sync failed:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Unknown error during documentation sync'
+      });
+    }
+  });
+
+  // Get sync status endpoint
+  app.get("/api/docs/sync/status", adminAuth, async (req, res) => {
+    try {
+      const syncState = await prisma.gitSyncState.findFirst({
+        where: {
+          gitUrl: process.env.DOCS_GIT_URL || 'https://github.com/near/docs'
+        }
+      });
+
+      if (!syncState) {
+        return res.json({
+          status: 'idle',
+          lastSyncAt: null,
+          lastCommitHash: null,
+          totalDocuments: 0,
+          documentsWithEmbeddings: 0
+        });
+      }
+
+      // Get document counts
+      const stats = await vectorStore.getStats();
+
+      res.json({
+        status: syncState.syncStatus,
+        lastSyncAt: syncState.lastSyncAt,
+        lastCommitHash: syncState.lastCommitHash,
+        branch: syncState.branch,
+        gitUrl: syncState.gitUrl,
+        errorMessage: syncState.errorMessage,
+        totalDocuments: stats.totalDocuments,
+        documentsWithEmbeddings: stats.documentsWithEmbeddings
+      });
+    } catch (error: any) {
+      console.error('Error fetching sync status:', error);
+      res.status(500).json({ error: 'Failed to fetch sync status' });
+    }
+  });
+
+  // Documentation Index endpoint (public)
+  app.get("/api/docs-index", async (req, res) => {
+    try {
+      const { docIndexGenerator } = await import('./stream/doc-index-generator.js');
+
+      const format = req.query.format as string || 'json';
+      const index = await docIndexGenerator.generateIndex();
+
+      if (format === 'compact') {
+        const compactText = docIndexGenerator.formatCompact(index);
+        res.type('text/plain').send(compactText);
+      } else if (format === 'formatted') {
+        const formattedText = docIndexGenerator.formatForPrompt(index);
+        res.type('text/plain').send(formattedText);
+      } else {
+        // Default JSON format
+        res.json({
+          totalPages: index.pages.length,
+          totalCategories: Object.keys(index.categories).length,
+          generatedAt: index.generated_at,
+          categories: Object.entries(index.categories).map(([name, paths]) => ({
+            name,
+            pageCount: paths.length,
+            paths: paths.slice(0, 10), // Limit to first 10 paths for brevity
+          })),
+          pages: index.pages.slice(0, 50), // Limit to first 50 pages for brevity
+          cacheStatus: docIndexGenerator.getCacheStatus(),
+        });
+      }
+    } catch (error: any) {
+      console.error('Error generating documentation index:', error);
+      res.status(500).json({ error: 'Failed to generate documentation index' });
+    }
+  });
+
+  // Widget ask endpoint (public)
+  app.post("/api/widget/ask", async (req, res) => {
+    try {
+      const bodyValidation = z.object({
+        question: z.string().min(1),
+        sessionId: z.string().optional(),
+      }).safeParse(req.body);
+
+      if (!bodyValidation.success) {
+        return res.status(400).json({ error: "Invalid request body", details: bodyValidation.error });
+      }
+
+      const { question } = bodyValidation.data;
+
+      console.log(`Widget question received: "${question.substring(0, 100)}..."`);
+
+      // Get RAG context using vector store directly
+      const queryEmbedding = await geminiEmbedder.embedText(question);
+      const similarDocs = await vectorStore.searchSimilar(queryEmbedding, 3);
+
+      const context = {
+        retrievedDocs: similarDocs,
+        formattedContext: similarDocs.length > 0
+          ? similarDocs.map((doc, idx) =>
+              `[${idx + 1}] ${doc.title} (${doc.filePath})\n${doc.content}`
+            ).join('\n\n---\n\n')
+          : '',
+        usedRetrieval: similarDocs.length > 0
+      };
+
+      // Generate answer using Gemini with context
+      const analyzer = createAnalyzerFromEnv();
+
+      if (!analyzer) {
+        return res.status(500).json({
+          error: "AI service not configured. Please set GEMINI_API_KEY environment variable."
+        });
+      }
+
+      let prompt = '';
+      if (context.usedRetrieval && context.formattedContext) {
+        prompt = `${context.formattedContext}\n\n---\n\nQuestion: ${question}\n\nProvide a helpful answer based on the documentation above. If the documentation doesn't contain relevant information, let the user know.`;
+      } else {
+        prompt = `Question: ${question}\n\nProvide a helpful answer about NEAR Protocol based on your general knowledge.`;
+      }
+
+      // Use the analyzer's generateAnswer method if available, otherwise use a basic response
+      const answer = await analyzer.generateDocumentationAnswer(prompt);
+
+      // Build document URL helper
+      const buildDocUrl = (filePath: string): string => {
+        const baseUrl = process.env.DOCS_GIT_URL || 'https://github.com/near/docs';
+        const cleanBaseUrl = baseUrl.replace(/\.git$/, '');
+        return `${cleanBaseUrl}/blob/main/${filePath}`;
+      };
+
+      res.json({
+        answer,
+        sources: context.retrievedDocs.map(doc => ({
+          title: doc.title,
+          filePath: doc.filePath,
+          url: buildDocUrl(doc.filePath),
+          relevance: doc.similarity
+        })),
+        usedRAG: context.usedRetrieval
+      });
+
+    } catch (error: any) {
+      console.error('Error processing widget question:', error);
+      res.status(500).json({
+        error: "Failed to process question",
+        details: error.message
+      });
+    }
+  });
+
+  // ==================== LLM CACHE ADMIN ROUTES ====================
+
+  // Get LLM cache statistics
+  app.get("/api/admin/llm-cache/stats", adminAuth, async (req, res) => {
+    try {
+      const stats = llmCache.getStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error('Error getting LLM cache stats:', error);
+      res.status(500).json({ error: "Failed to get cache stats", details: error.message });
+    }
+  });
+
+  // List all cached LLM requests
+  app.get("/api/admin/llm-cache", adminAuth, async (req, res) => {
+    try {
+      const allCached = llmCache.listAll();
+      res.json(allCached);
+    } catch (error: any) {
+      console.error('Error listing LLM cache:', error);
+      res.status(500).json({ error: "Failed to list cache", details: error.message });
+    }
+  });
+
+  // List cached LLM requests by purpose
+  app.get("/api/admin/llm-cache/:purpose", adminAuth, async (req, res) => {
+    try {
+      const { purpose } = req.params;
+      const validPurposes = ['index', 'embeddings', 'analysis', 'changegeneration', 'general'];
+
+      if (!validPurposes.includes(purpose)) {
+        return res.status(400).json({ error: `Invalid purpose. Must be one of: ${validPurposes.join(', ')}` });
+      }
+
+      const cached = llmCache.listByPurpose(purpose as any);
+      res.json({ purpose, count: cached.length, requests: cached });
+    } catch (error: any) {
+      console.error('Error listing LLM cache by purpose:', error);
+      res.status(500).json({ error: "Failed to list cache by purpose", details: error.message });
+    }
+  });
+
+  // Clear cached LLM requests by purpose
+  app.delete("/api/admin/llm-cache/:purpose", adminAuth, async (req, res) => {
+    try {
+      const { purpose } = req.params;
+      const validPurposes = ['index', 'embeddings', 'analysis', 'changegeneration', 'general'];
+
+      if (!validPurposes.includes(purpose)) {
+        return res.status(400).json({ error: `Invalid purpose. Must be one of: ${validPurposes.join(', ')}` });
+      }
+
+      const deletedCount = llmCache.clearPurpose(purpose as any);
+      res.json({ success: true, purpose, deletedCount });
+    } catch (error: any) {
+      console.error('Error clearing LLM cache by purpose:', error);
+      res.status(500).json({ error: "Failed to clear cache by purpose", details: error.message });
+    }
+  });
+
+  // Clear all cached LLM requests
+  app.delete("/api/admin/llm-cache", adminAuth, async (req, res) => {
+    try {
+      const deletedCount = llmCache.clearAll();
+      res.json({ success: true, deletedCount });
+    } catch (error: any) {
+      console.error('Error clearing all LLM cache:', error);
+      res.status(500).json({ error: "Failed to clear all cache", details: error.message });
+    }
+  });
+
+  // Clear cached LLM requests older than specified days
+  app.delete("/api/admin/llm-cache/cleanup/:days", adminAuth, async (req, res) => {
+    try {
+      const days = parseInt(req.params.days);
+      if (isNaN(days) || days < 1) {
+        return res.status(400).json({ error: "Days must be a positive integer" });
+      }
+
+      const deletedCount = llmCache.clearOlderThan(days);
+      res.json({ success: true, days, deletedCount });
+    } catch (error: any) {
+      console.error('Error cleaning up LLM cache:', error);
+      res.status(500).json({ error: "Failed to cleanup cache", details: error.message });
+    }
+  });
+
+  // Register Multi-Stream Scanner admin routes (Phase 1)
+  const { registerAdminStreamRoutes } = await import('./stream/routes/admin-routes.js');
+  registerAdminStreamRoutes(app, adminAuth);
 
   const httpServer = createServer(app);
 

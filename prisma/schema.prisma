@@ -1,0 +1,346 @@
+// Prisma schema for NearDocsAI
+// Migration from Drizzle ORM - Wayne (2025-10-29)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum SectionType {
+  text
+  info
+  warning
+  success
+}
+
+enum UpdateType {
+  minor
+  major
+  add
+  delete
+}
+
+enum UpdateStatus {
+  pending
+  approved
+  rejected
+  auto_applied
+}
+
+enum ActionType {
+  approved
+  rejected
+  auto_applied
+}
+
+enum MessageSource {
+  zulipchat
+  telegram
+}
+
+enum VersionOp {
+  add
+  edit
+  delete
+  rollback
+}
+
+// Documentation sections
+model DocumentationSection {
+  id         String      @id @default(uuid()) @db.Uuid
+  sectionId  String      @unique
+  title      String
+  content    String      @db.Text
+  level      Int?
+  type       SectionType?
+  orderIndex Int
+  updatedAt  DateTime    @default(now()) @updatedAt
+
+  @@map("documentation_sections")
+}
+
+// Pending updates
+model PendingUpdate {
+  id         String        @id @default(uuid()) @db.Uuid
+  sectionId  String
+  type       UpdateType
+  summary    String        @db.Text
+  source     String        @db.Text
+  status     UpdateStatus  @default(pending)
+  diffBefore String?       @db.Text
+  diffAfter  String?       @db.Text
+  createdAt  DateTime      @default(now())
+  reviewedAt DateTime?
+  reviewedBy String?
+
+  history        UpdateHistory[]
+  sectionVersions SectionVersion[]
+
+  @@map("pending_updates")
+}
+
+// Update history
+model UpdateHistory {
+  id          String     @id @default(uuid()) @db.Uuid
+  updateId    String     @db.Uuid
+  action      ActionType
+  performedAt DateTime   @default(now())
+  performedBy String?
+
+  pendingUpdate  PendingUpdate    @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  sectionVersions SectionVersion[]
+
+  @@map("update_history")
+}
+
+// Scraped messages
+model ScrapedMessage {
+  id               String        @id @default(uuid()) @db.Uuid
+  messageId        String        @unique
+  source           MessageSource
+  channelName      String
+  topicName        String?
+  senderEmail      String?
+  senderName       String?
+  content          String        @db.Text
+  messageTimestamp DateTime
+  scrapedAt        DateTime      @default(now())
+  analyzed         Boolean       @default(false)
+
+  @@map("scraped_messages")
+}
+
+// Scrape metadata for incremental scraping
+model ScrapeMetadata {
+  id                   String        @id @default(uuid()) @db.Uuid
+  source               MessageSource
+  channelName          String
+  lastMessageId        String?
+  lastScrapeTimestamp  DateTime?
+  lastScrapeAt         DateTime      @default(now())
+  totalMessagesFetched Int           @default(0)
+
+  @@map("scrape_metadata")
+}
+
+// Section versions for rollback functionality
+model SectionVersion {
+  id              String       @id @default(uuid()) @db.Uuid
+  sectionId       String
+  title           String
+  content         String       @db.Text
+  level           Int?
+  type            SectionType?
+  orderIndex      Int
+  op              VersionOp
+  parentVersionId String?      @db.Uuid
+  fromUpdateId    String?      @db.Uuid
+  fromHistoryId   String?      @db.Uuid
+  createdAt       DateTime     @default(now())
+  createdBy       String?
+
+  pendingUpdate  PendingUpdate?  @relation(fields: [fromUpdateId], references: [id], onDelete: SetNull)
+  updateHistory  UpdateHistory?  @relation(fields: [fromHistoryId], references: [id], onDelete: SetNull)
+
+  @@map("section_versions")
+}
+
+// RAG Documentation pages with vector embeddings
+model DocumentPage {
+  id         Int       @id @default(autoincrement())
+  filePath   String    @map("file_path")
+  title      String
+  content    String    @db.Text
+  commitHash String    @map("commit_hash")
+  gitUrl     String    @map("git_url")
+  embedding  Unsupported("vector(768)")?  @map("embedding") // pgvector type
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@unique([filePath, commitHash])
+  @@map("document_pages")
+}
+
+// Git sync state tracking
+model GitSyncState {
+  id             Int      @id @default(autoincrement())
+  gitUrl         String   @unique @map("git_url")
+  branch         String   @default("main")
+  lastCommitHash String?  @map("last_commit_hash")
+  lastSyncAt     DateTime @default(now()) @map("last_sync_at")
+  syncStatus     String   @default("idle") // idle, syncing, success, error
+  errorMessage   String?  @map("error_message") @db.Text
+
+  @@map("git_sync_state")
+}
+
+// Cached documentation index
+model DocIndexCache {
+  id           Int      @id @default(autoincrement())
+  commitHash   String   @map("commit_hash")
+  configHash   String   @map("config_hash") // Hash of filter config to detect changes
+  indexData    Json     @map("index_data") // Stored DocumentationIndex
+  compactIndex String   @map("compact_index") @db.Text // Pre-formatted compact version
+  generatedAt  DateTime @default(now()) @map("generated_at")
+
+  @@unique([commitHash, configHash])
+  @@map("doc_index_cache")
+}
+
+// ========== Multi-Stream Scanner Tables (Phase 1) ==========
+
+// Stream configurations
+model StreamConfig {
+  id          Int      @id @default(autoincrement())
+  streamId    String   @unique @map("stream_id")
+  adapterType String   @map("adapter_type") // csv, telegram, discord, slack, etc
+  config      Json     // Adapter-specific configuration
+  enabled     Boolean  @default(true)
+  schedule    String?  // Cron expression for polling
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  watermarks ImportWatermark[]
+  messages   UnifiedMessage[]
+
+  @@map("stream_configs")
+}
+
+// Import watermark tracking per stream/channel/file
+model ImportWatermark {
+  id                Int       @id @default(autoincrement())
+  streamId          String    @map("stream_id")
+  streamType        String    @map("stream_type")       // telegram, discord, csv, etc.
+  resourceId        String?   @map("resource_id")       // channel ID or file name
+  lastImportedTime  DateTime? @map("last_imported_time")
+  lastImportedId    String?   @map("last_imported_id")
+  importComplete    Boolean   @default(false) @map("import_complete") // For CSV files
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  streamConfig StreamConfig @relation(fields: [streamId], references: [streamId], onDelete: Cascade)
+
+  @@unique([streamId, resourceId])
+  @@index([streamId, resourceId])
+  @@map("import_watermarks")
+}
+
+// Processing watermark (global, single row)
+model ProcessingWatermark {
+  id                  Int       @id @default(1)
+  watermarkTime       DateTime  @map("watermark_time")
+  lastProcessedBatch  DateTime? @map("last_processed_batch")
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@map("processing_watermark")
+}
+
+// Unified messages from all streams
+model UnifiedMessage {
+  id               Int                @id @default(autoincrement())
+  streamId         String             @map("stream_id")
+  messageId        String             @map("message_id")
+  timestamp        DateTime
+  author           String
+  content          String             @db.Text
+  channel          String?
+  rawData          Json               @map("raw_data")
+  metadata         Json?
+  embedding        Unsupported("vector(768)")?  // For message RAG
+  processingStatus ProcessingStatus   @default(PENDING) @map("processing_status")
+  failureCount     Int                @default(0) @map("failure_count")
+  lastError        String?            @map("last_error") @db.Text
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  streamConfig     StreamConfig            @relation(fields: [streamId], references: [streamId], onDelete: Cascade)
+  classification   MessageClassification?
+
+  @@unique([streamId, messageId])
+  @@index([timestamp(sort: Desc)])
+  @@index([processingStatus])
+  @@map("unified_messages")
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ProposalStatus {
+  pending
+  approved
+  ignored
+}
+
+// Batch classification results (LLM-1) - identifies conversation subsets
+model MessageClassification {
+  id                 Int       @id @default(autoincrement())
+  messageId          Int       @unique @map("message_id")
+  batchId            String?   @map("batch_id")  // Links messages from same batch
+  conversationId     String?   @map("conversation_id") // Links messages from same conversation
+  category           String    // information, troubleshooting, update, etc.
+  docValueReason     String    @map("doc_value_reason") @db.Text
+  suggestedDocPage   String?   @map("suggested_doc_page")
+  ragSearchCriteria  Json?     @map("rag_search_criteria")
+  modelUsed          String?   @map("model_used")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  message UnifiedMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([conversationId])
+  @@map("message_classification")
+}
+
+// RAG retrieval results (per conversation)
+model ConversationRagContext {
+  id                 Int      @id @default(autoincrement())
+  conversationId     String   @unique @map("conversation_id")
+  batchId            String?  @map("batch_id")
+  summary            String?  @db.VarChar(200) // LLM-generated conversation summary (max 200 chars)
+  retrievedDocs      Json     @map("retrieved_docs") // Array of {docId, title, filePath, similarity, contentPreview}
+  totalTokens        Int?     @map("total_tokens")
+  proposalsRejected  Boolean? @map("proposals_rejected") // True if LLM decided no proposals needed
+  rejectionReason    String?  @map("rejection_reason") @db.Text // Explanation for why no proposals
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([batchId])
+  @@map("conversation_rag_context")
+}
+
+// LLM-2 Documentation update proposals (changesets per conversation)
+model DocProposal {
+  id                 Int            @id @default(autoincrement())
+  conversationId     String         @map("conversation_id") // Links to conversation group
+  batchId            String?        @map("batch_id") // Links to processing batch
+  page               String
+  updateType         String         @map("update_type") // INSERT|UPDATE|DELETE|NONE
+  section            String?
+  location           Json?          // Stores location info (lineStart, lineEnd, sectionName)
+  suggestedText      String?        @map("suggested_text") @db.Text
+  reasoning          String?        @db.Text
+  sourceMessages     Json?          @map("source_messages") // Array of message IDs that led to this proposal
+  status             ProposalStatus @default(pending)
+  editedText         String?        @map("edited_text") @db.Text
+  editedAt           DateTime?      @map("edited_at")
+  editedBy           String?        @map("edited_by")
+  adminApproved      Boolean        @default(false) @map("admin_approved")
+  adminReviewedAt    DateTime?      @map("admin_reviewed_at")
+  adminReviewedBy    String?        @map("admin_reviewed_by")
+  discardReason      String?        @map("discard_reason") @db.Text
+  modelUsed          String?        @map("model_used")
+  createdAt          DateTime       @default(now()) @map("created_at")
+
+  @@index([conversationId])
+  @@index([batchId])
+  @@index([status])
+  @@index([adminApproved])
+  @@map("doc_proposals")
+}

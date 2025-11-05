@@ -1,6 +1,8 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { storage } from "../storage";
-import type { ScrapedMessage, DocumentationSection } from "../schema";
+import type { ScrapedMessage, DocumentationSection } from "../storage";
+import { getConfig } from "../config/loader";
+import { llmCache } from "../llm/llm-cache.js";
 
 export interface AnalysisResult {
   relevant: boolean;
@@ -15,11 +17,11 @@ export interface AnalysisResult {
 
 export class MessageAnalyzer {
   private documentationSections: DocumentationSection[] = [];
-  private ai: GoogleGenAI;
+  private genAI: GoogleGenerativeAI;
 
   constructor() {
     // DON'T DELETE THIS COMMENT - Note that the newest Gemini model series is "gemini-2.5-flash" or "gemini-2.5-pro"
-    this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
   }
 
   async loadDocumentation() {
@@ -32,11 +34,12 @@ export class MessageAnalyzer {
       await this.loadDocumentation();
     }
 
+    const config = getConfig();
     const documentationContext = this.documentationSections
       .map(section => `Section ID: ${section.sectionId}\nTitle: ${section.title}\nContent: ${section.content.substring(0, 500)}...`)
       .join("\n\n");
 
-    const prompt = `You are analyzing messages from NEAR Protocol's validator community support channel to determine if they contain information that should update the validator documentation.
+    const prompt = `You are analyzing messages from ${config.project.name}'s community support channel to determine if they contain information that should update the documentation.
 
 Current Documentation Sections:
 ${documentationContext}
@@ -49,7 +52,7 @@ Content:
 ${message.content}
 
 Your task:
-1. Determine if this message contains valuable information for validator documentation (new troubleshooting tips, configuration changes, best practices, common issues, solutions, etc.)
+1. Determine if this message contains valuable information for the documentation (new troubleshooting tips, configuration changes, best practices, common issues, solutions, etc.)
 2. Choose the appropriate action:
    - "minor": Small update or clarification to existing section
    - "major": Significant update to existing section
@@ -72,12 +75,24 @@ Respond with JSON in this exact format:
 }`;
 
     try {
+      // Check cache first
+      const cached = llmCache.get(prompt, 'analysis');
+      if (cached) {
+        try {
+          const result = JSON.parse(cached.response) as AnalysisResult;
+          console.log('Using cached analysis result');
+          return result;
+        } catch (error) {
+          console.warn('Failed to parse cached analysis, will regenerate');
+        }
+      }
+
       const systemPrompt = "You are an expert technical writer analyzing community messages for documentation updates. Always respond with valid JSON.";
 
-      const response = await this.ai.models.generateContent({
+      const model = this.genAI.getGenerativeModel({
         model: "gemini-2.5-pro",
-        config: {
-          systemInstruction: systemPrompt,
+        systemInstruction: systemPrompt,
+        generationConfig: {
           responseMimeType: "application/json",
           responseSchema: {
             type: "object",
@@ -94,15 +109,22 @@ Respond with JSON in this exact format:
             required: ["relevant", "reasoning"],
           },
         },
-        contents: prompt,
       });
 
-      const rawJson = response.text;
+      const response = await model.generateContent(prompt);
+
+      const rawJson = response.response.text();
       if (!rawJson) {
         throw new Error("Empty response from Gemini");
       }
 
       const result = JSON.parse(rawJson) as AnalysisResult;
+
+      // Save to cache
+      llmCache.set(prompt, rawJson, 'analysis', {
+        model: 'gemini-2.5-pro',
+      });
+
       return result;
     } catch (error: any) {
       console.error("Error analyzing message:", error.message);
@@ -204,7 +226,7 @@ Respond with JSON in this exact format:
                 type: result.updateType,
                 summary: section ? result.summary : `[TRIAGE] AI suggested unknown section "${result.sectionId}". ${result.summary}`,
                 source: `Zulipchat message from ${message.senderName} on ${message.messageTimestamp.toISOString()}`,
-                status: result.updateType === "minor" && section ? "auto-applied" : "pending",
+                status: result.updateType === "minor" && section ? "auto_applied" : "pending",
                 diffBefore: section?.content || null,
                 diffAfter: result.suggestedContent || null,
                 reviewedBy: result.updateType === "minor" && section ? "AI Auto-Approval" : null,
@@ -220,7 +242,7 @@ Respond with JSON in this exact format:
                 // Create audit history entry for auto-applied update
                 await storage.createUpdateHistory({
                   updateId: pendingUpdate.id,
-                  action: "auto-applied",
+                  action: "auto_applied",
                   performedBy: "AI Auto-Approval",
                 });
                 
@@ -244,15 +266,59 @@ Respond with JSON in this exact format:
       updatesCreated,
     };
   }
+
+  /**
+   * Generate an answer to a documentation question
+   * Used by the widget API endpoint with RAG context
+   */
+  async generateDocumentationAnswer(prompt: string): Promise<string> {
+    try {
+      // Check cache first
+      const cached = llmCache.get(prompt, 'general');
+      if (cached) {
+        console.log('Using cached documentation answer');
+        return cached.response;
+      }
+
+      const config = getConfig();
+      const systemPrompt = `You are a helpful AI assistant for ${config.project.name} documentation. Provide clear, accurate, and helpful answers based on the documentation provided. If the documentation doesn't contain the answer, be honest about it.`;
+
+      const model = this.genAI.getGenerativeModel({
+        model: "gemini-2.0-flash-exp",
+        systemInstruction: systemPrompt,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1024,
+        },
+      });
+
+      const response = await model.generateContent(prompt);
+
+      const answer = response.response.text();
+      if (!answer) {
+        throw new Error("Empty response from Gemini");
+      }
+
+      // Save to cache
+      llmCache.set(prompt, answer, 'general', {
+        model: 'gemini-2.0-flash-exp',
+      });
+
+      return answer;
+    } catch (error: any) {
+      console.error("Error generating documentation answer:", error.message);
+      throw new Error(`Failed to generate answer: ${error.message}`);
+    }
+  }
 }
 
 export function createAnalyzerFromEnv(): MessageAnalyzer | null {
   const apiKey = process.env.GEMINI_API_KEY;
-  
+
   if (!apiKey) {
     console.warn("Gemini API key not found in environment variables");
     return null;
   }
-  
+
   return new MessageAnalyzer();
 }

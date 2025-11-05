@@ -6,8 +6,8 @@
 
 ### Workflow Requirements
 All new features must include:
-- **Story**: Context, problem statement, acceptance criteria (`/stories/`)
-- **Spec**: Implementation details, data impact, dependencies (`/specs/`)
+- **Story**: Context, problem statement, acceptance criteria (`/docs/stories/`)
+- **Spec**: Implementation details, data impact, dependencies (`/docs/specs/`)
 - **Branch**: Named after story/feature (no direct commits to main)
 - **Review**: Code reviewed and tested before merge
 

@@ -53,7 +53,7 @@ export async function setupVite(app: Express, server: Server) {
     configFile: "vite.config.ts",
     customLogger: {
       ...viteLogger,
-      error: (msg, options) => {
+      error: (msg: string, options?: any) => {
         viteLogger.error(msg, options);
         process.exit(1);
       },

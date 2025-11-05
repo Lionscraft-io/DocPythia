@@ -1,6 +1,4 @@
 import { db } from "../db";
-import { documentationSections } from "../../shared/schema";
-import { sql } from "drizzle-orm";
 
 const content: Array<{
   sectionId: string;
@@ -2651,16 +2649,16 @@ async function importContent() {
     console.log(`Total sections to import: ${content.length}`);
     
     // Clear existing documentation
-    await db.delete(documentationSections);
+    await db.documentationSection.deleteMany();
     console.log("✓ Cleared existing documentation sections");
-    
+
     // Insert new content
     const sectionsToInsert = content.map(section => ({
       ...section,
-      type: section.type || undefined
+      type: section.type || null
     }));
-    
-    await db.insert(documentationSections).values(sectionsToInsert);
+
+    await db.documentationSection.createMany({ data: sectionsToInsert });
     
     console.log(`\n✓ Successfully imported ${content.length} sections!`);
     console.log("\nImported sections breakdown:");

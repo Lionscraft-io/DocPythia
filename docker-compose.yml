@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for NearDocsAI with pgvector support
+  db:
+    image: pgvector/pgvector:pg15
+    container_name: neardocsai-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: neardocs
+      POSTGRES_PASSWORD: neardocs_secure_password
+      POSTGRES_DB: neardocs
+    volumes:
+      - neardocs_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Expose PostgreSQL on host port 5433
+    networks:
+      - neardocs-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neardocs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # NearDocsAI application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        WIDGET_DOMAIN: ${WIDGET_DOMAIN:-http://localhost:3762}
+    container_name: neardocsai-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3762}:8080"  # Map host port 3762 to container port 8080
+    environment:
+      # Database connection (points to db service)
+      DATABASE_URL: postgresql://neardocs:neardocs_secure_password@db:5432/neardocs
+
+      # Admin authentication
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-neardocs_admin_token_change_me}
+
+      # Application settings
+      NODE_ENV: production
+      PORT: 8080  # Internal container port
+
+      # Widget configuration
+      WIDGET_DOMAIN: ${WIDGET_DOMAIN:-http://localhost:3762}
+      VITE_WIDGET_DOMAIN: ${VITE_WIDGET_DOMAIN:-http://localhost:3762}
+
+      # Scheduler (disabled by default)
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-false}
+      CRON_SCHEDULE: ${CRON_SCHEDULE:-0 2 * * *}
+      SCRAPE_LIMIT: ${SCRAPE_LIMIT:-100}
+      ANALYSIS_LIMIT: ${ANALYSIS_LIMIT:-50}
+
+      # Zulip configuration (optional)
+      ZULIP_CHANNEL: ${ZULIP_CHANNEL:-community-support}
+      ZULIP_BOT_EMAIL: ${ZULIP_BOT_EMAIL:-}
+      ZULIP_API_KEY: ${ZULIP_API_KEY:-}
+      ZULIP_SITE: ${ZULIP_SITE:-}
+
+      # AI API keys (optional)
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+      # Chat integration (optional)
+      CHAT_ENABLED: ${CHAT_ENABLED:-false}
+      EXPERT_ID: ${EXPERT_ID:-5}
+      CHAT_ENDPOINT: ${CHAT_ENDPOINT:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - neardocs-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  neardocs-network:
+    driver: bridge
+
+volumes:
+  neardocs_db_data:
+    driver: local

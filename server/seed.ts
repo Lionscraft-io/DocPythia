@@ -1,7 +1,9 @@
+// Database seeding - Prisma
+// Migrated from Drizzle ORM - Wayne (2025-10-29)
 import { db } from "./db";
-import { documentationSections, type InsertDocumentationSection } from "./schema";
+import type { Prisma } from "@prisma/client";
 
-const sections: InsertDocumentationSection[] = [
+const sections: Prisma.DocumentationSectionCreateInput[] = [
   {
     sectionId: "overview",
     title: "NEAR Nodes Documentation",
@@ -10,7 +12,7 @@ const sections: InsertDocumentationSection[] = [
     type: null,
     orderIndex: 0,
   },
-  
+
   // Validator Node Section
   {
     sectionId: "validator",
@@ -64,7 +66,7 @@ const sections: InsertDocumentationSection[] = [
     sectionId: "validator-warning-keys",
     title: "Important: Key Security",
     content: "Always backup your validator keys in a secure location. Loss of keys means loss of access to your validator and staked funds.",
-    type: "warning" as const,
+    type: "warning",
     orderIndex: 7,
   },
   {
@@ -95,7 +97,7 @@ const sections: InsertDocumentationSection[] = [
     sectionId: "validator-info-staking",
     title: "Staking Requirements",
     content: "To become a validator on mainnet, you need to stake a minimum amount of NEAR tokens. The exact amount varies based on current network conditions and seat prices.",
-    type: "info" as const,
+    type: "info",
     orderIndex: 11,
   },
   {
@@ -118,7 +120,7 @@ const sections: InsertDocumentationSection[] = [
     sectionId: "validator-success-next",
     title: "Next Steps",
     content: "Once your node is running and synced, you can proceed to stake your tokens and join the validator set. Monitor your node's performance regularly and stay updated with network upgrades.",
-    type: "success" as const,
+    type: "success",
     orderIndex: 14,
   },
 
@@ -159,7 +161,7 @@ const sections: InsertDocumentationSection[] = [
     sectionId: "rpc-info-rpc",
     title: "Public vs Private RPC",
     content: "Consider whether you want to run a public RPC node (open to all) or a private one (restricted access). Public nodes require more resources and security measures.",
-    type: "info" as const,
+    type: "info",
     orderIndex: 19,
   },
   {
@@ -190,7 +192,7 @@ const sections: InsertDocumentationSection[] = [
     sectionId: "rpc-warning-security",
     title: "Security Warning",
     content: "Never expose RPC endpoints directly to the internet without proper security measures. Always use a reverse proxy with rate limiting.",
-    type: "warning" as const,
+    type: "warning",
     orderIndex: 23,
   },
 
@@ -215,7 +217,7 @@ const sections: InsertDocumentationSection[] = [
     sectionId: "archival-warning-storage",
     title: "Storage Warning",
     content: "Archival nodes require significantly more storage than regular nodes. Plan for at least 5TB initially and expect storage needs to grow over time. Budget for storage expansion.",
-    type: "warning" as const,
+    type: "warning",
     orderIndex: 26,
   },
   {
@@ -246,7 +248,7 @@ const sections: InsertDocumentationSection[] = [
     sectionId: "archival-info-sync",
     title: "Initial Sync Time",
     content: "Syncing an archival node from genesis takes significantly longer than a regular node. Initial sync can take several days to weeks depending on hardware and network conditions.",
-    type: "info" as const,
+    type: "info",
     orderIndex: 30,
   },
   {
@@ -277,18 +279,18 @@ const sections: InsertDocumentationSection[] = [
     sectionId: "archival-success-tips",
     title: "Pro Tips",
     content: "• Start with a database snapshot to reduce initial sync time\n• Use monitoring tools to track disk usage trends\n• Implement automated alerts for low disk space\n• Consider tiered storage for older data",
-    type: "success" as const,
+    type: "success",
     orderIndex: 34,
   },
 ];
 
 async function seed() {
   console.log("Seeding documentation sections...");
-  
+
   for (const section of sections) {
-    await db.insert(documentationSections).values(section);
+    await db.documentationSection.create({ data: section });
   }
-  
+
   console.log(`Seeded ${sections.length} documentation sections`);
   process.exit(0);
 }

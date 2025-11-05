@@ -3,7 +3,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { Search, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import logoPath from "@assets/Near_logo.svg_1759241297990.png";
+import { useConfig } from "@/hooks/useConfig";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -12,6 +12,13 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick, searchValue = "", onSearchChange }: HeaderProps) {
+  const { data: config, isLoading } = useConfig();
+
+  // Use default values while loading
+  const projectName = config?.project.name || 'Loading...';
+  const projectDescription = config?.project.description || '';
+  const logoUrl = config?.branding.logo || '';
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center gap-4 px-6 md:px-8">
@@ -24,12 +31,14 @@ export function Header({ onMenuClick, searchValue = "", onSearchChange }: Header
         >
           <Menu className="h-5 w-5" />
         </Button>
-        
+
         <Link href="/" className="flex items-center gap-3" data-testid="link-home">
-          <img src={logoPath} alt="NEAR Logo" className="h-8 w-auto" />
+          {logoUrl && !isLoading && (
+            <img src={logoUrl} alt={`${projectName} Logo`} className="h-8 w-auto" />
+          )}
           <div className="hidden sm:block">
-            <div className="font-bold text-xl">KNOW</div>
-            <div className="text-xs text-muted-foreground -mt-1">Knowledge for NEAR Operations & Workflows</div>
+            <div className="font-bold text-xl">{projectName}</div>
+            <div className="text-xs text-muted-foreground -mt-1">{projectDescription}</div>
           </div>
         </Link>
 

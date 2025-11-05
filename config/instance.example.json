@@ -1,0 +1,70 @@
+{
+  "project": {
+    "name": "NearDocs AI",
+    "shortName": "near",
+    "description": "AI-powered documentation assistant for NEAR Protocol",
+    "domain": "neardocs.ai",
+    "supportEmail": "support@neardocs.ai"
+  },
+  "branding": {
+    "logo": "https://near.org/wp-content/themes/near-19/assets/img/logo.svg",
+    "favicon": "https://near.org/wp-content/themes/near-19/assets/img/favicon.ico",
+    "primaryColor": "#00EC97",
+    "secondaryColor": "#000000",
+    "accentColor": "#0072CE",
+    "darkModePrimaryColor": "#00EC97",
+    "projectUrl": "https://near.org"
+  },
+  "documentation": {
+    "gitUrl": "https://github.com/near/docs",
+    "branch": "main",
+    "docsPath": ""
+  },
+  "community": {
+    "zulip": {
+      "enabled": false,
+      "site": "https://near.zulipchat.com",
+      "botEmail": "bot@example.com",
+      "apiKey": "your-zulip-api-key",
+      "channel": "community-support"
+    },
+    "telegram": {
+      "enabled": false,
+      "botToken": "your-telegram-bot-token",
+      "channelId": "@near_protocol"
+    },
+    "discord": {
+      "enabled": false,
+      "botToken": "your-discord-bot-token",
+      "guildId": "your-guild-id",
+      "channelId": "your-channel-id"
+    }
+  },
+  "widget": {
+    "enabled": true,
+    "title": "NEAR Assistant",
+    "welcomeMessage": "Hello! I'm your NEAR Protocol documentation assistant. How can I help you today?",
+    "suggestedQuestions": [
+      "How do I set up a validator node?",
+      "What are the hardware requirements for RPC nodes?",
+      "How do I stake NEAR tokens?",
+      "What is sharding in NEAR?"
+    ],
+    "position": "bottom-right",
+    "theme": "auto"
+  },
+  "features": {
+    "ragEnabled": false,
+    "schedulerEnabled": false,
+    "chatEnabled": true,
+    "analyticsEnabled": false,
+    "versionHistoryEnabled": true
+  },
+  "admin": {
+    "token": "change_me_in_production",
+    "allowedOrigins": [
+      "http://localhost:3762",
+      "http://localhost:5173"
+    ]
+  }
+}

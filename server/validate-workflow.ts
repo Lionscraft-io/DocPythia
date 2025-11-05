@@ -36,7 +36,7 @@ async function validateWorkflow() {
   
   // Step 3: Check Auto-Apply Logic
   console.log("\n3. Hybrid Approval Workflow");
-  const autoApplied = pendingUpdates.filter(u => u.status === "auto-applied");
+  const autoApplied = pendingUpdates.filter(u => u.status === "auto_applied");
   const pending = pendingUpdates.filter(u => u.status === "pending");
   
   console.log(`   ✓ Minor updates (auto-applied): ${autoApplied.length}`);

@@ -73,10 +73,24 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
-    
+    console.log('\n🚀 ========================================');
+    console.log(`   Server running on http://localhost:${port}`);
+    console.log('   ========================================\n');
+
     // Start the scheduler for automated scraping and analysis
     startScheduler();
+
+    // Initialize Multi-Stream Scanner (Phase 1)
+    if (process.env.STREAM_MANAGER_ENABLED !== 'false') {
+      try {
+        const { streamManager } = await import('./stream/stream-manager.js');
+        await streamManager.initialize();
+        log('Multi-Stream Scanner initialized');
+      } catch (error) {
+        console.error('Failed to initialize Multi-Stream Scanner:', error);
+      }
+    }
   });
 })();
