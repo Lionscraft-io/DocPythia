@@ -30,6 +30,9 @@ RUN npx vite build --config vite.config.production.ts && \
 # Production stage
 FROM node:20-alpine AS production
 
+# Install git for documentation repository cloning
+RUN apk add --no-cache git
+
 # Set working directory
 WORKDIR /app
 
@@ -56,9 +59,11 @@ COPY shared ./shared
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
-# Create cache directory for LLM responses
+# Create cache directories for LLM responses and documentation sync
 RUN mkdir -p /cache/llm && \
-    chown -R nextjs:nodejs /cache
+    mkdir -p /var/cache/conflux-docs && \
+    chown -R nextjs:nodejs /cache && \
+    chown -R nextjs:nodejs /var/cache/conflux-docs
 
 # Change ownership of the app directory
 RUN chown -R nextjs:nodejs /app

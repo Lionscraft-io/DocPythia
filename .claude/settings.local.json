@@ -59,7 +59,11 @@
       "Bash(./scripts/permanent/kill-port.sh:*)",
       "Bash(timeout 10 node -e \"\nconst https = require(''https'');\nhttps.get(''https://api.telegram.org/bot8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8/getMe'', (res) => {\n  console.log(''Status:'', res.statusCode);\n  res.on(''data'', (d) => process.stdout.write(d));\n}).on(''error'', (e) => {\n  console.error(''Error:'', e.message);\n});\n\")",
       "Bash(echo \"HTTP_PROXY: $HTTP_PROXY\" echo \"HTTPS_PROXY: $HTTPS_PROXY\" echo \"http_proxy: $http_proxy\" echo \"https_proxy: $https_proxy\" env)",
-      "Bash(docker run:*)"
+      "Bash(docker run:*)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes you can reset it\" npx prisma migrate reset:*)",
+      "Bash(https://api.github.com/repos/Lionscraft-io/conflux-documentation/pulls)",
+      "Bash(https://api.github.com/user)",
+      "Bash(https://api.github.com/repos/Lionscraft-io/conflux-documentation)"
     ],
     "deny": [],
     "ask": []

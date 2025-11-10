@@ -1,0 +1,66 @@
+timestamp,content,author,channel
+2025-10-28 20:50:00,"Wii-Mii: is there anyone looking for dev?",Julian Ueding,conflux-community
+2025-10-28 20:51:00,"Bonez: Yes",Bonez,conflux-community
+2025-10-28 20:52:00,"Rica: Hello, is here anyone whom could help me run a node? I can't seem to figure it out on my own. I have the hardware necessary to do it, and I have installed Ubuntu on a VM, I just don't have the necessary skills to figure it out on my own.",Rica,conflux-community
+2025-10-28 20:53:00,"Unknown: You look dodgy",Unknown,conflux-community
+2025-10-28 20:54:00,"iriesam: Open a support ticket and we will help you out",iriesam,conflux-community
+2025-10-28 20:55:00,"intrepid: Hey rica. Steps on the developer docs https://doc.confluxnetwork.org/docs/general/run-a-node/",intrepid,conflux-community
+2025-10-28 20:56:00,"?i??: Also check pinned messages in this channel and also from developers",?i??,conflux-community
+2025-10-28 20:57:00,"hackschnitzel1071 ALGO: Hi, do I get it right a pos single node needs >1000cfx (~170$) to get ~11% apr? The more stake the more rewards. With a pool rewards can be higher because of fees of the stakers?",hackschnitzel1071 ALGO,conflux-community
+2025-10-28 20:58:00,"iriesam: Yes that is correct. A minimum of 1k cfx to stake and the apr is around 11.3%. Each community pool varies slightly",iriesam,conflux-community
+2025-10-28 20:59:00,"?i??: average APR is 11.3%, but with only 1000CFX it's hard to get voting rights as the pos pool will be very tiny.",?i??,conflux-community
+2025-10-28 21:00:00,"Unknown: So, real APR will vary",Unknown,conflux-community
+2025-10-28 21:01:00,"Estebanquito: is there some way to prune old blocks? I don't want to waste 1+TB of NVME just to store blocks that aren't needed if i can",Estebanquito,conflux-community
+2025-10-28 21:02:00,"Unknown: Why are you using a backslash to bypass the link protection",Unknown,conflux-community
+2025-10-28 21:03:00,"Unknown: the two responses are a scam",Unknown,conflux-community
+2025-10-28 21:04:00,"Unknown: Another one?",Unknown,conflux-community
+2025-10-28 21:05:00,"Ghost: @0xn1c0",Ghost,conflux-community
+2025-10-28 21:06:00,"0xn1c0: maybe you should use a light node instead if you are concerned about storage: https://doc.confluxnetwork.org/docs/general/run-a-node/node-types",0xn1c0,conflux-community
+2025-10-28 21:07:00,"Estebanquito: Light nodes cannot be used in PoS afaik",Estebanquito,conflux-community
+2025-10-28 21:08:00,"Unknown: i want to run my PoS node but cannot waste 1+TB of nvme",Unknown,conflux-community
+2025-10-28 21:09:00,"Unknown: Most chains have a prune function that allows you to delete old blocks and reduce disk usage, old blocks are wasted space for me",Unknown,conflux-community
+2025-10-28 21:10:00,"Unknown: From the guide: A PoS node is also a Conflux node. So you can run a PoS node following the run a node guide. Either a full node or a archive node is fine.",Unknown,conflux-community
+2025-10-28 21:11:00,"Unknown: no mention of light node",Unknown,conflux-community
+2025-10-28 21:12:00,"?i??: You can use btrfs + stdlib to have more space available",?i??,conflux-community
+2025-10-28 21:13:00,"?i??: Check pinned messages on developers",?i??,conflux-community
+2025-10-28 21:14:00,"?i??: developers?",?i??,conflux-community
+2025-10-28 21:15:00,"Estebanquito: Will try, ty for the info!",Estebanquito,conflux-community
+2025-10-28 21:16:00,"Estebanquito: I hope some prune function is added anyways, as this works but doesn't work as space will grow overtime and become literal wasted space",Estebanquito,conflux-community
+2025-10-28 21:17:00,"Estebanquito: still over a terabyte, will wait until something is done to get this down or just not run a node",Estebanquito,conflux-community
+2025-10-28 21:18:00,"Ghost: https://x.com/Conflux_Network/status/1900517777435185326",Ghost,conflux-community
+2025-10-28 21:19:00,"mabi: Hello everyone, I am running a conflux node/server since last year all through linux/conflux-rust and would like to become a solo validator and stake all my CFX. I read the https://doc.confluxnetwork.org/docs/general/mine-stake/stake/become-a-solo-validator official documentation but this procedure is made for people using the fluent wallet which I am not. I am using my own conflux node to manage my wallets so I was wondering if there is a documentation available for people like me who would like to do everything through the conflux-rust CLI or using the RPC API via curl?",mabi,conflux-community
+2025-10-28 21:20:00,"GLM ARBA: For now I can confirm the 'STAKE IN POW' step that references https://confluxhub.io/governance/pow-stake ...",GLM ARBA,conflux-community
+2025-10-28 21:21:00,"GLM ARBA: This should be the technical docs for the 'POS REGISTER' step https://doc.confluxnetwork.org/docs/core/core-space-basics/internal-contracts/poSRegister",GLM ARBA,conflux-community
+2025-10-28 21:22:00,"?i??: @mabi I'm not 100% sure, but I remember reading something about software wallet that it was deprecated. Also havent used it myself. @0xn1c0 might know",?i??,conflux-community
+2025-10-28 21:23:00,"?i??: Otherwise you can use the RPC API with conflux sdk",?i??,conflux-community
+2025-10-28 21:24:00,"?i??: I'm not sure if there is direct documentation for RPC API available",?i??,conflux-community
+2025-10-28 21:25:00,"mabi: Hi @?i?? you mean the software wallet integrated into the conflux-rust node? My plan was anyway to use the RPC API simply using curl and passing it the right data but I miss the documentation for that...",mabi,conflux-community
+2025-10-28 21:26:00,"Mathilda: any cryptocurrency expert here I got an issue I need an assistance",Mathilda,conflux-community
+2025-10-28 21:27:00,"GLM ARBA: how can we help?",GLM ARBA,conflux-community
+2025-10-28 21:28:00,"SventuraOscura: Hello guys. i just downloaded conflux rust 2.50, extracted the snapshot, but my node doesn't work at all.",SventuraOscura,conflux-community
+2025-10-28 21:29:00,"SventuraOscura: Also, is full of scammers even here.",SventuraOscura,conflux-community
+2025-10-28 21:30:00,"SventuraOscura: I Get this. each time i start the node. ...",SventuraOscura,conflux-community
+2025-10-28 21:31:00,"SventuraOscura: i just edited the line of the hydra file as type of node = full. Nothing else.",SventuraOscura,conflux-community
+2025-10-28 21:32:00,"?i??: /pos",?i??,conflux-community
+2025-10-28 21:33:00,"CFX-BotAPP: Conflux Proof-of-Stake - FAQ - Frequently Asked Questions ...",CFX-BotAPP,conflux-community
+2025-10-28 21:34:00,"?i??: what's your system, os, hardware?",?i??,conflux-community
+2025-10-28 21:35:00,"SventuraOscura: solved the problem.",SventuraOscura,conflux-community
+2025-10-28 21:36:00,"?i??: what was the solution?",?i??,conflux-community
+2025-10-28 21:37:00,"xiaoxu1101: what's the benefit of being a node to help others stake coin?",xiaoxu1101,conflux-community
+2025-10-28 21:38:00,"xiaoxu1101: could you please answer the question I have asked?",xiaoxu1101,conflux-community
+2025-10-28 21:39:00,"Tan Elliott: When running a node, you can earn staking rewards, support the network’s decentralized security, and potentially have voting rights in governance.",Tan Elliott,conflux-community
+2025-10-28 21:40:00,"GLM ARBA: A PoS pool can take a % of earned CFX, so it can be profitable",GLM ARBA,conflux-community
+2025-10-28 21:41:00,"GLM ARBA: A PoS node just allows you the owner to stake",GLM ARBA,conflux-community
+2025-10-28 21:42:00,"xiaoxu1101: got it, which means that if there's more nodes, that would be more decentralized right?",xiaoxu1101,conflux-community
+2025-10-28 21:43:00,"GLM ARBA: absolutely. More nodes is a good thing",GLM ARBA,conflux-community
+2025-10-28 21:44:00,"tarzo: Hello. According to GitHub, the hard fork is scheduled to activate on September 1st, but the page below states August 31st. Can you tell me which one?",tarzo,conflux-community
+2025-10-28 21:45:00,"GLM ARBA: You are right to use the block calculator, it will be more accurate now than the estimate released a few weeks ago.",GLM ARBA,conflux-community
+2025-10-28 21:46:00,"0xn1c0: Forwarded announcement: Conflux v3.0.1 Hardfork — upgrade required.",0xn1c0,conflux-community
+2025-10-28 21:47:00,"xyz: Hi Conflux! We're experiencing sync issues with our Conflux mainnet node. Despite using the fresh snapshot, the node remains stuck at epoch 130340000.",xyz,conflux-community
+2025-10-28 21:48:00,"Unknown: why this chat seems full of scams",Unknown,conflux-community
+2025-10-28 21:49:00,"Ghost: Did you upgrade to latest software?",Ghost,conflux-community
+2025-10-28 21:50:00,"xyz: yes confluxchain/conflux-rust:3.0.1-mainnet",xyz,conflux-community
+2025-10-28 21:51:00,"?i??: how long did you wait for it to be on that block? Sometimes the launch can be a bit slow",?i??,conflux-community
+2025-10-28 21:52:00,"xyz: around 24hours",xyz,conflux-community
+2025-10-28 21:53:00,"?i??: /pos",?i??,conflux-community
+2025-10-28 21:54:00,"CFX-BotAPP: Conflux Proof-of-Stake FAQ again",CFX-BotAPP,conflux-community

@@ -2,9 +2,31 @@
 
 **Developer:** Wayne
 **Created:** 2025-11-04
-**Status:** Draft
+**Completed:** 2025-11-06
+**Status:** ✅ Completed & Archived
 **Related Story:** [Multi-Stream Message Scanner](/docs/stories/multi-stream-message-scanner.md)
 **Phase:** Phase 1.5 (Bridge between analysis and PR generation)
+
+## Implementation Summary
+
+All requirements have been successfully implemented:
+- ✅ Three-tab workflow (Suggested Changes → Discarded → Changeset)
+- ✅ Edit proposal modal with save/cancel functionality
+- ✅ Approve/Ignore action buttons per proposal
+- ✅ Database schema changes (ProposalStatus enum, status field, discardReason)
+- ✅ Conversation state management and automatic tab transitions
+- ✅ Discard reason tracking (auto-rejected + manual "Admin discarded change")
+- ✅ Proposal filtering by status in each tab
+- ✅ Collapsible messages/RAG analysis with eye icon toggle
+- ✅ Reset functionality to move proposals back to pending
+
+**Files Modified:**
+- `/client/src/pages/Admin.tsx` - UI implementation
+- `/client/src/components/EditProposalModal.tsx` - Edit modal
+- `/client/src/components/ProposalActionButtons.tsx` - Action buttons
+- `/prisma/schema.prisma` - Database schema
+- `/server/stream/routes/admin-routes.ts` - Backend API
+- `/prisma/migrations/20251105095138_initial_schema/` - Database migration
 
 ## Overview
 
@@ -258,16 +280,16 @@ Files to modify:
 
 ## Acceptance Criteria
 
-- [ ] Each proposal shows Edit/Add/Ignore buttons in Suggested Changes tab
-- [ ] Clicking Edit opens modal, allows text editing, saves changes
-- [ ] Clicking Add moves proposal to Changeset, conversation moves when all processed
-- [ ] Clicking Ignore moves proposal to Discarded, conversation moves when all processed
-- [ ] Changeset tab shows only conversations with at least one approved proposal
-- [ ] Discarded tab shows only conversations with all proposals ignored
-- [ ] Removing from Changeset/Discarded returns proposal to pending state
-- [ ] Conversation automatically returns to Suggested Changes when any proposal reset
-- [ ] Tab counts update in real-time as proposals are processed
-- [ ] All changes tracked with timestamp and username
+- [x] Each proposal shows Edit/Add/Ignore buttons in Suggested Changes tab
+- [x] Clicking Edit opens modal, allows text editing, saves changes
+- [x] Clicking Add moves proposal to Changeset, conversation moves when all processed
+- [x] Clicking Ignore moves proposal to Discarded, conversation moves when all processed
+- [x] Changeset tab shows only conversations with at least one approved proposal
+- [x] Discarded tab shows only conversations with all proposals ignored
+- [x] Removing from Changeset/Discarded returns proposal to pending state
+- [x] Conversation automatically returns to Suggested Changes when any proposal reset
+- [x] Tab counts update in real-time as proposals are processed
+- [x] All changes tracked with timestamp and username
 
 ## Dependencies
 

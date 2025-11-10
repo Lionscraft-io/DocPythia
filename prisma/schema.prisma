@@ -279,6 +279,13 @@ enum ProposalStatus {
   ignored
 }
 
+enum BatchStatus {
+  draft       // Being assembled, editable
+  submitted   // PR created, immutable
+  merged      // PR merged into target repo
+  closed      // PR closed without merge
+}
+
 // Batch classification results (LLM-1) - identifies conversation subsets
 model MessageClassification {
   id                 Int       @id @default(autoincrement())
@@ -338,9 +345,84 @@ model DocProposal {
   modelUsed          String?        @map("model_used")
   createdAt          DateTime       @default(now()) @map("created_at")
 
+  // PR Generation fields (Phase 2)
+  prBatchId          Int?           @map("pr_batch_id") // Links to ChangesetBatch
+  prApplicationStatus String?       @map("pr_application_status") // success | failed | skipped
+  prApplicationError String?        @map("pr_application_error") @db.Text
+
+  prBatch           ChangesetBatch?  @relation("ProposalBatch", fields: [prBatchId], references: [id], onDelete: SetNull)
+  batchProposals    BatchProposal[]
+  failures          ProposalFailure[]
+
   @@index([conversationId])
   @@index([batchId])
   @@index([status])
   @@index([adminApproved])
+  @@index([prBatchId])
   @@map("doc_proposals")
+}
+
+// ========== PR Generation Tables (Phase 2) ==========
+
+// Changeset batches for PR generation
+model ChangesetBatch {
+  id                Int       @id @default(autoincrement())
+  batchId           String    @unique @map("batch_id") // User-friendly batch identifier
+  status            BatchStatus @default(draft)
+  prTitle           String?   @map("pr_title")
+  prBody            String?   @map("pr_body") @db.Text
+  prUrl             String?   @map("pr_url")
+  prNumber          Int?      @map("pr_number")
+  branchName        String?   @map("branch_name")
+  totalProposals    Int       @map("total_proposals")
+  affectedFiles     Json      @map("affected_files") // Array of file paths
+  targetRepo        String?   @map("target_repo") // GitHub repo URL for PR (e.g., owner/fork)
+  sourceRepo        String?   @map("source_repo") // Original docs repo URL
+  baseBranch        String?   @map("base_branch") @default("main") // Target branch for PR
+  createdAt         DateTime  @default(now()) @map("created_at")
+  submittedAt       DateTime? @map("submitted_at")
+  submittedBy       String?   @map("submitted_by")
+
+  proposals         DocProposal[]    @relation("ProposalBatch")
+  batchProposals    BatchProposal[]
+  failures          ProposalFailure[]
+
+  @@index([status])
+  @@index([submittedAt])
+  @@map("changeset_batches")
+}
+
+// Junction table linking proposals to batches
+model BatchProposal {
+  id          Int      @id @default(autoincrement())
+  batchId     Int      @map("batch_id")
+  proposalId  Int      @map("proposal_id")
+  orderIndex  Int      @map("order_index") // Order in which proposals were added
+  addedAt     DateTime @default(now()) @map("added_at")
+
+  batch    ChangesetBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  proposal DocProposal    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, proposalId])
+  @@index([batchId])
+  @@index([proposalId])
+  @@map("batch_proposals")
+}
+
+// Failed proposal applications (orphaned changes)
+model ProposalFailure {
+  id           Int      @id @default(autoincrement())
+  batchId      Int      @map("batch_id")
+  proposalId   Int      @map("proposal_id")
+  failureType  String   @map("failure_type") // file_not_found | section_not_found | parse_error | git_error
+  errorMessage String   @map("error_message") @db.Text
+  filePath     String   @map("file_path")
+  attemptedAt  DateTime @default(now()) @map("attempted_at")
+
+  batch    ChangesetBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  proposal DocProposal    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([proposalId])
+  @@map("proposal_failures")
 }

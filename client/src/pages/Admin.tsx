@@ -6,6 +6,7 @@ import { VersionHistoryCard } from "@/components/VersionHistoryCard";
 import { StatsCard } from "@/components/StatsCard";
 import { ProposalActionButtons } from "@/components/ProposalActionButtons";
 import { EditProposalModal } from "@/components/EditProposalModal";
+import { PRPreviewModal, type PRSubmitData } from "@/components/PRPreviewModal";
 import { FileText, CheckCircle2, Clock, History, RefreshCw, Database, Trash2, Search, ChevronDown, ChevronUp, MessageSquare, Eye, EyeOff } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,6 +33,7 @@ export default function Admin() {
   // Edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingProposal, setEditingProposal] = useState<any>(null);
+  const [prModalOpen, setPrModalOpen] = useState(false);
 
   // Expansion state for conversations
   const [expandedRagDocs, setExpandedRagDocs] = useState<Set<string>>(new Set());
@@ -125,6 +127,12 @@ export default function Admin() {
   const { data: llmCacheData } = useQuery<any>({
     queryKey: ["/api/admin/llm-cache"],
     queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+  });
+
+  const { data: batchHistory } = useQuery<any>({
+    queryKey: ["/api/admin/stream/batches?status=submitted"],
+    queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   useEffect(() => {
@@ -471,6 +479,41 @@ export default function Admin() {
     },
   });
 
+  // PR Generation mutation
+  const generatePRMutation = useMutation({
+    mutationFn: async (prData: PRSubmitData & { proposalIds: number[] }) => {
+      // First create a batch
+      const batchResponse = await adminApiRequest("POST", "/api/admin/stream/batches", {
+        proposalIds: prData.proposalIds
+      });
+      const batchData = await batchResponse.json();
+
+      // Then generate PR from the batch
+      const prResponse = await adminApiRequest("POST", `/api/admin/stream/batches/${batchData.batch.id}/generate-pr`, prData);
+      return await prResponse.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Pull Request Created",
+        description: "Your PR has been created successfully as a draft.",
+      });
+      queryClient.invalidateQueries({ queryKey: [changesetUrl] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/batches"] });
+    },
+    onError: (error: any) => {
+      if (error.message.includes("401") || error.message.includes("403")) {
+        sessionStorage.removeItem("admin_token");
+        setLocation("/admin/login");
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to generate PR.",
+          variant: "destructive",
+        });
+      }
+    },
+  });
+
   // Handler functions
   const handleEditProposal = (proposal: any) => {
     setEditingProposal(proposal);
@@ -491,6 +534,27 @@ export default function Admin() {
 
   const handleResetProposal = (proposalId: number) => {
     changeProposalStatusMutation.mutate({ proposalId, status: 'pending' });
+  };
+
+  const handlePRSubmit = async (prData: PRSubmitData) => {
+    // Collect all approved proposal IDs from changeset
+    const allApprovedProposals: any[] = [];
+    changeset?.data?.forEach((conv: any) => {
+      if (conv.proposals) {
+        conv.proposals.forEach((proposal: any) => {
+          if (proposal.status === 'approved') {
+            allApprovedProposals.push(proposal);
+          }
+        });
+      }
+    });
+
+    const proposalIds = allApprovedProposals.map((p) => p.id);
+
+    await generatePRMutation.mutateAsync({
+      ...prData,
+      proposalIds
+    });
   };
 
   const formatTimestamp = (timestamp: Date | string) => {
@@ -570,7 +634,7 @@ export default function Admin() {
             disabled={syncDocsMutation.isPending}
             className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {syncDocsMutation.isPending ? 'Syncing...' : 'Sync Streams'}
+            {syncDocsMutation.isPending ? 'Syncing...' : 'Sync Docs'}
           </button>
           <button
             onClick={handleClearProcessed}
@@ -631,6 +695,16 @@ export default function Admin() {
                   className="h-auto px-5 pt-3 pb-2 border-0 border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 hover:text-gray-900 hover:border-gray-300 transition-all rounded-none bg-transparent data-[state=active]:bg-transparent flex flex-col items-center text-center"
                 >
                   <span className="font-medium">LLM Cache ({llmCacheStats?.totalCached || 0})</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="history"
+                  data-testid="tab-history"
+                  className="h-auto px-5 pt-3 pb-2 border-0 border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 hover:text-gray-900 hover:border-gray-300 transition-all rounded-none bg-transparent data-[state=active]:bg-transparent flex flex-col items-center text-center"
+                >
+                  <span className="font-medium">PR History</span>
+                  <small className="text-[0.65rem] text-gray-500 mt-1">
+                    {batchHistory?.batches?.length || 0} pull requests
+                  </small>
                 </TabsTrigger>
               </TabsList>
             </nav>
@@ -879,6 +953,23 @@ export default function Admin() {
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Generate PR Button */}
+                <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-green-900">Ready to Generate Pull Request</h3>
+                    <p className="text-sm text-green-700">
+                      {changeset.totals?.total_approved_proposals || 0} approved proposals across {changeset.pagination?.total || 0} conversations
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => setPrModalOpen(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Generate PR
+                  </Button>
+                </div>
+
                 {changeset.data.map((conv: any) => (
                   <div key={conv.conversation_id} className="admin-card p-6 space-y-6 border-l-4 border-green-500">
                     {/* Conversation Header */}
@@ -1660,6 +1751,126 @@ export default function Admin() {
               </>
             )}
           </TabsContent>
+
+          {/* PR HISTORY TAB - Submitted changeset batches */}
+          <TabsContent value="history" className="space-y-4">
+            {!batchHistory?.batches?.length ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No pull requests generated yet. Create your first PR from the Changeset tab!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {batchHistory.batches.map((batch: any) => (
+                  <div key={batch.id} className="admin-card p-6 space-y-4">
+                    {/* Batch Header */}
+                    <div className="flex items-start justify-between border-b pb-4">
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-semibold text-gray-900">{batch.prTitle || `Batch ${batch.batchId}`}</h3>
+                          <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                            batch.status === 'submitted' ? 'bg-blue-100 border border-blue-200 text-blue-800' :
+                            batch.status === 'merged' ? 'bg-green-100 border border-green-200 text-green-800' :
+                            'bg-gray-100 border border-gray-200 text-gray-800'
+                          }`}>
+                            {batch.status.toUpperCase()}
+                          </span>
+                        </div>
+                        {batch.prUrl && (
+                          <a
+                            href={batch.prUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                          >
+                            PR #{batch.prNumber}
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        )}
+                        <p className="text-sm text-gray-600">
+                          Submitted {new Date(batch.submittedAt).toLocaleString()} by {batch.submittedBy}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Batch Statistics */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="text-xs text-blue-700 mb-1">Total Proposals</div>
+                        <div className="text-2xl font-bold text-blue-900">{batch.totalProposals}</div>
+                      </div>
+                      <div className="p-3 bg-green-50 rounded-lg">
+                        <div className="text-xs text-green-700 mb-1">Applied Successfully</div>
+                        <div className="text-2xl font-bold text-green-900">
+                          {batch.proposals?.filter((p: any) => p.prApplicationStatus === 'success').length || batch.totalProposals}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-red-50 rounded-lg">
+                        <div className="text-xs text-red-700 mb-1">Failed</div>
+                        <div className="text-2xl font-bold text-red-900">
+                          {batch.failures?.length || 0}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Affected Files */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Affected Files ({batch.affectedFiles?.length || 0})</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {(batch.affectedFiles || []).slice(0, 5).map((file: string, idx: number) => (
+                          <span key={idx} className="text-xs px-2 py-1 bg-gray-100 border border-gray-200 rounded font-mono">
+                            {file}
+                          </span>
+                        ))}
+                        {batch.affectedFiles?.length > 5 && (
+                          <span className="text-xs px-2 py-1 bg-gray-100 border border-gray-200 rounded text-gray-600">
+                            +{batch.affectedFiles.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Repository Info */}
+                    <div className="text-xs text-gray-600 border-t pt-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="font-semibold">Target:</span> {batch.targetRepo || 'N/A'}
+                        </div>
+                        <div>
+                          <span className="font-semibold">Branch:</span> {batch.branchName || batch.baseBranch || 'main'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Failed Proposals Warning */}
+                    {batch.failures && batch.failures.length > 0 && (
+                      <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                          <div className="text-sm">
+                            <p className="font-semibold text-yellow-900 mb-1">
+                              {batch.failures.length} proposals failed to apply
+                            </p>
+                            <ul className="text-xs text-yellow-800 space-y-1">
+                              {batch.failures.slice(0, 3).map((failure: any, idx: number) => (
+                                <li key={idx}>
+                                  • {failure.failureType}: {failure.errorMessage}
+                                </li>
+                              ))}
+                              {batch.failures.length > 3 && (
+                                <li className="text-yellow-600">...and {batch.failures.length - 3} more</li>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </main>
 
@@ -1673,6 +1884,26 @@ export default function Admin() {
         }}
         onSave={handleSaveEdit}
         isSaving={editProposalMutation.isPending}
+      />
+
+      {/* PR Preview Modal */}
+      <PRPreviewModal
+        isOpen={prModalOpen}
+        onClose={() => setPrModalOpen(false)}
+        approvedProposals={(() => {
+          const allApprovedProposals: any[] = [];
+          changeset?.data?.forEach((conv: any) => {
+            if (conv.proposals) {
+              conv.proposals.forEach((proposal: any) => {
+                if (proposal.status === 'approved') {
+                  allApprovedProposals.push(proposal);
+                }
+              });
+            }
+          });
+          return allApprovedProposals;
+        })()}
+        onSubmit={handlePRSubmit}
       />
     </div>
   );

@@ -978,5 +978,133 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
     }
   });
 
+  // ========== PR Generation Routes (Phase 2) ==========
+
+  /**
+   * POST /api/admin/stream/batches
+   * Create a draft changeset batch from approved proposals
+   */
+  app.post('/api/admin/stream/batches', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const { proposalIds } = z.object({
+        proposalIds: z.array(z.number().int()).min(1)
+      }).parse(req.body);
+
+      const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
+      const batchService = new ChangesetBatchService(prisma);
+
+      const batch = await batchService.createDraftBatch(proposalIds);
+
+      res.status(201).json({
+        message: 'Draft batch created successfully',
+        batch
+      });
+    } catch (error: any) {
+      console.error('Error creating draft batch:', error);
+      res.status(500).json({ error: error.message || 'Failed to create draft batch' });
+    }
+  });
+
+  /**
+   * POST /api/admin/stream/batches/:id/generate-pr
+   * Generate a pull request from a draft batch
+   */
+  app.post('/api/admin/stream/batches/:id/generate-pr', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const batchId = parseInt(req.params.id);
+      const options = z.object({
+        proposalIds: z.array(z.number().int()),
+        targetRepo: z.string(),
+        sourceRepo: z.string(),
+        baseBranch: z.string().optional(),
+        prTitle: z.string(),
+        prBody: z.string(),
+        submittedBy: z.string()
+      }).parse(req.body);
+
+      const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
+      const batchService = new ChangesetBatchService(prisma);
+
+      const result = await batchService.generatePR(batchId, options);
+
+      res.status(200).json({
+        message: 'Pull request created successfully',
+        batch: result.batch,
+        pr: result.pr,
+        appliedProposals: result.appliedProposals,
+        failedProposals: result.failedProposals
+      });
+    } catch (error: any) {
+      console.error('Error generating PR:', error);
+      res.status(500).json({ error: error.message || 'Failed to generate pull request' });
+    }
+  });
+
+  /**
+   * GET /api/admin/stream/batches
+   * List all changeset batches
+   */
+  app.get('/api/admin/stream/batches', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const { status } = z.object({
+        status: z.enum(['draft', 'submitted', 'merged', 'closed']).optional()
+      }).parse(req.query);
+
+      const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
+      const batchService = new ChangesetBatchService(prisma);
+
+      const batches = await batchService.listBatches(status);
+
+      res.json({ batches });
+    } catch (error: any) {
+      console.error('Error listing batches:', error);
+      res.status(500).json({ error: error.message || 'Failed to list batches' });
+    }
+  });
+
+  /**
+   * GET /api/admin/stream/batches/:id
+   * Get detailed information about a specific batch
+   */
+  app.get('/api/admin/stream/batches/:id', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const batchId = parseInt(req.params.id);
+
+      const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
+      const batchService = new ChangesetBatchService(prisma);
+
+      const batch = await batchService.getBatch(batchId);
+
+      if (!batch) {
+        return res.status(404).json({ error: 'Batch not found' });
+      }
+
+      res.json({ batch });
+    } catch (error: any) {
+      console.error('Error fetching batch:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch batch' });
+    }
+  });
+
+  /**
+   * DELETE /api/admin/stream/batches/:id
+   * Delete a draft batch (only allowed for draft status)
+   */
+  app.delete('/api/admin/stream/batches/:id', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const batchId = parseInt(req.params.id);
+
+      const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
+      const batchService = new ChangesetBatchService(prisma);
+
+      await batchService.deleteDraftBatch(batchId);
+
+      res.json({ message: 'Draft batch deleted successfully' });
+    } catch (error: any) {
+      console.error('Error deleting batch:', error);
+      res.status(500).json({ error: error.message || 'Failed to delete batch' });
+    }
+  });
+
   console.log('Multi-stream scanner admin routes registered');
 }
