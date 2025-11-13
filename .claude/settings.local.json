@@ -63,7 +63,10 @@
       "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes you can reset it\" npx prisma migrate reset:*)",
       "Bash(https://api.github.com/repos/Lionscraft-io/conflux-documentation/pulls)",
       "Bash(https://api.github.com/user)",
-      "Bash(https://api.github.com/repos/Lionscraft-io/conflux-documentation)"
+      "Bash(https://api.github.com/repos/Lionscraft-io/conflux-documentation)",
+      "Bash(echo:*)",
+      "Bash(git log:*)",
+      "Bash(pgrep:*)"
     ],
     "deny": [],
     "ask": []

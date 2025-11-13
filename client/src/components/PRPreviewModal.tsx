@@ -12,8 +12,9 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { AlertCircle, FileText, GitPullRequest, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertCircle, FileText, GitPullRequest, Loader2, CheckCircle2, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
+import { useConfig } from '@/hooks/useConfig';
 
 interface PRPreviewModalProps {
   isOpen: boolean;
@@ -32,12 +33,10 @@ export interface PRSubmitData {
 }
 
 export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }: PRPreviewModalProps) {
+  const { data: config, isLoading: configLoading } = useConfig();
   const [prTitle, setPrTitle] = useState('');
   const [prBody, setPrBody] = useState('');
-  const [targetRepo, setTargetRepo] = useState('');
-  const [sourceRepo, setSourceRepo] = useState('');
-  const [baseBranch, setBaseBranch] = useState('main');
-  const [submittedBy, setSubmittedBy] = useState('admin');
+  const [isFilesExpanded, setIsFilesExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<{
     success: boolean;
@@ -46,6 +45,16 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
     failedCount?: number;
     error?: string;
   } | null>(null);
+
+  // Get repository configuration from backend (all read-only)
+  const targetRepo = config?.repository?.targetRepo || '';
+  const sourceRepo = config?.repository?.sourceRepo || ''; // Same as targetRepo, kept for API compatibility
+  const baseBranch = config?.repository?.baseBranch || 'main';
+
+  // Debug: Log config when modal opens
+  if (isOpen && !configLoading) {
+    console.log('PR Modal Config:', { targetRepo, sourceRepo, baseBranch, hasConfig: !!config });
+  }
 
   // Group proposals by file
   const proposalsByFile = approvedProposals.reduce((acc, proposal) => {
@@ -61,8 +70,13 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
   const totalProposals = approvedProposals.length;
 
   const handleSubmit = async () => {
-    if (!prTitle.trim() || !targetRepo.trim() || !sourceRepo.trim()) {
-      alert('Please fill in all required fields');
+    if (!prTitle.trim()) {
+      alert('Please enter a PR title');
+      return;
+    }
+
+    if (!targetRepo) {
+      alert('Repository configuration is missing. Please check your settings.');
       return;
     }
 
@@ -71,12 +85,12 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
 
     try {
       await onSubmit({
-        targetRepo: targetRepo.trim(),
-        sourceRepo: sourceRepo.trim(),
-        baseBranch: baseBranch.trim(),
+        targetRepo,
+        sourceRepo,
+        baseBranch,
         prTitle: prTitle.trim(),
         prBody: prBody.trim(),
-        submittedBy: submittedBy.trim()
+        submittedBy: 'system'
       });
 
       setSubmitResult({
@@ -105,13 +119,13 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-gray-900">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-gray-900">
             <GitPullRequest className="w-5 h-5" />
             Generate Pull Request
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-gray-600">
             Review and configure your pull request for {totalProposals} approved proposals across {affectedFiles.length} files.
           </DialogDescription>
         </DialogHeader>
@@ -151,92 +165,106 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
         ) : (
           <div className="space-y-6">
             {/* Summary Section */}
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
-              <h3 className="font-semibold text-blue-900">Changeset Summary</h3>
+            <div className="p-4 border border-gray-200 rounded-lg space-y-2 bg-gray-50">
+              <h3 className="font-semibold text-gray-900">Changeset Summary</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-blue-700">Total Proposals:</span>
-                  <span className="ml-2 font-semibold">{totalProposals}</span>
+                  <span className="text-gray-600">Total Proposals:</span>
+                  <span className="ml-2 font-semibold text-gray-900">{totalProposals}</span>
                 </div>
                 <div>
-                  <span className="text-blue-700">Affected Files:</span>
-                  <span className="ml-2 font-semibold">{affectedFiles.length}</span>
+                  <span className="text-gray-600">Affected Files:</span>
+                  <span className="ml-2 font-semibold text-gray-900">{affectedFiles.length}</span>
                 </div>
               </div>
             </div>
 
-            {/* Affected Files Preview */}
+            {/* Affected Files Preview - Collapsible */}
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">Affected Files</Label>
-              <div className="max-h-40 overflow-y-auto border rounded-md p-3 bg-gray-50">
-                <ul className="space-y-1 text-sm">
-                  {affectedFiles.map((file, idx) => (
-                    <li key={idx} className="flex items-center gap-2">
-                      <FileText className="w-3 h-3 text-gray-500" />
-                      <span className="font-mono text-xs">{file}</span>
-                      <span className="text-gray-500">({proposalsByFile[file].length} changes)</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsFilesExpanded(!isFilesExpanded)}
+                className="flex items-center justify-between w-full p-3 border border-gray-200 rounded-md bg-white hover:bg-gray-50 transition-colors text-gray-900"
+              >
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium cursor-pointer text-gray-900">Affected Files</Label>
+                  <span className="text-sm text-gray-600">({affectedFiles.length} files)</span>
+                </div>
+                {isFilesExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-gray-600" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-600" />
+                )}
+              </button>
+              {isFilesExpanded && (
+                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-md p-3 bg-white">
+                  <ul className="space-y-1 text-sm">
+                    {affectedFiles.map((file, idx) => (
+                      <li key={idx} className="flex items-center gap-2">
+                        <FileText className="w-3 h-3 text-gray-500" />
+                        <span className="font-mono text-xs text-gray-900">{file}</span>
+                        <span className="text-gray-600">({proposalsByFile[file].length} changes)</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Repository Configuration */}
-            <div className="space-y-4 border-t pt-4">
-              <h3 className="font-semibold">Repository Configuration</h3>
+            <div className="space-y-4 border-t border-gray-200 pt-4">
+              <h3 className="font-semibold text-gray-900">Repository Configuration</h3>
+
+              {!configLoading && !targetRepo && (
+                <Alert className="bg-yellow-50 border-yellow-200">
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <AlertDescription className="text-gray-900">
+                    Repository configuration not found. Please ensure <code className="px-1 py-0.5 bg-gray-200 rounded text-xs">DEFAULT_TARGET_REPO</code> is set in your environment.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="space-y-2">
-                <Label htmlFor="targetRepo">Target Repository (Fork) *</Label>
+                <Label htmlFor="targetRepo" className="text-gray-900">Repository</Label>
                 <Input
                   id="targetRepo"
-                  placeholder="e.g., username/conflux-documentation-fork"
-                  value={targetRepo}
-                  onChange={(e) => setTargetRepo(e.target.value)}
-                  required
+                  value={targetRepo || (configLoading ? 'Loading...' : 'Not configured')}
+                  disabled
+                  className="bg-gray-100 text-gray-700 border-gray-300"
                 />
-                <p className="text-xs text-gray-500">The fork where the PR will be created</p>
+                <p className="text-xs text-gray-600">The repository where the PR will be created</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="sourceRepo">Source Repository *</Label>
-                <Input
-                  id="sourceRepo"
-                  placeholder="e.g., conflux-chain/conflux-documentation"
-                  value={sourceRepo}
-                  onChange={(e) => setSourceRepo(e.target.value)}
-                  required
-                />
-                <p className="text-xs text-gray-500">The original documentation repository</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="baseBranch">Base Branch</Label>
+                <Label htmlFor="baseBranch" className="text-gray-900">Base Branch</Label>
                 <Input
                   id="baseBranch"
-                  placeholder="main"
-                  value={baseBranch}
-                  onChange={(e) => setBaseBranch(e.target.value)}
+                  value={baseBranch || 'main'}
+                  disabled
+                  className="bg-gray-100 text-gray-700 border-gray-300"
                 />
+                <p className="text-xs text-gray-600">Target branch for the PR</p>
               </div>
             </div>
 
             {/* PR Details */}
-            <div className="space-y-4 border-t pt-4">
-              <h3 className="font-semibold">Pull Request Details</h3>
+            <div className="space-y-4 border-t border-gray-200 pt-4">
+              <h3 className="font-semibold text-gray-900">Pull Request Details</h3>
 
               <div className="space-y-2">
-                <Label htmlFor="prTitle">PR Title *</Label>
+                <Label htmlFor="prTitle" className="text-gray-900">PR Title *</Label>
                 <Input
                   id="prTitle"
                   placeholder="e.g., docs: Update documentation based on community feedback"
                   value={prTitle}
                   onChange={(e) => setPrTitle(e.target.value)}
                   required
+                  className="bg-white text-gray-900 border-gray-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="prBody">PR Description *</Label>
+                <Label htmlFor="prBody" className="text-gray-900">PR Description *</Label>
                 <Textarea
                   id="prBody"
                   placeholder="Describe the changes in this pull request..."
@@ -244,45 +272,36 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
                   onChange={(e) => setPrBody(e.target.value)}
                   rows={6}
                   required
+                  className="bg-white text-gray-900 border-gray-300"
                 />
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-600">
                   Statistics will be automatically appended to the description
                 </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="submittedBy">Submitted By</Label>
-                <Input
-                  id="submittedBy"
-                  placeholder="admin"
-                  value={submittedBy}
-                  onChange={(e) => setSubmittedBy(e.target.value)}
-                />
               </div>
             </div>
 
             {/* Warning */}
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
+            <Alert className="bg-blue-50 border-blue-200">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-gray-900">
                 The PR will be created as a <strong>draft</strong>. Review it on GitHub before publishing.
               </AlertDescription>
             </Alert>
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="bg-white border-t border-gray-200">
           {submitResult ? (
-            <Button onClick={handleClose}>Close</Button>
+            <Button onClick={handleClose} className="text-gray-900">Close</Button>
           ) : (
             <>
-              <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+              <Button variant="outline" onClick={handleClose} disabled={isSubmitting} className="text-gray-900 border-gray-300">
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={isSubmitting || !prTitle.trim() || !targetRepo.trim() || !sourceRepo.trim()}
-                className="bg-green-600 hover:bg-green-700"
+                disabled={isSubmitting || !prTitle.trim() || !targetRepo}
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
                 {isSubmitting ? (
                   <>

@@ -13,6 +13,11 @@ Each spec should include:
 
 ## Naming Convention
 
-`YYYY-MM-DD-feature-name.md`
+`YYYY-MM-DD-feature-name.md` or `feature-name.md`
 
 Example: `2025-10-17-ai-widget-integration.md`
+
+## Current Specifications
+
+### Admin Portal
+- **admin-customer-view-mapping.md** - Mapping specification for refactoring admin portal into customer-facing and advanced views. Defines how to simplify the complex multi-stream processing interface into a clean customer experience while preserving all functionality for internal use.

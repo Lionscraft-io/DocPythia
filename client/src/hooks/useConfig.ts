@@ -33,11 +33,18 @@ export interface FeatureFlags {
   versionHistoryEnabled: boolean;
 }
 
+export interface RepositoryConfig {
+  targetRepo: string;
+  sourceRepo: string;
+  baseBranch: string;
+}
+
 export interface AppConfig {
   project: ProjectConfig;
   branding: BrandingConfig;
   widget: WidgetConfig;
   features: FeatureFlags;
+  repository: RepositoryConfig;
 }
 
 async function fetchConfig(): Promise<AppConfig> {

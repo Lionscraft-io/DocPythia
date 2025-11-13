@@ -134,6 +134,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           chatEnabled: config.features.chatEnabled,
           versionHistoryEnabled: config.features.versionHistoryEnabled,
         },
+        repository: {
+          targetRepo: process.env.DEFAULT_TARGET_REPO || '',
+          sourceRepo: process.env.DEFAULT_TARGET_REPO || '', // Same as targetRepo for API compatibility
+          baseBranch: process.env.DEFAULT_BASE_BRANCH || 'main',
+        },
       });
     } catch (error) {
       console.error("Error fetching config:", error);

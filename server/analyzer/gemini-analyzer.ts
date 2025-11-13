@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import type { ScrapedMessage, DocumentationSection } from "../storage";
 import { getConfig } from "../config/loader";
 import { llmCache } from "../llm/llm-cache.js";
+import { PROMPT_TEMPLATES, fillTemplate } from "../stream/llm/prompt-templates.js";
 
 export interface AnalysisResult {
   relevant: boolean;
@@ -39,40 +40,14 @@ export class MessageAnalyzer {
       .map(section => `Section ID: ${section.sectionId}\nTitle: ${section.title}\nContent: ${section.content.substring(0, 500)}...`)
       .join("\n\n");
 
-    const prompt = `You are analyzing messages from ${config.project.name}'s community support channel to determine if they contain information that should update the documentation.
-
-Current Documentation Sections:
-${documentationContext}
-
-Message to Analyze:
-Topic: ${message.topicName || "N/A"}
-From: ${message.senderName}
-Date: ${message.messageTimestamp}
-Content:
-${message.content}
-
-Your task:
-1. Determine if this message contains valuable information for the documentation (new troubleshooting tips, configuration changes, best practices, common issues, solutions, etc.)
-2. Choose the appropriate action:
-   - "minor": Small update or clarification to existing section
-   - "major": Significant update to existing section
-   - "add": New topic that needs a new documentation section
-   - "delete": Information suggesting a section is outdated and should be removed
-3. For updates/deletes: identify the section ID
-4. For adds: propose a title and hierarchy level (1=main, 2=subsection, 3=sub-subsection)
-5. Provide a summary and suggested content
-
-Respond with JSON in this exact format:
-{
-  "relevant": boolean,
-  "updateType": "minor" | "major" | "add" | "delete" | null,
-  "sectionId": string | null,
-  "summary": string | null,
-  "suggestedContent": string | null,
-  "reasoning": string,
-  "proposedSectionTitle": string | null,
-  "proposedSectionLevel": number | null
-}`;
+    const prompt = fillTemplate(PROMPT_TEMPLATES.messageAnalysis.prompt, {
+      projectName: config.project.name,
+      documentationContext,
+      topic: message.topicName || "N/A",
+      senderName: message.senderName,
+      messageTimestamp: message.messageTimestamp,
+      content: message.content
+    });
 
     try {
       // Check cache first
@@ -281,7 +256,9 @@ Respond with JSON in this exact format:
       }
 
       const config = getConfig();
-      const systemPrompt = `You are a helpful AI assistant for ${config.project.name} documentation. Provide clear, accurate, and helpful answers based on the documentation provided. If the documentation doesn't contain the answer, be honest about it.`;
+      const systemPrompt = fillTemplate(PROMPT_TEMPLATES.documentationAnswer.system, {
+        projectName: config.project.name
+      });
 
       const model = this.genAI.getGenerativeModel({
         model: "gemini-2.0-flash-exp",

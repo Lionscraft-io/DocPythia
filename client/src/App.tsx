@@ -6,7 +6,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { DropdownWidget } from "@/components/DropdownWidget";
 import Documentation from "@/pages/Documentation";
 import Admin from "@/pages/Admin";
+import AdminAdvanced from "@/pages/AdminAdvanced";
 import AdminLogin from "@/pages/AdminLogin";
+import AdminLegacy from "@/pages/AdminLegacy";
+import ProtocolView from "@/pages/ProtocolView";
+import ValidatorNode from "@/pages/ValidatorNode";
+import RPCNode from "@/pages/RPCNode";
+import ArchivalNode from "@/pages/ArchivalNode";
 import NotFound from "@/pages/not-found";
 import { useConfig } from "@/hooks/useConfig";
 import { useEffect } from "react";
@@ -16,7 +22,13 @@ function Router() {
     <Switch>
       <Route path="/" component={Documentation} />
       <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin/advanced" component={AdminAdvanced} />
+      <Route path="/admin/legacy" component={AdminLegacy} />
       <Route path="/admin" component={Admin} />
+      <Route path="/protocolview" component={ProtocolView} />
+      <Route path="/protocolview/validator" component={ValidatorNode} />
+      <Route path="/protocolview/rpc" component={RPCNode} />
+      <Route path="/protocolview/archival" component={ArchivalNode} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -56,7 +68,8 @@ function AppContent() {
     <>
       <Toaster />
       <Router />
-      {config?.widget.enabled && (
+      {/* AI Conversation Widget - Temporarily disabled */}
+      {/* {config?.widget.enabled && (
         <DropdownWidget
           title={config.widget.title}
           expertId="5"
@@ -64,7 +77,7 @@ function AppContent() {
           theme={config.widget.theme}
           position={config.widget.position}
         />
-      )}
+      )} */}
     </>
   );
 }

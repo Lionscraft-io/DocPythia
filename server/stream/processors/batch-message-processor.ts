@@ -14,6 +14,8 @@
 import prisma from '../../db.js';
 import { llmService } from '../llm/llm-service.js';
 import { messageVectorSearch } from '../message-vector-search.js';
+import { PROMPT_TEMPLATES, fillTemplate } from '../llm/prompt-templates.js';
+import { getConfig } from '../../config/loader.js';
 import { z } from 'zod';
 
 // ========== Batch Classification Schema ==========
@@ -495,131 +497,14 @@ export class BatchMessageProcessor {
       return `[MSG_${msg.id}] ${formatMessage(msg)}`;
     }).join('\n\n');
 
-    const systemPrompt = `You are a documentation expert analyzing 24 hours of community conversations about the NEAR blockchain.
+    const systemPrompt = PROMPT_TEMPLATES.threadClassification.system;
 
-**YOUR TASK**: Classify EVERY message into a conversation thread. Each message must be classified - do not skip any.
-
-**THREAD TYPES**:
-
-1. **Valuable threads** (category: "troubleshooting", "question", "information", "update")
-   - Missing or unclear documentation
-   - Common troubleshooting patterns
-   - Technology updates and changes
-   - Questions that documentation should answer
-
-2. **No-value threads** (category: "no-doc-value")
-   - Social chit-chat and greetings
-   - Off-topic discussions
-   - Spam or scam messages
-   - Topics already well-covered in existing docs
-   - Generic messages without technical content
-
-**THREAD GROUPING RULES**:
-- Related messages discussing the same topic form ONE thread
-- A thread can be 1 message OR multiple messages
-- Single-message threads are ACCEPTABLE and ENCOURAGED
-- If a message stands alone but has doc value, create a 1-message thread
-- If a message has no doc value, create a 1-message thread with category "no-doc-value"
-
-**FOR EACH THREAD, PROVIDE**:
-
-1. **category**: Type of conversation (max 50 chars)
-   - "troubleshooting" - Users solving problems
-   - "question" - Users asking how to do something
-   - "information" - Users sharing knowledge/updates
-   - "update" - Technology changes or announcements
-   - "no-doc-value" - No documentation value (be specific in docValueReason why!)
-
-2. **messages**: Array of message IDs (e.g., [123] for single message, [123, 124, 125] for multi-message)
-
-3. **summary**: Concise conversation summary (max 200 chars)
-   - For valuable threads: Summarize what was discussed
-   - For no-value threads: Brief description (e.g., "User greeting", "Off-topic scam link")
-
-4. **docValueReason**: Specific reason for classification (max 300 chars)
-   - For valuable threads: Why this matters for docs
-     Example: "Users struggled with RPC connection setup. Community provided workarounds not in official docs."
-   - For no-value threads: Why this doesn't need docs
-     Example: "Generic greeting with no technical content"
-     Example: "Off-topic scam link unrelated to Conflux"
-     Example: "Single-character command with no context or explanation"
-
-5. **ragSearchCriteria**: Help find relevant existing documentation
-   - For valuable threads: Provide keywords and semantic query
-   - For no-value threads: Empty arrays and empty string
-
-**CRITICAL**: Every message ID must appear in exactly ONE thread. Account for all messages.`;
-
-    const userPrompt = `CONTEXT MESSAGES (previous 24 hours, for reference only):
-${contextText || '(No context messages)'}
-
----
-
-MESSAGES TO ANALYZE (current 24-hour batch):
-${messagesToAnalyze}
-
----
-
-**INSTRUCTIONS**:
-
-1. **Read through all messages** in the batch
-2. **Extract message IDs** from the [MSG_XXX] prefix for each message
-3. **Classify EVERY message** into a thread - single-message threads are OK!
-4. **Group related messages** into multi-message threads when they discuss the same topic
-5. **Provide specific reasoning** for each thread, whether it has doc value or not
-
-**RESPONSE FORMAT**:
-
-{
-  "threads": [
-    {
-      "category": "troubleshooting",
-      "messages": [123, 124, 125],
-      "summary": "User unable to connect mainnet node using RPC endpoint. Community suggested checking firewall and port configuration.",
-      "docValueReason": "Users struggled with RPC connection setup. Community provided workarounds not in official docs.",
-      "ragSearchCriteria": {
-        "keywords": ["rpc", "connection", "timeout", "configuration"],
-        "semanticQuery": "RPC connection errors and timeout troubleshooting for node operators"
-      }
-    },
-    {
-      "category": "question",
-      "messages": [130],
-      "summary": "User asks about CLI options for staking without Fluent wallet.",
-      "docValueReason": "User needs CLI/RPC documentation for staking, but docs only cover Fluent wallet approach.",
-      "ragSearchCriteria": {
-        "keywords": ["staking", "cli", "rpc", "validator"],
-        "semanticQuery": "Command-line staking setup for validators without wallet"
-      }
-    },
-    {
-      "category": "no-doc-value",
-      "messages": [135],
-      "summary": "Generic greeting message",
-      "docValueReason": "Social greeting with no technical content or documentation need",
-      "ragSearchCriteria": {
-        "keywords": [],
-        "semanticQuery": ""
-      }
-    },
-    {
-      "category": "no-doc-value",
-      "messages": [140],
-      "summary": "Single-character command without context",
-      "docValueReason": "Isolated command '/pos' with no explanation or follow-up discussion",
-      "ragSearchCriteria": {
-        "keywords": [],
-        "semanticQuery": ""
-      }
-    }
-  ],
-  "batchSummary": "Classified 5 messages: 1 troubleshooting thread (3 msgs), 1 question thread (1 msg), 2 no-value threads (1 msg each)"
-}
-
-**CRITICAL VALIDATION**:
-- Count the total messages in your threads - it MUST equal the number of messages in the batch
-- Every message ID must appear exactly once
-- Keep all fields CONCISE. No repetition or rambling.`;
+    const config = getConfig();
+    const userPrompt = fillTemplate(PROMPT_TEMPLATES.threadClassification.user, {
+      projectName: config.project.name,
+      contextText: contextText || '(No context messages)',
+      messagesToAnalyze
+    });
 
     console.log(`[BatchProcessor] Classifying batch with ${messages.length} messages and ${contextMessages.length} context messages`);
 
@@ -1001,33 +886,7 @@ ${messagesToAnalyze}
     conversation: ConversationGroup,
     ragDocs: any[]
   ): Promise<Array<ProposalGeneration>> {
-    const systemPrompt = `You are a technical documentation expert for the NEAR blockchain ecosystem.
-
-Your task is to analyze a conversation and generate a CHANGESET of documentation updates based on the discussion.
-
-Key points:
-1. Consider the FULL conversation context - messages are related
-2. You can generate MULTIPLE proposals per conversation (not tied to individual messages)
-3. Only propose changes where documentation is missing, unclear, or incorrect
-4. Skip changes if the information is already well-covered in the retrieved docs
-5. Provide complete updated text (not diffs)
-6. Include which message IDs led to each proposal in sourceMessages
-
-CRITICAL FORMATTING RULES:
-- Maximum 10 proposals per conversation - focus on the most important changes
-- page: File path ONLY (max 150 chars) - e.g., "docs/troubleshooting/rpc-errors.md"
-- section: Section name ONLY (max 100 chars) - e.g., "Connection Issues"
-- reasoning: Brief explanation (max 300 chars) - 1-2 sentences
-- suggestedText: Complete updated content (max 2000 chars) - be CONCISE but complete
-- Keep all fields FOCUSED and CONCISE to avoid exceeding limits
-
-Update types:
-- INSERT: Add new content to existing page
-- UPDATE: Modify existing content
-- DELETE: Remove outdated content
-- NONE: No documentation change needed (skip this entirely)
-
-Think of this as creating a documentation changeset for the entire conversation, not individual message responses.`;
+    const systemPrompt = PROMPT_TEMPLATES.changesetGeneration.system;
 
     const ragContext = ragDocs.map((doc, idx) => {
       return `[DOC ${idx + 1}] ${doc.title}
@@ -1050,63 +909,14 @@ Suggested Page: ${msg.suggestedDocPage || 'Not specified'}
 Content: ${msg.content}`;
     }).join('\n\n');
 
-    const userPrompt = `CONVERSATION (${conversation.messageCount} messages in ${conversation.channel || 'general'}):
-${conversationContext}
-
----
-
-RELEVANT DOCUMENTATION (from RAG search):
-*** YOU HAVE THE COMPLETE FILE CONTENT BELOW - THESE ARE THE ONLY PAGES YOU CAN UPDATE ***
-*** DO NOT INVENT NEW PAGES - ONLY UPDATE THE FILES PROVIDED BELOW ***
-${ragContext || '(No relevant docs found)'}
-
----
-
-Analyze this conversation and generate a CHANGESET of documentation updates.
-
-CRITICAL RULES:
-1. **You have the COMPLETE CONTENT of each relevant documentation file above**
-2. **ONLY propose changes to the pages listed in "RELEVANT DOCUMENTATION"**
-3. **DO NOT invent new pages, sections, or create new documentation files**
-4. **Use the exact file paths from the RAG documentation**
-5. **Review the COMPLETE file content - if it already covers the topic well, return NONE**
-6. **Respect the "Suggested Page" from each message as a hint**
-
-Guidelines:
-- You have full file context - review the ENTIRE document structure before proposing changes
-- If existing documentation already adequately addresses the conversation, propose NOTHING
-- Generate one proposal per distinct documentation change needed
-- Multiple messages might lead to ONE proposal (or vice versa)
-- Focus on documentation gaps, unclear sections, or incorrect information
-- Each proposal should reference specific sections/locations within the provided files
-- The retrieved documentation pages are your ONLY options - you cannot create new pages
-
-Respond with JSON:
-{
-  "proposals": [
-    {
-      "updateType": "UPDATE",
-      "page": "docs/troubleshooting/rpc-errors.md",
-      "section": "Connection Issues",
-      "location": {
-        "lineStart": 45,
-        "lineEnd": 50,
-        "sectionName": "RPC Timeout Errors"
-      },
-      "suggestedText": "Complete updated text for this section...",
-      "reasoning": "This conversation revealed confusion about retry behavior. Messages 123, 124 showed users expect automatic retries.",
-      "sourceMessages": [123, 124]
-    }
-  ],
-  "proposalsRejected": false
-}
-
-If no documentation changes are needed, respond with:
-{
-  "proposals": [],
-  "proposalsRejected": true,
-  "rejectionReason": "Explain specifically why no proposals were generated. Examples: 'Existing documentation already covers this topic adequately', 'Conversation contains only bot commands with no substantive discussion', 'Issue was resolved without revealing documentation gaps', 'Off-topic discussion not related to documentation'"
-}`;
+    const config = getConfig();
+    const userPrompt = fillTemplate(PROMPT_TEMPLATES.changesetGeneration.user, {
+      projectName: config.project.name,
+      messageCount: conversation.messageCount,
+      channel: conversation.channel || 'general',
+      conversationContext,
+      ragContext: ragContext || '(No relevant docs found)'
+    });
 
     console.log(`[BatchProcessor] Generating changeset for conversation ${conversation.id}`);
 

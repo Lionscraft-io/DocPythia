@@ -399,22 +399,36 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
   app.post('/api/admin/stream/proposals/:id/status', adminAuth, async (req: Request, res: Response) => {
     try {
       const proposalId = parseInt(req.params.id);
+      console.log('[Status Update] Raw request body:', JSON.stringify(req.body));
+
       const { status, reviewedBy } = z.object({
         status: z.enum(['approved', 'ignored', 'pending']),
         reviewedBy: z.string(),
       }).parse(req.body);
 
+      // Get current status before update
+      const beforeUpdate = await prisma.docProposal.findUnique({
+        where: { id: proposalId },
+        select: { status: true, conversationId: true },
+      });
+      console.log(`[Status Update] Proposal ${proposalId} - Current status: ${beforeUpdate?.status}, Requested status: ${status}, Type: ${typeof status}`);
+
+      const updateData = {
+        status: status,
+        adminApproved: status === 'approved',
+        adminReviewedAt: status !== 'pending' ? new Date() : null,
+        adminReviewedBy: status !== 'pending' ? reviewedBy : null,
+        discardReason: status === 'ignored' ? 'Admin discarded change' : null,
+      };
+      console.log('[Status Update] Update data:', JSON.stringify(updateData, null, 2));
+
       // Update the proposal
       const updated = await prisma.docProposal.update({
         where: { id: proposalId },
-        data: {
-          status: status as any,
-          adminApproved: status === 'approved',
-          adminReviewedAt: status !== 'pending' ? new Date() : null,
-          adminReviewedBy: status !== 'pending' ? reviewedBy : null,
-          discardReason: status === 'ignored' ? 'Admin discarded change' : null,
-        },
+        data: updateData,
       });
+
+      console.log(`[Status Update] Proposal ${proposalId} - Database returned status: ${updated.status}`);
 
       // Calculate conversation status
       const allProposals = await prisma.docProposal.findMany({
@@ -445,45 +459,80 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
   /**
    * GET /api/admin/stream/batches
-   * List processed batches
+   * List changeset batches (PR batches)
+   * Query params: status (draft|submitted|merged|closed), page, limit
    */
   app.get('/api/admin/stream/batches', adminAuth, async (req: Request, res: Response) => {
     try {
       const { page, limit } = paginationSchema.parse(req.query);
+      const status = req.query.status as string | undefined;
       const offset = (page - 1) * limit;
 
-      // Get unique batch IDs with counts
-      const batches = await prisma.messageClassification.groupBy({
-        by: ['batchId'],
-        _count: {
-          messageId: true,
+      // Build where clause
+      const where: any = {};
+      if (status) {
+        where.status = status;
+      }
+
+      // Get changeset batches with related data
+      const batches = await prisma.changesetBatch.findMany({
+        where,
+        include: {
+          batchProposals: {
+            include: {
+              proposal: {
+                select: {
+                  id: true,
+                  page: true,
+                  section: true,
+                  updateType: true,
+                  status: true,
+                },
+              },
+            },
+          },
+          failures: true,
         },
         orderBy: {
-          batchId: 'desc',
+          createdAt: 'desc',
         },
         skip: offset,
         take: limit,
       });
 
-      const total = await prisma.messageClassification.groupBy({
-        by: ['batchId'],
-      });
+      const total = await prisma.changesetBatch.count({ where });
 
       res.json({
-        data: batches.map(b => ({
-          batch_id: b.batchId,
-          message_count: b._count.messageId,
+        batches: batches.map(batch => ({
+          id: batch.id,
+          batchId: batch.batchId,
+          status: batch.status,
+          totalProposals: batch.totalProposals,
+          affectedFiles: batch.affectedFiles,
+          prTitle: batch.prTitle,
+          prBody: batch.prBody,
+          prUrl: batch.prUrl,
+          prNumber: batch.prNumber,
+          branchName: batch.branchName,
+          targetRepo: batch.targetRepo,
+          sourceRepo: batch.sourceRepo,
+          baseBranch: batch.baseBranch,
+          submittedAt: batch.submittedAt,
+          submittedBy: batch.submittedBy,
+          createdAt: batch.createdAt,
+          proposals: batch.batchProposals.map(bp => bp.proposal),
+          failureCount: batch.failures.length,
         })),
         pagination: {
           page,
           limit,
-          total: total.length,
-          totalPages: Math.ceil(total.length / limit),
+          total,
+          totalPages: Math.ceil(total / limit),
         },
       });
     } catch (error) {
-      console.error('Error fetching batches:', error);
-      res.status(500).json({ error: 'Failed to fetch batches' });
+      console.error('Error fetching changeset batches:', error);
+      res.status(500).json({ error: 'Failed to fetch changeset batches' });
     }
   });
 
@@ -702,9 +751,10 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const category = req.query.category as string | undefined;
       const hasProposals = req.query.hasProposals === 'true';
       const statusFilter = req.query.status as 'pending' | 'changeset' | 'discarded' | undefined;
+      const hideEmptyProposals = req.query.hideEmptyProposals !== 'false'; // Default to true
       const offset = (page - 1) * limit;
 
-      console.log(`[Conversations] Query params - category: ${category}, hasProposals: ${req.query.hasProposals}, status: ${statusFilter}`);
+      console.log(`[Conversations] Query params - category: ${category}, hasProposals: ${req.query.hasProposals}, status: ${statusFilter}, hideEmptyProposals: ${hideEmptyProposals}`);
 
       // Build where clause for filtering
       const where: any = {
@@ -733,15 +783,31 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
       // Filter by status if needed
       if (statusFilter) {
-        // Get all proposals grouped by conversation
-        const allProposals = await prisma.docProposal.groupBy({
-          by: ['conversationId', 'status'],
-          _count: true,
+        // Get IDs of proposals that are already in submitted batches
+        const submittedBatchIds = await prisma.changesetBatch.findMany({
+          where: { status: 'submitted' },
+          select: { id: true },
+        });
+        const submittedBatchIdSet = new Set(submittedBatchIds.map(b => b.id));
+
+        // Get all proposals with their batch info
+        const allProposalsWithBatch = await prisma.docProposal.findMany({
+          select: {
+            conversationId: true,
+            status: true,
+            prBatchId: true,
+          },
         });
 
         // Build a map of conversationId -> proposal statuses
+        // Exclude proposals that are already in submitted batches
         const conversationStatusMap = new Map<string, Set<string>>();
-        for (const proposal of allProposals) {
+        for (const proposal of allProposalsWithBatch) {
+          // Skip proposals that are in submitted batches
+          if (proposal.prBatchId && submittedBatchIdSet.has(proposal.prBatchId)) {
+            continue;
+          }
+
           if (!conversationStatusMap.has(proposal.conversationId)) {
             conversationStatusMap.set(proposal.conversationId, new Set());
           }
@@ -762,7 +828,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             conversationsByStatus.pending.add(conversationId);
           }
 
-          // Changeset: has any approved proposals
+          // Changeset: has any approved proposals (not yet submitted)
           if (statuses.has('approved')) {
             conversationsByStatus.changeset.add(conversationId);
           }
@@ -810,8 +876,39 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         }
       }
 
-      const total = allConversations.length;
-      const conversations = allConversations.slice(offset, offset + limit);
+      // If hideEmptyProposals is true and we have a status filter,
+      // we need to filter out conversations with no matching proposals before pagination
+      let conversationsToFetch = allConversations;
+
+      if (hideEmptyProposals && statusFilter) {
+        // Get proposal counts for each conversation that match the status filter
+        const proposalCountsByConv = await prisma.docProposal.groupBy({
+          by: ['conversationId'],
+          where: {
+            conversationId: { in: allConversations.map(c => c.conversationId).filter((id): id is string => id !== null) },
+            status: statusFilter === 'changeset' ? 'approved' : statusFilter === 'pending' ? 'pending' : 'ignored',
+            OR: [
+              { prBatchId: null },
+              {
+                prBatch: {
+                  status: { not: 'submitted' }
+                }
+              }
+            ]
+          },
+          _count: {
+            id: true
+          }
+        });
+
+        const convsWithMatchingProposals = new Set(proposalCountsByConv.map(p => p.conversationId));
+        conversationsToFetch = allConversations.filter(c =>
+          c.conversationId && convsWithMatchingProposals.has(c.conversationId)
+        );
+      }
+
+      const total = conversationsToFetch.length;
+      const conversations = conversationsToFetch.slice(offset, offset + limit);
 
       // For each conversation, fetch detailed data
       const conversationData = await Promise.all(
@@ -853,9 +950,29 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             where: { conversationId: conv.conversationId },
           });
 
-          // Get all proposals for this conversation
+          // Get all proposals for this conversation (excluding those in submitted batches)
           const proposals = await prisma.docProposal.findMany({
-            where: { conversationId: conv.conversationId },
+            where: {
+              conversationId: conv.conversationId,
+              OR: [
+                { prBatchId: null }, // Not in any batch
+                {
+                  prBatch: {
+                    status: { not: 'submitted' } // Or in a non-submitted batch
+                  }
+                }
+              ]
+            },
+            include: {
+              prBatch: {
+                select: {
+                  id: true,
+                  status: true,
+                  prNumber: true,
+                  prUrl: true
+                }
+              }
+            },
             orderBy: { createdAt: 'desc' },
           });
 

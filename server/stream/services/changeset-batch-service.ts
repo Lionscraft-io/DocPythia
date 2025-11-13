@@ -16,6 +16,7 @@
 import { PrismaClient, DocProposal, ChangesetBatch } from '@prisma/client';
 import { FileModificationService } from './file-modification-service';
 import { GitHubPRService } from './github-pr-service';
+import { fileConsolidationService } from './file-consolidation-service';
 
 interface CreateBatchOptions {
   proposalIds: number[];
@@ -156,7 +157,34 @@ export class ChangesetBatchService {
       // Apply proposals file by file
       for (const [filePath, fileProposals] of Object.entries(proposalsByFile)) {
         try {
-          await fileService.applyProposalsToFile(filePath, fileProposals);
+          // Read the original file content
+          const fs = await import('fs/promises');
+          const path = await import('path');
+          const fullPath = path.join(repoPath, filePath);
+          const originalContent = await fs.readFile(fullPath, 'utf-8');
+
+          let modifiedContent: string;
+
+          // Decide whether to use LLM consolidation or mechanical application
+          if (fileConsolidationService.shouldConsolidate(fileProposals, originalContent)) {
+            console.log(`\n🤖 Using LLM consolidation for ${filePath} (${fileProposals.length} proposals)`);
+
+            // Use LLM to consolidate changes
+            const result = await fileConsolidationService.consolidateFile(
+              filePath,
+              originalContent,
+              fileProposals
+            );
+            modifiedContent = result.consolidatedContent;
+          } else {
+            console.log(`\n⚙️  Using mechanical application for ${filePath} (${fileProposals.length} proposals)`);
+
+            // Use traditional mechanical application
+            modifiedContent = await fileService.applyProposalsToFile(filePath, fileProposals);
+          }
+
+          // Write the modified content back to the file
+          await fs.writeFile(fullPath, modifiedContent, 'utf-8');
 
           // Mark proposals as successfully applied
           for (const proposal of fileProposals) {
