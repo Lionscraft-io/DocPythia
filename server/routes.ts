@@ -13,37 +13,8 @@ import { geminiEmbedder, GeminiEmbedder } from "./embeddings/gemini-embedder.js"
 import { vectorStore } from "./vector-store.js";
 // RAG context manager removed - using vectorStore directly for widget endpoint
 import { llmCache } from "./llm/llm-cache.js";
-
-// Admin authentication middleware
-const adminAuth = (req: Request, res: Response, next: NextFunction) => {
-  // Check if admin auth is disabled (for development)
-  const disableAuth = process.env.DISABLE_ADMIN_AUTH?.toLowerCase() === 'true';
-
-  if (disableAuth) {
-    console.warn('⚠️  ADMIN AUTH DISABLED - This should only be used in development!');
-    return next();
-  }
-
-  const adminToken = process.env.ADMIN_TOKEN;
-
-  if (!adminToken) {
-    console.error("FATAL: ADMIN_TOKEN environment variable is not set");
-    return res.status(500).json({ error: "Server configuration error" });
-  }
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
-  }
-
-  const token = authHeader.substring(7);
-  if (token !== adminToken) {
-    return res.status(403).json({ error: "Forbidden: Invalid admin token" });
-  }
-
-  next();
-};
+import { multiInstanceAdminAuth as adminAuth } from "./middleware/multi-instance-admin-auth.js";
+import { instanceMiddleware } from "./middleware/instance.js";
 
 // Validation schemas
 const updateIdSchema = z.object({
@@ -69,6 +40,10 @@ const rollbackBodySchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Register authentication routes (must be before adminAuth middleware)
+  const authRoutes = (await import('./routes/auth-routes.js')).default;
+  app.use('/api/auth', authRoutes);
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
@@ -1423,6 +1398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Register Multi-Stream Scanner admin routes (Phase 1)
+  // Routes are now registered with dual registration (instance and non-instance)
   const { registerAdminStreamRoutes } = await import('./stream/routes/admin-routes.js');
   registerAdminStreamRoutes(app, adminAuth);
 

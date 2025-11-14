@@ -2,7 +2,13 @@
 
 Configuration for the documentation index generator used in LLM prompts.
 
-**Location**: `/config/doc-index.config.json`
+**Location**: `/config/{instanceId}/doc-index.config.json`
+
+## Instance-Specific Configuration
+
+Each instance has its own doc-index configuration:
+- `/config/near/doc-index.config.json` - NEAR Protocol documentation structure
+- `/config/conflux/doc-index.config.json` - Conflux Network documentation structure
 
 ## doc-index.config.json
 

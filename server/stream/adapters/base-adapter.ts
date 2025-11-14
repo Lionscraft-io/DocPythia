@@ -6,7 +6,7 @@
  * Reference: /docs/specs/multi-stream-scanner-phase-1.md
  */
 
-import prisma from '../../db.js';
+import { PrismaClient } from '@prisma/client';
 import { StreamAdapter, StreamMessage, StreamWatermark } from '../types.js';
 
 export abstract class BaseStreamAdapter implements StreamAdapter {
@@ -14,10 +14,12 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
   public readonly adapterType: string;
   protected config: any;
   protected initialized = false;
+  protected db: PrismaClient; // Instance-specific database client
 
-  constructor(streamId: string, adapterType: string) {
+  constructor(streamId: string, adapterType: string, db: PrismaClient) {
     this.streamId = streamId;
     this.adapterType = adapterType;
+    this.db = db;
   }
 
   /**
@@ -64,7 +66,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
    * Get current watermark from database
    */
   protected async getWatermark(): Promise<StreamWatermark> {
-    const watermark = await prisma.importWatermark.findFirst({
+    const watermark = await this.db.importWatermark.findFirst({
       where: {
         streamId: this.streamId,
         resourceId: null
@@ -94,7 +96,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
     lastProcessedId: string,
     messagesProcessed: number
   ): Promise<void> {
-    await prisma.importWatermark.updateMany({
+    await this.db.importWatermark.updateMany({
       where: {
         streamId: this.streamId,
         resourceId: null
@@ -115,12 +117,12 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
    * Ensure stream config exists in database
    */
   private async ensureStreamConfig(): Promise<void> {
-    const existing = await prisma.streamConfig.findUnique({
+    const existing = await this.db.streamConfig.findUnique({
       where: { streamId: this.streamId },
     });
 
     if (!existing) {
-      await prisma.streamConfig.create({
+      await this.db.streamConfig.create({
         data: {
           streamId: this.streamId,
           adapterType: this.adapterType,
@@ -131,7 +133,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
       console.log(`Created stream config for ${this.streamId}`);
     } else {
       // Update config if changed
-      await prisma.streamConfig.update({
+      await this.db.streamConfig.update({
         where: { streamId: this.streamId },
         data: {
           config: this.config,
@@ -146,7 +148,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
    * Ensure watermark exists in database
    */
   private async ensureWatermark(): Promise<void> {
-    const existing = await prisma.importWatermark.findFirst({
+    const existing = await this.db.importWatermark.findFirst({
       where: {
         streamId: this.streamId,
         resourceId: null
@@ -154,7 +156,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
     });
 
     if (!existing) {
-      await prisma.importWatermark.create({
+      await this.db.importWatermark.create({
         data: {
           streamId: this.streamId,
           streamType: this.adapterType,
@@ -174,7 +176,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
     for (const message of messages) {
       try {
         // Check if message already exists
-        const existing = await prisma.unifiedMessage.findUnique({
+        const existing = await this.db.unifiedMessage.findUnique({
           where: {
             streamId_messageId: {
               streamId: this.streamId,
@@ -190,7 +192,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
         }
 
         // Insert new message
-        const saved = await prisma.unifiedMessage.create({
+        const saved = await this.db.unifiedMessage.create({
           data: {
             streamId: this.streamId,
             messageId: message.messageId,

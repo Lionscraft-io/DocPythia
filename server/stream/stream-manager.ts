@@ -11,9 +11,9 @@ import cron from 'node-cron';
 import { StreamAdapter } from './adapters/base-adapter.js';
 import { CsvFileAdapter } from './adapters/csv-file-adapter.js';
 import { TelegramBotAdapter } from './adapters/telegram-bot-adapter.js';
+import { InstanceConfigLoader } from '../config/instance-loader.js';
+import { getInstanceDb } from '../db/instance-db.js';
 import type { StreamMessage } from './types.js';
-
-const prisma = new PrismaClient();
 
 export interface StreamManagerConfig {
   maxConcurrentStreams?: number;
@@ -37,6 +37,7 @@ export class StreamManager {
   private jobs: Map<string, cron.ScheduledTask> = new Map();
   private runningStreams: Set<string> = new Set();
   private config: Required<StreamManagerConfig>;
+  private streamToInstance: Map<string, string> = new Map(); // Track which instance each stream belongs to
 
   constructor(config?: StreamManagerConfig) {
     const schedulingEnabled = process.env.STREAM_SCHEDULING_ENABLED === 'true';
@@ -54,30 +55,50 @@ export class StreamManager {
 
   /**
    * Initialize the stream manager by loading all configured streams
+   * Loads streams from ALL instance databases
    */
   async initialize(): Promise<void> {
     console.log('Initializing StreamManager...');
 
     try {
-      // Load all active stream configurations from database
-      const streamConfigs = await prisma.streamConfig.findMany({
-        where: {
-          enabled: true,
-        },
-      });
+      // Get all available instances
+      const availableInstances = InstanceConfigLoader.getAvailableInstances();
+      console.log(`Loading streams from ${availableInstances.length} instances:`, availableInstances);
 
-      console.log(`Found ${streamConfigs.length} active stream configurations`);
+      let totalStreams = 0;
 
-      // Register adapters for each stream
-      for (const config of streamConfigs) {
+      // Load streams from each instance database
+      for (const instanceId of availableInstances) {
         try {
-          await this.registerStream(config);
+          const instanceDb = getInstanceDb(instanceId);
+
+          // Load all active stream configurations from this instance's database
+          const streamConfigs = await instanceDb.streamConfig.findMany({
+            where: {
+              enabled: true,
+            },
+          });
+
+          console.log(`Found ${streamConfigs.length} active streams for instance "${instanceId}"`);
+
+          // Register adapters for each stream
+          for (const config of streamConfigs) {
+            try {
+              // Track which instance this stream belongs to
+              this.streamToInstance.set(config.streamId, instanceId);
+
+              await this.registerStream(config, instanceId, instanceDb);
+              totalStreams++;
+            } catch (error) {
+              console.error(`Failed to register stream ${config.streamId} for instance ${instanceId}:`, error);
+            }
+          }
         } catch (error) {
-          console.error(`Failed to register stream ${config.streamId}:`, error);
+          console.error(`Failed to load streams for instance "${instanceId}":`, error);
         }
       }
 
-      console.log(`StreamManager initialized with ${this.adapters.size} streams`);
+      console.log(`StreamManager initialized with ${totalStreams} streams across ${availableInstances.length} instances`);
     } catch (error) {
       console.error('Failed to initialize StreamManager:', error);
       throw error;
@@ -86,15 +107,18 @@ export class StreamManager {
 
   /**
    * Register a stream adapter with optional scheduling
+   * @param streamConfig - Stream configuration from database
+   * @param instanceId - Instance ID this stream belongs to
+   * @param instanceDb - Database client for this instance
    */
-  async registerStream(streamConfig: any): Promise<void> {
+  async registerStream(streamConfig: any, instanceId: string, instanceDb: PrismaClient): Promise<void> {
     const { streamId, adapterType, config: adapterConfig, schedule } = streamConfig;
 
-    console.log(`Registering stream: ${streamId} (${adapterType})`);
+    console.log(`Registering stream: ${streamId} (${adapterType}) for instance: ${instanceId}`);
     console.log(`Adapter config:`, JSON.stringify(adapterConfig, null, 2));
 
     // Create adapter instance based on type
-    const adapter = this.createAdapter(streamId, adapterType, adapterConfig);
+    const adapter = this.createAdapter(streamId, adapterType, adapterConfig, instanceId, instanceDb);
 
     if (!adapter) {
       throw new Error(`Unknown adapter type: ${adapterType}`);
@@ -117,7 +141,7 @@ export class StreamManager {
       this.scheduleStream(streamId, schedule);
     }
 
-    console.log(`Stream ${streamId} registered successfully`);
+    console.log(`Stream ${streamId} registered successfully for instance ${instanceId}`);
   }
 
   /**
@@ -126,20 +150,22 @@ export class StreamManager {
   private createAdapter(
     streamId: string,
     adapterType: string,
-    adapterConfig: any
+    adapterConfig: any,
+    instanceId: string,
+    instanceDb: PrismaClient
   ): StreamAdapter | null {
     switch (adapterType) {
       case 'csv':
-        return new CsvFileAdapter(streamId);
+        return new CsvFileAdapter(streamId, instanceDb);
 
       case 'telegram-bot':
-        return new TelegramBotAdapter(streamId);
+        return new TelegramBotAdapter(streamId, instanceDb);
 
       // Add more adapter types here as they're implemented
       // case 'discord':
-      //   return new DiscordAdapter(streamId);
+      //   return new DiscordAdapter(streamId, instanceDb);
       // case 'slack':
-      //   return new SlackAdapter(streamId);
+      //   return new SlackAdapter(streamId, instanceDb);
 
       default:
         return null;

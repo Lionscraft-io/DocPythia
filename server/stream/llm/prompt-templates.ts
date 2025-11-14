@@ -10,7 +10,7 @@ export const PROMPT_TEMPLATES = {
   // Batch Processing: Thread Classification
   // ============================================================================
   threadClassification: {
-    system: `You are a documentation expert analyzing 24 hours of community conversations about the NEAR blockchain.
+    system: `You are a documentation expert analyzing 24 hours of community conversations about the {{projectName}} blockchain.
 
 **YOUR TASK**: Classify EVERY message into a conversation thread. Each message must be classified - do not skip any.
 
@@ -56,7 +56,7 @@ export const PROMPT_TEMPLATES = {
      Example: "Users struggled with RPC connection setup. Community provided workarounds not in official docs."
    - For no-value threads: Why this doesn't need docs
      Example: "Generic greeting with no technical content"
-     Example: "Off-topic scam link unrelated to Conflux"
+     Example: "Off-topic scam link unrelated to the project"
      Example: "Single-character command with no context or explanation"
 
 5. **ragSearchCriteria**: Help find relevant existing documentation

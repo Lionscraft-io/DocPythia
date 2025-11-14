@@ -11,10 +11,28 @@ import type { Express, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { batchMessageProcessor, BatchMessageProcessor } from '../processors/batch-message-processor.js';
+import { instanceMiddleware } from '../../middleware/instance.js';
+import { getInstanceDb } from '../../db/instance-db.js';
 import pg from 'pg';
 const { Pool } = pg;
 
-const prisma = new PrismaClient();
+// Helper to get instance-aware database client from request
+function getDb(req: Request): PrismaClient {
+  // First try: Instance middleware (for routes with /:instance prefix)
+  if (req.instance?.db) {
+    return req.instance.db;
+  }
+
+  // Second try: Admin auth middleware (for routes without /:instance prefix)
+  // The multiInstanceAdminAuth middleware stores the instance ID from the auth token
+  const adminInstance = (req as any).adminInstance;
+  if (adminInstance) {
+    return getInstanceDb(adminInstance);
+  }
+
+  // Fallback error
+  throw new Error('No instance database available. Instance middleware may not be applied.');
+}
 
 // Validation schemas
 const paginationSchema = z.object({
@@ -53,14 +71,20 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
   /**
    * GET /api/admin/stream/stats
    * Get processing statistics
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/stats (non-instance)
+   * 2. /:instance/api/admin/stream/stats (instance-specific)
    */
-  app.get('/api/admin/stream/stats', adminAuth, async (req: Request, res: Response) => {
+  const statsHandler = async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       // Get total messages
-      const totalMessages = await prisma.unifiedMessage.count();
+      const totalMessages = await db.unifiedMessage.count();
 
       // Get messages by processing status
-      const statusCounts = await prisma.unifiedMessage.groupBy({
+      const statusCounts = await db.unifiedMessage.groupBy({
         by: ['processingStatus'],
         _count: true,
       });
@@ -70,19 +94,19 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const failed = statusCounts.find(s => s.processingStatus === 'FAILED')?._count || 0;
 
       // Get messages with doc value
-      const withDocValue = await prisma.messageClassification.count();
+      const withDocValue = await db.messageClassification.count();
 
       // Get proposals (total and by approval status)
-      const totalProposals = await prisma.docProposal.count();
-      const approvedProposals = await prisma.docProposal.count({
+      const totalProposals = await db.docProposal.count();
+      const approvedProposals = await db.docProposal.count({
         where: { adminApproved: true },
       });
-      const pendingProposals = await prisma.docProposal.count({
+      const pendingProposals = await db.docProposal.count({
         where: { adminApproved: false, adminReviewedAt: null },
       });
 
       // Get processing watermark info
-      const watermark = await prisma.processingWatermark.findUnique({
+      const watermark = await db.processingWatermark.findUnique({
         where: { id: 1 },
       });
 
@@ -105,7 +129,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       console.error('Error fetching stats:', error);
       res.status(500).json({ error: 'Failed to fetch stats' });
     }
-  });
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.get('/api/admin/stream/stats', adminAuth, statsHandler);
+  app.get('/:instance/api/admin/stream/stats', instanceMiddleware, adminAuth, statsHandler);
 
   /**
    * GET /api/admin/stream/messages
@@ -113,6 +141,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.get('/api/admin/stream/messages', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const { page, limit } = paginationSchema.parse(req.query);
       const filters = filterSchema.parse(req.query);
 
@@ -151,10 +181,10 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       }
 
       // Get total count
-      const total = await prisma.unifiedMessage.count({ where });
+      const total = await db.unifiedMessage.count({ where });
 
       // Get paginated results with full data
-      const messages = await prisma.unifiedMessage.findMany({
+      const messages = await db.unifiedMessage.findMany({
         where,
         include: {
           classification: true,
@@ -214,9 +244,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.get('/api/admin/stream/messages/:id', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const messageId = parseInt(req.params.id);
 
-      const message = await prisma.unifiedMessage.findUnique({
+      const message = await db.unifiedMessage.findUnique({
         where: { id: messageId },
         include: {
           classification: true,
@@ -242,6 +274,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/process', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const { streamId, batchSize } = processRequestSchema.parse(req.body);
 
       // Import streamManager here to avoid circular dependency
@@ -266,6 +300,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/process-batch', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       console.log('[Admin] Starting batch processing...');
       const messagesProcessed = await batchMessageProcessor.processBatch();
 
@@ -285,10 +321,12 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.get('/api/admin/stream/proposals', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const { page, limit } = paginationSchema.parse(req.query);
       const offset = (page - 1) * limit;
 
-      const proposals = await prisma.docProposal.findMany({
+      const proposals = await db.docProposal.findMany({
         include: {
           message: {
             select: {
@@ -313,7 +351,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         take: limit,
       });
 
-      const total = await prisma.docProposal.count();
+      const total = await db.docProposal.count();
 
       res.json({
         data: proposals,
@@ -336,13 +374,15 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/proposals/:id/approve', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const proposalId = parseInt(req.params.id);
       const { approved, reviewedBy } = z.object({
         approved: z.boolean(),
         reviewedBy: z.string(),
       }).parse(req.body);
 
-      const updated = await prisma.docProposal.update({
+      const updated = await db.docProposal.update({
         where: { id: proposalId },
         data: {
           adminApproved: approved,
@@ -367,13 +407,15 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.patch('/api/admin/stream/proposals/:id', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const proposalId = parseInt(req.params.id);
       const { suggestedText, editedBy } = z.object({
         suggestedText: z.string().max(10000),
         editedBy: z.string(),
       }).parse(req.body);
 
-      const updated = await prisma.docProposal.update({
+      const updated = await db.docProposal.update({
         where: { id: proposalId },
         data: {
           editedText: suggestedText,
@@ -398,6 +440,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/proposals/:id/status', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const proposalId = parseInt(req.params.id);
       console.log('[Status Update] Raw request body:', JSON.stringify(req.body));
 
@@ -407,7 +451,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       }).parse(req.body);
 
       // Get current status before update
-      const beforeUpdate = await prisma.docProposal.findUnique({
+      const beforeUpdate = await db.docProposal.findUnique({
         where: { id: proposalId },
         select: { status: true, conversationId: true },
       });
@@ -423,7 +467,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       console.log('[Status Update] Update data:', JSON.stringify(updateData, null, 2));
 
       // Update the proposal
-      const updated = await prisma.docProposal.update({
+      const updated = await db.docProposal.update({
         where: { id: proposalId },
         data: updateData,
       });
@@ -431,7 +475,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       console.log(`[Status Update] Proposal ${proposalId} - Database returned status: ${updated.status}`);
 
       // Calculate conversation status
-      const allProposals = await prisma.docProposal.findMany({
+      const allProposals = await db.docProposal.findMany({
         where: { conversationId: updated.conversationId },
         select: { status: true },
       });
@@ -461,9 +505,15 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    * GET /api/admin/stream/batches
    * List changeset batches (PR batches)
    * Query params: status (draft|submitted|merged|closed), page, limit
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/batches (non-instance)
+   * 2. /:instance/api/admin/stream/batches (instance-specific)
    */
-  app.get('/api/admin/stream/batches', adminAuth, async (req: Request, res: Response) => {
+  const batchesHandler = async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const { page, limit } = paginationSchema.parse(req.query);
       const status = req.query.status as string | undefined;
       const offset = (page - 1) * limit;
@@ -475,7 +525,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       }
 
       // Get changeset batches with related data
-      const batches = await prisma.changesetBatch.findMany({
+      const batches = await db.changesetBatch.findMany({
         where,
         include: {
           batchProposals: {
@@ -500,7 +550,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         take: limit,
       });
 
-      const total = await prisma.changesetBatch.count({ where });
+      const total = await db.changesetBatch.count({ where });
 
       res.json({
         batches: batches.map(batch => ({
@@ -534,7 +584,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       console.error('Error fetching changeset batches:', error);
       res.status(500).json({ error: 'Failed to fetch changeset batches' });
     }
-  });
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.get('/api/admin/stream/batches', adminAuth, batchesHandler);
+  app.get('/:instance/api/admin/stream/batches', instanceMiddleware, adminAuth, batchesHandler);
 
   /**
    * GET /api/admin/stream/streams
@@ -542,7 +596,9 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.get('/api/admin/stream/streams', adminAuth, async (req: Request, res: Response) => {
     try {
-      const streams = await prisma.streamConfig.findMany({
+      const db = getDb(req);
+
+      const streams = await db.streamConfig.findMany({
         include: {
           watermarks: true,
           _count: {
@@ -566,6 +622,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/register', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const schema = z.object({
         streamId: z.string().min(1),
         adapterType: z.enum(['telegram-bot', 'csv', 'zulipchat']),
@@ -576,14 +634,14 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const data = schema.parse(req.body);
 
       // Check if stream already exists
-      const existing = await prisma.streamConfig.findUnique({
+      const existing = await db.streamConfig.findUnique({
         where: { streamId: data.streamId },
       });
 
       let stream;
       if (existing) {
         // Update existing stream
-        stream = await prisma.streamConfig.update({
+        stream = await db.streamConfig.update({
           where: { streamId: data.streamId },
           data: {
             adapterType: data.adapterType,
@@ -594,7 +652,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         console.log(`Updated stream config for ${data.streamId}`);
       } else {
         // Create new stream
-        stream = await prisma.streamConfig.create({
+        stream = await db.streamConfig.create({
           data: {
             streamId: data.streamId,
             adapterType: data.adapterType,
@@ -630,6 +688,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/clear-processed', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const bodyValidation = z.object({
         streamId: z.string().optional(),
       }).safeParse(req.body);
@@ -637,7 +697,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const streamId = bodyValidation.success ? bodyValidation.data.streamId : undefined;
 
       // Get all COMPLETED messages (includes both classified and orphaned messages)
-      const messagesToClear = await prisma.unifiedMessage.findMany({
+      const messagesToClear = await db.unifiedMessage.findMany({
         where: {
           ...(streamId ? { streamId } : {}),
           processingStatus: 'COMPLETED',
@@ -656,7 +716,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       }
 
       // Delete all related records in a transaction
-      await prisma.$transaction(async (tx) => {
+      await db.$transaction(async (tx) => {
         // Get all conversation IDs associated with these messages
         const conversationIds = await tx.messageClassification.findMany({
           where: {
@@ -744,9 +804,15 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    * List conversations with messages, RAG context, and proposals
    * Conversation-centric view for admin dashboard
    * Query params: page, limit, category, hasProposals, status (pending|changeset|discarded)
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/conversations (non-instance)
+   * 2. /:instance/api/admin/stream/conversations (instance-specific)
    */
-  app.get('/api/admin/stream/conversations', adminAuth, async (req: Request, res: Response) => {
+  const conversationsHandler = async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const { page, limit } = paginationSchema.parse(req.query);
       const category = req.query.category as string | undefined;
       const hasProposals = req.query.hasProposals === 'true';
@@ -765,7 +831,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       }
 
       // Get all unique conversation IDs with message counts
-      let allConversations = await prisma.messageClassification.groupBy({
+      let allConversations = await db.messageClassification.groupBy({
         by: ['conversationId'],
         where,
         _count: {
@@ -784,14 +850,14 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       // Filter by status if needed
       if (statusFilter) {
         // Get IDs of proposals that are already in submitted batches
-        const submittedBatchIds = await prisma.changesetBatch.findMany({
+        const submittedBatchIds = await db.changesetBatch.findMany({
           where: { status: 'submitted' },
           select: { id: true },
         });
         const submittedBatchIdSet = new Set(submittedBatchIds.map(b => b.id));
 
         // Get all proposals with their batch info
-        const allProposalsWithBatch = await prisma.docProposal.findMany({
+        const allProposalsWithBatch = await db.docProposal.findMany({
           select: {
             conversationId: true,
             status: true,
@@ -841,7 +907,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
         // For discarded filter, also include conversations with proposalsRejected=true but no proposals
         if (statusFilter === 'discarded') {
-          const autoRejectedConversations = await prisma.conversationRagContext.findMany({
+          const autoRejectedConversations = await db.conversationRagContext.findMany({
             where: {
               proposalsRejected: true,
             },
@@ -863,7 +929,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         );
       } else if (req.query.hasProposals !== undefined) {
         // Legacy filter - kept for backward compatibility
-        const conversationsWithProposals = await prisma.docProposal.findMany({
+        const conversationsWithProposals = await db.docProposal.findMany({
           select: { conversationId: true },
           distinct: ['conversationId'],
         });
@@ -882,7 +948,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
       if (hideEmptyProposals && statusFilter) {
         // Get proposal counts for each conversation that match the status filter
-        const proposalCountsByConv = await prisma.docProposal.groupBy({
+        const proposalCountsByConv = await db.docProposal.groupBy({
           by: ['conversationId'],
           where: {
             conversationId: { in: allConversations.map(c => c.conversationId).filter((id): id is string => id !== null) },
@@ -916,7 +982,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           if (!conv.conversationId) return null;
 
           // Get all messages in this conversation (ordered by timestamp)
-          const messages = await prisma.messageClassification.findMany({
+          const messages = await db.messageClassification.findMany({
             where: { conversationId: conv.conversationId },
             include: {
               message: {
@@ -946,12 +1012,12 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           const batchId = messages[0]?.batchId || null;
 
           // Get RAG context for this conversation
-          const ragContext = await prisma.conversationRagContext.findUnique({
+          const ragContext = await db.conversationRagContext.findUnique({
             where: { conversationId: conv.conversationId },
           });
 
           // Get all proposals for this conversation (excluding those in submitted batches)
-          const proposals = await prisma.docProposal.findMany({
+          const proposals = await db.docProposal.findMany({
             where: {
               conversationId: conv.conversationId,
               OR: [
@@ -1028,7 +1094,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const validConversations = conversationData.filter(c => c !== null);
 
       // Calculate total message counts across ALL messages in system, not just conversations
-      const totalMessagesInSystem = await prisma.unifiedMessage.count();
+      const totalMessagesInSystem = await db.unifiedMessage.count();
       const totalProcessedMessages = validConversations.reduce((sum, conv) => sum + (conv?.processed_count || 0), 0);
 
       // Get total message count across FILTERED conversations (not all conversations)
@@ -1037,7 +1103,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         .map(c => c.conversationId)
         .filter((id): id is string => id !== null);
 
-      const totalMessagesInConversations = await prisma.messageClassification.count({
+      const totalMessagesInConversations = await db.messageClassification.count({
         where: {
           conversationId: { in: filteredConversationIds },
         },
@@ -1061,7 +1127,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       console.error('Error fetching conversations:', error);
       res.status(500).json({ error: 'Failed to fetch conversations' });
     }
-  });
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.get('/api/admin/stream/conversations', adminAuth, conversationsHandler);
+  app.get('/:instance/api/admin/stream/conversations', instanceMiddleware, adminAuth, conversationsHandler);
 
   /**
    * POST /api/admin/stream/telegram-webhook
@@ -1070,6 +1140,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/telegram-webhook', async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       // Import streamManager here to avoid circular dependency
       const { streamManager } = await import('../stream-manager.js');
       const { TelegramBotAdapter } = await import('../adapters/telegram-bot-adapter.js');
@@ -1103,6 +1175,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/batches', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const { proposalIds } = z.object({
         proposalIds: z.array(z.number().int()).min(1)
       }).parse(req.body);
@@ -1128,6 +1202,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/batches/:id/generate-pr', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const batchId = parseInt(req.params.id);
       const options = z.object({
         proposalIds: z.array(z.number().int()),
@@ -1163,6 +1239,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.get('/api/admin/stream/batches', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const { status } = z.object({
         status: z.enum(['draft', 'submitted', 'merged', 'closed']).optional()
       }).parse(req.query);
@@ -1185,6 +1263,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.get('/api/admin/stream/batches/:id', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const batchId = parseInt(req.params.id);
 
       const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
@@ -1209,6 +1289,8 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.delete('/api/admin/stream/batches/:id', adminAuth, async (req: Request, res: Response) => {
     try {
+      const db = getDb(req);
+
       const batchId = parseInt(req.params.id);
 
       const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');

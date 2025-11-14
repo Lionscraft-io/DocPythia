@@ -11,6 +11,7 @@ import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync } from 'fs';
+import { getConfig } from './config/loader';
 
 const prisma = new PrismaClient();
 
@@ -37,9 +38,10 @@ export class GitFetcher {
   private repoPath: string;
 
   constructor() {
-    this.gitUrl = process.env.DOCS_GIT_URL || 'https://github.com/near/docs';
-    this.branch = process.env.DOCS_GIT_BRANCH || 'main';
-    this.cacheDir = process.env.DOCS_CACHE_DIR || '/var/cache/near-docs';
+    const config = getConfig();
+    this.gitUrl = process.env.DOCS_GIT_URL || config.documentation.gitUrl;
+    this.branch = process.env.DOCS_GIT_BRANCH || config.documentation.branch;
+    this.cacheDir = process.env.DOCS_CACHE_DIR || `/var/cache/${config.project.shortName}-docs`;
     this.repoPath = path.join(this.cacheDir, 'repo');
     this.git = simpleGit();
   }

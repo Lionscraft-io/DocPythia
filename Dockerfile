@@ -55,6 +55,9 @@ COPY --from=builder /app/dist ./dist
 COPY server ./server
 COPY shared ./shared
 
+# Copy instance configuration files (multi-tenant setup)
+COPY config ./config
+
 # Create a non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001

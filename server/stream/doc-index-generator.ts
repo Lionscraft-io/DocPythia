@@ -36,27 +36,31 @@ interface DocIndexConfig {
 export class DocumentationIndexGenerator {
   private config: DocIndexConfig;
   private configHash: string = '';
+  private instanceId: string;
 
-  constructor() {
-    console.log('DocumentationIndexGenerator initialized');
+  constructor(instanceId: string = 'near') {
+    this.instanceId = instanceId;
+    console.log(`DocumentationIndexGenerator initialized for instance: ${instanceId}`);
     this.config = this.loadConfig();
     this.configHash = this.generateConfigHash();
   }
 
   /**
-   * Load configuration from file or use defaults
+   * Load configuration from instance-specific file or use defaults
    */
   private loadConfig(): DocIndexConfig {
     try {
-      const configPath = path.join(__dirname, '../../config/doc-index.config.json');
+      const configPath = path.join(__dirname, `../../config/${this.instanceId}/doc-index.config.json`);
       if (fs.existsSync(configPath)) {
         const configContent = fs.readFileSync(configPath, 'utf-8');
         const config = JSON.parse(configContent);
-        console.log('Loaded doc-index configuration from file');
+        console.log(`Loaded doc-index configuration from config/${this.instanceId}/doc-index.config.json`);
         return config;
+      } else {
+        console.warn(`No doc-index config found for instance "${this.instanceId}" at ${configPath}`);
       }
     } catch (error) {
-      console.warn('Failed to load doc-index config, using defaults:', error);
+      console.warn(`Failed to load doc-index config for instance "${this.instanceId}", using defaults:`, error);
     }
 
     // Default configuration

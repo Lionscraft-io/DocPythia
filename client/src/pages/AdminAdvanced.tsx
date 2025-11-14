@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Header } from "@/components/Header";
 import { UpdateCard } from "@/components/UpdateCard";
 import { VersionHistoryCard } from "@/components/VersionHistoryCard";
 import { StatsCard } from "@/components/StatsCard";
@@ -581,7 +580,6 @@ export default function AdminAdvanced() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
         <div className="container px-6 md:px-8 flex-1 py-8">
           <div className="flex items-center justify-center h-64">
             <p className="text-muted-foreground">Loading updates...</p>

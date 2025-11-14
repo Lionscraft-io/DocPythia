@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Header } from "@/components/Header";
 import { UpdateCard } from "@/components/UpdateCard";
 import { StatsCard } from "@/components/StatsCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { FileText, CheckCircle2, Clock, XCircle, MessageSquare } from "lucide-react";
+import { FileText, CheckCircle2, Clock, XCircle, MessageSquare, AlertCircle, ChevronDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -23,8 +22,10 @@ export default function Admin() {
   // Auth check
   useEffect(() => {
     const token = sessionStorage.getItem("admin_token");
+    const instance = sessionStorage.getItem("admin_instance");
     if (!token) {
-      setLocation("/admin/login");
+      // Redirect to instance-specific login if we know the instance, otherwise generic login
+      setLocation(instance ? `/${instance}/admin/login` : "/login");
     }
   }, [setLocation]);
 
@@ -42,6 +43,12 @@ export default function Admin() {
   const { data: ignoredConvs, isLoading: loadingIgnored } = useQuery({
     queryKey: ["/api/admin/stream/conversations?status=discarded&limit=100"],
     queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+  });
+
+  const { data: batchHistory } = useQuery<any>({
+    queryKey: ["/api/admin/stream/batches?status=submitted"],
+    queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   // Get conversations (not flattened) so we can group proposals
@@ -264,7 +271,6 @@ export default function Admin() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-white">
-        <Header />
         <div className="container px-6 md:px-8 flex-1 py-8">
           <div className="flex items-center justify-center h-64">
             <p className="text-gray-500">Loading updates...</p>
@@ -276,8 +282,6 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      <Header />
-
       <div className="container px-6 md:px-8 flex-1 py-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
@@ -289,14 +293,24 @@ export default function Admin() {
               Review and manage AI-suggested documentation updates
             </p>
           </div>
-          <Button
-            size="lg"
-            onClick={handleGeneratePR}
-            disabled={approvedCount === 0}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Generate PR ({approvedCount} approved)
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              size="lg"
+              onClick={handleGeneratePR}
+              disabled={approvedCount === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Generate PR ({approvedCount} approved)
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => setLocation("/logout")}
+              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              Logout
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -341,6 +355,9 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="all" data-testid="tab-all" className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900">
               All Updates ({totalCount})
+            </TabsTrigger>
+            <TabsTrigger value="history" data-testid="tab-history" className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900">
+              PR History ({batchHistory?.batches?.length || 0})
             </TabsTrigger>
           </TabsList>
 
@@ -600,6 +617,131 @@ export default function Admin() {
                   </CardContent>
                 </Card>
               ))
+            )}
+          </TabsContent>
+
+          {/* PR HISTORY TAB */}
+          <TabsContent value="history" className="space-y-4">
+            {!batchHistory?.batches?.length ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No pull requests generated yet. Create your first PR from the Approved tab!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {batchHistory.batches.map((batch: any) => (
+                  <Card key={batch.id} className="bg-white border-gray-200">
+                    <CardContent className="p-6 space-y-4">
+                      {/* Batch Header */}
+                      <div className="flex items-start justify-between border-b pb-4">
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-semibold text-gray-900">{batch.prTitle || `Batch ${batch.batchId}`}</h3>
+                            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                              batch.status === 'submitted' ? 'bg-blue-100 border border-blue-200 text-blue-800' :
+                              batch.status === 'merged' ? 'bg-green-100 border border-green-200 text-green-800' :
+                              'bg-gray-100 border border-gray-200 text-gray-800'
+                            }`}>
+                              {batch.status.toUpperCase()}
+                            </span>
+                          </div>
+                          {batch.prUrl && (
+                            <a
+                              href={batch.prUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                            >
+                              PR #{batch.prNumber}
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          )}
+                          <p className="text-sm text-gray-600">
+                            Submitted {new Date(batch.submittedAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Batch Statistics */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                          <div className="text-xs text-blue-700 mb-1">Total Proposals</div>
+                          <div className="text-2xl font-bold text-blue-900">{batch.totalProposals}</div>
+                        </div>
+                        <div className="p-3 bg-green-50 rounded-lg">
+                          <div className="text-xs text-green-700 mb-1">Applied Successfully</div>
+                          <div className="text-2xl font-bold text-green-900">
+                            {batch.proposals?.filter((p: any) => p.prApplicationStatus === 'success').length || batch.totalProposals}
+                          </div>
+                        </div>
+                        <div className="p-3 bg-red-50 rounded-lg">
+                          <div className="text-xs text-red-700 mb-1">Failed</div>
+                          <div className="text-2xl font-bold text-red-900">
+                            {batch.failures?.length || 0}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Affected Files - Collapsible */}
+                      <details className="group">
+                        <summary className="cursor-pointer p-3 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-gray-900">Affected Files ({batch.affectedFiles?.length || 0})</span>
+                            <ChevronDown className="w-4 h-4 text-gray-600 group-open:rotate-180 transition-transform" />
+                          </div>
+                        </summary>
+                        <div className="mt-2 p-3 bg-white border border-gray-200 rounded-md">
+                          <ul className="space-y-1">
+                            {(batch.affectedFiles || []).map((file: string, idx: number) => (
+                              <li key={idx} className="flex items-center gap-2 text-sm">
+                                <FileText className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                                <span className="font-mono text-gray-900 text-xs">{file}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </details>
+
+                      {/* Repository Info */}
+                      <div className="text-xs text-gray-600 border-t pt-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <span className="font-semibold">Target:</span> {batch.targetRepo || 'N/A'}
+                          </div>
+                          <div>
+                            <span className="font-semibold">Branch:</span> {batch.branchName || batch.baseBranch || 'main'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Failed Proposals Warning */}
+                      {batch.failures && batch.failures.length > 0 && (
+                        <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                            <div className="text-sm">
+                              <p className="font-semibold text-yellow-900 mb-1">
+                                {batch.failures.length} proposals failed to apply
+                              </p>
+                              <ul className="text-xs text-yellow-800 space-y-1">
+                                {batch.failures.slice(0, 3).map((failure: any, idx: number) => (
+                                  <li key={idx}>
+                                    • {failure.failureType}: {failure.errorMessage}
+                                  </li>
+                                ))}
+                                {batch.failures.length > 3 && (
+                                  <li className="text-yellow-600">...and {batch.failures.length - 3} more</li>
+                                )}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
           </TabsContent>
         </Tabs>

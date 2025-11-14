@@ -104,8 +104,16 @@ export const FeatureFlagsSchema = z.object({
   versionHistoryEnabled: z.boolean(),
 });
 
+export const DatabaseConfigSchema = z.object({
+  name: z.string().min(1, 'Database name is required'),
+  host: z.string().optional(),
+  port: z.number().optional(),
+  user: z.string().optional(),
+  password: z.string().optional(),
+});
+
 export const AdminConfigSchema = z.object({
-  token: z.string().min(8, 'Admin token must be at least 8 characters'),
+  passwordHash: z.string().min(1, 'Admin password hash is required'),
   allowedOrigins: z.array(z.string()).optional(),
 });
 
@@ -113,6 +121,7 @@ export const InstanceConfigSchema = z.object({
   project: ProjectConfigSchema,
   branding: BrandingConfigSchema,
   documentation: DocumentationConfigSchema,
+  database: DatabaseConfigSchema,
   community: CommunityConfigSchema,
   widget: WidgetConfigSchema,
   features: FeatureFlagsSchema,

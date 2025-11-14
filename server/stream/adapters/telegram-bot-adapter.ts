@@ -10,6 +10,7 @@ import { Telegraf, Context } from 'telegraf';
 import { Message, Update } from 'telegraf/types';
 import { BaseStreamAdapter } from './base-adapter.js';
 import { StreamMessage, StreamWatermark } from '../types.js';
+import { PrismaClient } from '@prisma/client';
 import prisma from '../../db.js';
 import https from 'https';
 import dns from 'dns';
@@ -31,8 +32,8 @@ export class TelegramBotAdapter extends BaseStreamAdapter {
   private botConfig!: TelegramBotConfig;
   private isRunning = false;
 
-  constructor(streamId: string) {
-    super(streamId, 'telegram-bot');
+  constructor(streamId: string, db: PrismaClient) {
+    super(streamId, 'telegram-bot', db);
   }
 
   /**

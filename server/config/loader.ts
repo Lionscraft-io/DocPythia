@@ -183,9 +183,9 @@ export class ConfigLoader {
     }
 
     // Admin config
-    if (env.ADMIN_TOKEN) {
+    if (env.ADMIN_PASSWORD_HASH) {
       envConfig.admin = {
-        token: env.ADMIN_TOKEN,
+        passwordHash: env.ADMIN_PASSWORD_HASH,
         ...(env.ADMIN_ALLOWED_ORIGINS && { allowedOrigins: env.ADMIN_ALLOWED_ORIGINS.split(',') }),
       };
     }

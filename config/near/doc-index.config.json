@@ -1,0 +1,110 @@
+{
+  "includePatterns": [
+    "docs/**/*.md",
+    "website/docs/**/*.md",
+    "guides/**/*.md",
+    "api/**/*.md",
+    "tutorials/**/*.md"
+  ],
+  "excludePatterns": [
+    "**/node_modules/**",
+    "**/build/**",
+    "**/dist/**",
+    "**/_*.md",
+    "**/CONTRIBUTING.md",
+    "**/README.md"
+  ],
+  "excludeTitles": [
+    "Skip to main content",
+    "Quick Links",
+    "Resources",
+    "Community",
+    "Developers",
+    "Copyright"
+  ],
+  "maxPages": 50,
+  "maxSectionsPerPage": 5,
+  "maxSummaryLength": 150,
+  "compactFormat": {
+    "includeSummaries": false,
+    "includeSections": true,
+    "maxSectionsInCompact": 3
+  },
+  "documentationHierarchy": {
+    "overview": [
+      "NEAR Basics > What is NEAR?",
+      "NEAR Basics > Consensus > Proof of Stake",
+      "NEAR Basics > Consensus > Nightshade Sharding",
+      "NEAR Basics > Consensus > Block Production",
+      "NEAR Basics > Glossary",
+      "NEAR Basics > Economics",
+      "NEAR Basics > Ecosystem"
+    ],
+    "core_concepts": [
+      "Wallets",
+      "Smart Contracts",
+      "Transactions",
+      "Accounts and Access Keys",
+      "Gas and Fees",
+      "Storage Staking",
+      "Data Structures"
+    ],
+    "user_guides": [
+      "Transferring NEAR",
+      "Staking NEAR",
+      "Using NEAR Wallet",
+      "Cross-Contract Calls",
+      "Understanding Shards"
+    ],
+    "run_a_node": [
+      "Overview",
+      "Running a Node",
+      "Node Types > Validator Node",
+      "Node Types > RPC Node",
+      "Node Types > Archival Node",
+      "Hardware Requirements",
+      "Node Configuration",
+      "Staking and Validation",
+      "Monitoring Your Node",
+      "Node FAQs",
+      "Troubleshooting"
+    ],
+    "staking": [
+      "Validator Staking Overview",
+      "Becoming a Validator",
+      "Delegation",
+      "Validator Economics",
+      "Slashing and Penalties"
+    ],
+    "smart_contracts": [
+      "Smart Contract Development",
+      "Contract Standards",
+      "Storage Management",
+      "Cross-Contract Calls",
+      "Contract Security Best Practices",
+      "Testing Smart Contracts",
+      "Upgrading Contracts"
+    ],
+    "tools": [
+      "NEAR CLI",
+      "NEAR SDK",
+      "Wallet Selector",
+      "Explorer",
+      "Indexer"
+    ],
+    "nfts": [
+      "NFT Standards",
+      "Minting NFTs",
+      "NFT Marketplaces"
+    ],
+    "faq": [
+      "Community FAQs",
+      "Technical FAQs",
+      "Additional Resources"
+    ],
+    "contributing": [
+      "How to Contribute",
+      "Documentation Guidelines"
+    ]
+  }
+}

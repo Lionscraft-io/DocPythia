@@ -1,93 +1,119 @@
 // Database migration and initialization - Prisma
 // Migrated from Drizzle ORM - Wayne (2025-10-29)
 import { db } from './db';
+import { InstanceConfigLoader } from './config/instance-loader';
+import { getInstanceDb } from './db/instance-db';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
 export async function initializeDatabase() {
-  console.log('🔄 Initializing database...');
+  console.log('🔄 Initializing all instance databases...');
 
   try {
-    // Check if migrations directory exists
-    const migrationsPath = path.join(process.cwd(), 'prisma', 'migrations');
+    // Get all available instances
+    const availableInstances = InstanceConfigLoader.getAvailableInstances();
+    console.log(`📦 Found ${availableInstances.length} instances:`, availableInstances);
 
-    if (fs.existsSync(migrationsPath) && fs.readdirSync(migrationsPath).length > 0) {
-      console.log('📁 Found migrations directory, running migrations...');
-      execSync('npx prisma migrate deploy', {
-        stdio: 'inherit',
-        cwd: process.cwd(),
-        env: { ...process.env }
-      });
-      console.log('✅ Database migrations completed');
-    } else {
-      console.log('📝 No migrations found, pushing schema directly...');
-      await pushSchema();
+    const migrationsPath = path.join(process.cwd(), 'prisma', 'migrations');
+    const hasMigrations = fs.existsSync(migrationsPath) && fs.readdirSync(migrationsPath).length > 0;
+
+    // Migrate each instance database
+    for (const instanceId of availableInstances) {
+      try {
+        console.log(`\n🔄 Initializing database for instance: ${instanceId}`);
+
+        const config = InstanceConfigLoader.has(instanceId)
+          ? InstanceConfigLoader.get(instanceId)
+          : InstanceConfigLoader.load(instanceId);
+
+        const dbName = config.database?.name;
+        if (!dbName) {
+          console.warn(`⚠️  No database configured for instance "${instanceId}", skipping`);
+          continue;
+        }
+
+        // Build database URL for this instance
+        const baseUrl = process.env.DATABASE_URL || '';
+        const instanceDbUrl = baseUrl.replace(/\/[^/]+$/, `/${dbName}`);
+
+        if (hasMigrations) {
+          console.log(`📁 Running migrations for ${instanceId} (${dbName})...`);
+          execSync('npx prisma migrate deploy', {
+            stdio: 'inherit',
+            cwd: process.cwd(),
+            env: { ...process.env, DATABASE_URL: instanceDbUrl }
+          });
+          console.log(`✅ Migrations completed for ${instanceId}`);
+        } else {
+          console.log(`📝 No migrations found, pushing schema to ${instanceId}...`);
+          await pushSchema(instanceDbUrl);
+        }
+
+        // Seed initial data for this instance
+        await seedInitialDataIfNeeded(instanceId);
+
+        console.log(`✅ Database initialized for instance: ${instanceId}`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`❌ Failed to initialize database for instance "${instanceId}":`, errorMessage);
+
+        // Try fallback for this instance
+        try {
+          const config = InstanceConfigLoader.get(instanceId);
+          const baseUrl = process.env.DATABASE_URL || '';
+          const instanceDbUrl = baseUrl.replace(/\/[^/]+$/, `/${config.database?.name}`);
+
+          console.log(`🔄 Attempting to push schema for ${instanceId}...`);
+          await pushSchema(instanceDbUrl);
+          await seedInitialDataIfNeeded(instanceId);
+          console.log(`✅ Schema pushed for ${instanceId}`);
+        } catch (pushError) {
+          console.error(`❌ All attempts failed for instance "${instanceId}"`);
+          // Continue to next instance
+        }
+      }
     }
 
-    console.log('✅ Database initialized successfully');
-
-    // Check if we need to seed initial data
-    await seedInitialDataIfNeeded();
+    console.log('\n✅ All instance databases initialized successfully');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('❌ Database initialization failed:', errorMessage);
-
-    // Try to push schema as fallback
-    try {
-      console.log('🔄 Attempting to push schema directly...');
-      await pushSchema();
-      console.log('✅ Schema pushed successfully');
-
-      // Try to seed after successful schema push
-      await seedInitialDataIfNeeded();
-    } catch (pushError) {
-      const pushErrorMessage = pushError instanceof Error ? pushError.message : String(pushError);
-      console.error('❌ Schema push failed:', pushErrorMessage);
-      throw new Error(`Database initialization failed: ${errorMessage}`);
-    }
+    throw new Error(`Multi-instance database initialization failed: ${errorMessage}`);
   }
 }
 
-async function seedInitialDataIfNeeded() {
+async function seedInitialDataIfNeeded(instanceId: string) {
   try {
+    // Get instance-specific database
+    const instanceDb = getInstanceDb(instanceId);
+
     // Check if documentation sections table has data
-    const sectionCount = await db.documentationSection.count();
+    const sectionCount = await instanceDb.documentationSection.count();
 
     if (sectionCount === 0) {
-      console.log('📦 No documentation found, importing initial content...');
+      console.log(`📦 No documentation found for ${instanceId}, importing initial content...`);
 
-      // Check if import script exists
-      const importScriptPath = path.join(process.cwd(), 'server', 'scripts', 'import-near-nodes-content.ts');
-
-      if (fs.existsSync(importScriptPath)) {
-        console.log('🚀 Running import script...');
-        execSync('npx tsx server/scripts/import-near-nodes-content.ts', {
-          stdio: 'inherit',
-          cwd: process.cwd()
-        });
-        console.log('✅ Initial documentation imported successfully');
-      } else {
-        console.log('⚠️  Import script not found, skipping initial data seed');
-      }
+      // For now, skip auto-seeding - require manual seeding per instance
+      console.log(`⚠️  Auto-seeding not configured for ${instanceId}, skipping initial data seed`);
+      console.log(`   Seed manually using: /api/trigger-job or seed script`);
     } else {
-      console.log(`✓ Found ${sectionCount} existing documentation sections, skipping import`);
+      console.log(`✓ Found ${sectionCount} existing documentation sections for ${instanceId}, skipping import`);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('⚠️  Warning: Could not check/seed initial data:', errorMessage);
-    console.log('   You can manually populate data using: POST /api/trigger-job');
+    console.error(`⚠️  Warning: Could not check/seed initial data for ${instanceId}:`, errorMessage);
   }
 }
 
-async function pushSchema() {
+async function pushSchema(databaseUrl: string) {
   try {
     // Run prisma db push command (for development, skips migrations)
     console.log('🚀 Pushing database schema with Prisma...');
     execSync('npx prisma db push --accept-data-loss', {
       stdio: 'inherit',
       cwd: process.cwd(),
-      env: { ...process.env }
+      env: { ...process.env, DATABASE_URL: databaseUrl }
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

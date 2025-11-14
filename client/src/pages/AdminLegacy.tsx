@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
-import { Header } from "@/components/Header";
 import { UpdateCard } from "@/components/UpdateCard";
 import { StatsCard } from "@/components/StatsCard";
 import { FileText, CheckCircle2, Clock } from "lucide-react";
@@ -141,7 +140,6 @@ export default function AdminLegacy() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
         <div className="container px-6 md:px-8 flex-1 py-8">
           <div className="flex items-center justify-center h-64">
             <p className="text-muted-foreground">Loading updates...</p>
@@ -153,8 +151,6 @@ export default function AdminLegacy() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
-
       <div className="container px-6 md:px-8 flex-1 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight mb-2" data-testid="heading-admin">

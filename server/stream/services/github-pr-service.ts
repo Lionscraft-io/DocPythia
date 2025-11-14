@@ -17,6 +17,7 @@ import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import { Octokit } from '@octokit/rest';
+import { getConfig } from '../../config/loader';
 
 const execAsync = promisify(exec);
 
@@ -80,8 +81,11 @@ export class GitHubPRService {
       await execAsync(`git checkout ${this.config.baseBranch}`, { cwd: repoPath });
 
       // Configure git user (required for commits)
-      await execAsync('git config user.name "NearDocsAI Bot"', { cwd: repoPath });
-      await execAsync('git config user.email "bot@neardocsai.com"', { cwd: repoPath });
+      const config = getConfig();
+      const botName = `${config.project.name} Bot`;
+      const botEmail = `bot@${config.project.domain || config.project.shortName.toLowerCase()}.com`;
+      await execAsync(`git config user.name "${botName}"`, { cwd: repoPath });
+      await execAsync(`git config user.email "${botEmail}"`, { cwd: repoPath });
 
       return repoPath;
     } catch (error: any) {

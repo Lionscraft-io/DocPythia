@@ -28,6 +28,10 @@ export const defaultConfig: InstanceConfig = {
     docsPath: '',
   },
 
+  database: {
+    name: 'neardocs', // Default database name
+  },
+
   community: {
     zulip: {
       enabled: false,
@@ -65,7 +69,7 @@ export const defaultConfig: InstanceConfig = {
   },
 
   admin: {
-    token: 'change_me_in_production',
+    passwordHash: 'change_me_in_production', // SHA256 hash of admin password
     allowedOrigins: ['http://localhost:3762', 'http://localhost:5173'],
   },
 };

@@ -5,10 +5,19 @@ export interface InstanceConfig {
   project: ProjectConfig;
   branding: BrandingConfig;
   documentation: DocumentationConfig;
+  database: DatabaseConfig;
   community: CommunityConfig;
   widget: WidgetConfig;
   features: FeatureFlags;
   admin: AdminConfig;
+}
+
+export interface DatabaseConfig {
+  name: string; // Database name (e.g., "neardocs", "confluxdocs")
+  host?: string; // Override from env if needed
+  port?: number;
+  user?: string;
+  password?: string;
 }
 
 export interface ProjectConfig {
@@ -83,7 +92,7 @@ export interface FeatureFlags {
 }
 
 export interface AdminConfig {
-  token: string;
+  passwordHash: string;
   allowedOrigins?: string[];
 }
 

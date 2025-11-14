@@ -1,18 +1,12 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { DropdownWidget } from "@/components/DropdownWidget";
-import Documentation from "@/pages/Documentation";
 import Admin from "@/pages/Admin";
 import AdminAdvanced from "@/pages/AdminAdvanced";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminLegacy from "@/pages/AdminLegacy";
-import ProtocolView from "@/pages/ProtocolView";
-import ValidatorNode from "@/pages/ValidatorNode";
-import RPCNode from "@/pages/RPCNode";
-import ArchivalNode from "@/pages/ArchivalNode";
+import Logout from "@/pages/Logout";
 import NotFound from "@/pages/not-found";
 import { useConfig } from "@/hooks/useConfig";
 import { useEffect } from "react";
@@ -20,15 +14,15 @@ import { useEffect } from "react";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Documentation} />
-      <Route path="/admin/login" component={AdminLogin} />
-      <Route path="/admin/advanced" component={AdminAdvanced} />
-      <Route path="/admin/legacy" component={AdminLegacy} />
-      <Route path="/admin" component={Admin} />
-      <Route path="/protocolview" component={ProtocolView} />
-      <Route path="/protocolview/validator" component={ValidatorNode} />
-      <Route path="/protocolview/rpc" component={RPCNode} />
-      <Route path="/protocolview/archival" component={ArchivalNode} />
+      <Route path="/">
+        <Redirect to="/login" />
+      </Route>
+      <Route path="/login" component={AdminLogin} />
+      <Route path="/logout" component={Logout} />
+      <Route path="/:instance/admin/login" component={AdminLogin} />
+      <Route path="/:instance/admin/advanced" component={AdminAdvanced} />
+      <Route path="/:instance/admin/legacy" component={AdminLegacy} />
+      <Route path="/:instance/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -39,7 +33,11 @@ function AppContent() {
 
   // Update document title and meta tags when config loads
   useEffect(() => {
-    if (config) {
+    // Only update if we're not on the login page (let AdminLogin handle it)
+    const isLoginPage = window.location.pathname === '/login' ||
+                        window.location.pathname.endsWith('/admin/login');
+
+    if (config && !isLoginPage) {
       // Update document title
       document.title = config.project.name;
 
@@ -85,9 +83,7 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AppContent />
-      </TooltipProvider>
+      <AppContent />
     </QueryClientProvider>
   );
 }

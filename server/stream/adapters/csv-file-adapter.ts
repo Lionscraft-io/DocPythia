@@ -9,6 +9,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { parse } from 'csv-parse/sync';
+import { PrismaClient } from '@prisma/client';
 import { BaseStreamAdapter } from './base-adapter.js';
 import { StreamMessage, StreamWatermark } from '../types.js';
 
@@ -38,8 +39,8 @@ export interface ProcessingReport {
 export class CsvFileAdapter extends BaseStreamAdapter {
   private csvConfig!: CsvFileConfig;
 
-  constructor(streamId: string) {
-    super(streamId, 'csv');
+  constructor(streamId: string, db: PrismaClient) {
+    super(streamId, 'csv', db);
   }
 
   /**
