@@ -145,6 +145,7 @@ if [ -n "$SERVICE_ARN" ]; then
     echo "🎉 Deployment complete!"
     echo ""
     echo "📋 Deployment Summary:"
+    echo "   🕐 Deployed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
     echo "   ✅ Image pushed: $ECR_URI:$IMAGE_TAG"
     if [ "$IMAGE_TAG" != "latest" ]; then
         echo "   ✅ Also tagged as: latest"
@@ -162,6 +163,7 @@ else
     echo "🎉 ECR push complete!"
     echo ""
     echo "📋 Deployment Summary:"
+    echo "   🕐 Deployed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
     echo "   ✅ Image pushed: $ECR_URI:$IMAGE_TAG"
     echo ""
     echo "📌 Next steps:"
