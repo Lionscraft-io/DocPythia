@@ -102,4 +102,5 @@ export const InstanceConfigSchema = z.object({
   widget: WidgetConfigSchema,
   features: FeatureFlagsSchema,
   admin: AdminConfigSchema,
+  streams: z.array(z.any()).optional(), // Stream configurations (validated separately by StreamManager)
 });

@@ -282,7 +282,7 @@ export class StreamManager {
       case 'telegram-bot':
         return new TelegramBotAdapter(streamId, instanceDb);
 
-      case 'zulip':
+      case 'zulipchat':
         return new ZulipBotAdapter(streamId, instanceDb);
 
       // Add more adapter types here as they're implemented
