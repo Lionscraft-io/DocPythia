@@ -56,7 +56,7 @@ export class StreamManager {
 
   /**
    * Initialize the stream manager by loading all configured streams
-   * Loads streams from ALL instance databases
+   * Loads streams from instance config files
    */
   async initialize(): Promise<void> {
     console.log('Initializing StreamManager...');
@@ -68,30 +68,30 @@ export class StreamManager {
 
       let totalStreams = 0;
 
-      // Load streams from each instance database
+      // Load streams from each instance config file
       for (const instanceId of availableInstances) {
         try {
           const instanceDb = getInstanceDb(instanceId);
+          const instanceConfig = InstanceConfigLoader.get(instanceId);
 
-          // Load all active stream configurations from this instance's database
-          const streamConfigs = await instanceDb.streamConfig.findMany({
-            where: {
-              enabled: true,
-            },
-          });
+          // Get stream configurations from instance config file
+          const streamConfigs = (instanceConfig as any).streams || [];
 
-          console.log(`Found ${streamConfigs.length} active streams for instance "${instanceId}"`);
+          // Filter to enabled streams only
+          const enabledStreams = streamConfigs.filter((s: any) => s.enabled === true);
 
-          // Register adapters for each stream
-          for (const config of streamConfigs) {
+          console.log(`Found ${enabledStreams.length} active streams for instance "${instanceId}" (${streamConfigs.length} total)`);
+
+          // Register adapters for each enabled stream
+          for (const streamConfig of enabledStreams) {
             try {
               // Track which instance this stream belongs to
-              this.streamToInstance.set(config.streamId, instanceId);
+              this.streamToInstance.set(streamConfig.streamId, instanceId);
 
-              await this.registerStream(config, instanceId, instanceDb);
+              await this.registerStream(streamConfig, instanceId, instanceDb);
               totalStreams++;
             } catch (error) {
-              console.error(`Failed to register stream ${config.streamId} for instance ${instanceId}:`, error);
+              console.error(`Failed to register stream ${streamConfig.streamId} for instance ${instanceId}:`, error);
             }
           }
         } catch (error) {
@@ -108,7 +108,7 @@ export class StreamManager {
 
   /**
    * Register a stream adapter with optional scheduling
-   * @param streamConfig - Stream configuration from database
+   * @param streamConfig - Stream configuration from instance config file
    * @param instanceId - Instance ID this stream belongs to
    * @param instanceDb - Database client for this instance
    */

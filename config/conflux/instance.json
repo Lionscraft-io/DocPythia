@@ -56,5 +56,20 @@
   "admin": {
     "passwordHash": "0d29703c1344a159fcfcc25855892481210f4217bc8b51f99c3cf040785671aa",
     "allowedOrigins": ["http://localhost:3762", "http://localhost:5173"]
-  }
+  },
+  "streams": [
+    {
+      "streamId": "conflux-zulip-dev-chat",
+      "adapterType": "zulip",
+      "enabled": false,
+      "schedule": "*/30 * * * *",
+      "config": {
+        "site": "https://conflux.zulipchat.com",
+        "channel": "dev-chat",
+        "batchSize": 100,
+        "pollingInterval": 30000,
+        "ignoreOldMessages": true
+      }
+    }
+  ]
 }

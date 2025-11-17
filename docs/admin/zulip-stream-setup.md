@@ -23,9 +23,9 @@ This guide explains how to set up Zulip stream adapters to automatically ingest 
    - Admin access to your Zulip organization
    - Ability to create bots
 
-2. **Database Access**
-   - PostgreSQL database per instance
-   - Ability to insert stream configurations
+2. **Instance Config Access**
+   - Ability to edit `config/{instance}/instance.json` files
+   - Deployment capability (config changes require restart)
 
 3. **Environment Variables**
    - Access to set environment variables (`.env` file or cloud config)
@@ -121,72 +121,61 @@ ZULIP_IGNORE_OLD_MESSAGES=true
 
 ---
 
-## Step 3: Create Stream Configuration in Database
+## Step 3: Add Stream to Instance Configuration
 
-### 3.1 Connect to Your Instance Database
+### 3.1 Edit Instance Config File
 
-For **NEAR** instance:
-```bash
-# Connect to neardocs database
-psql "postgresql://username:password@host:port/neardocs"
+For **NEAR** instance, edit `config/near/instance.json`:
+
+```json
+{
+  "project": { ... },
+  "branding": { ... },
+  "streams": [
+    {
+      "streamId": "near-zulip-community-support",
+      "adapterType": "zulip",
+      "enabled": true,
+      "schedule": "*/30 * * * *",
+      "config": {
+        "site": "https://near.zulipchat.com",
+        "channel": "community-support",
+        "pollingInterval": 30000,
+        "batchSize": 100,
+        "ignoreOldMessages": true,
+        "startDate": "2024-09-01"
+      }
+    }
+  ]
+}
 ```
 
-For **Conflux** instance:
-```bash
-# Connect to confluxdocs database
-psql "postgresql://username:password@host:port/confluxdocs"
-```
-
-### 3.2 Insert Stream Configuration
-
-```sql
--- NEAR Zulip Stream
-INSERT INTO stream_configs (
-  stream_id,
-  adapter_type,
-  config,
-  enabled,
-  schedule,
-  created_at,
-  updated_at
-) VALUES (
-  'near-zulip-community-support',
-  'zulip',
-  '{
-    "site": "https://near.zulipchat.com",
-    "channel": "community-support",
-    "pollingInterval": 30000,
-    "batchSize": 100,
-    "ignoreOldMessages": true
-  }'::jsonb,
-  true,
-  '*/30 * * * *',
-  NOW(),
-  NOW()
-);
-```
+For **Conflux** instance, edit `config/conflux/instance.json` similarly.
 
 **Configuration Fields:**
 
-- `stream_id`: Unique identifier (format: `{instance}-zulip-{channel}`)
-- `adapter_type`: Must be `"zulip"`
-- `config`: JSON object with:
+- `streamId`: Unique identifier (format: `{instance}-zulip-{channel}`)
+- `adapterType`: Must be `"zulip"`
+- `enabled`: `true` to activate, `false` to disable
+- `schedule`: Cron expression (e.g., `*/30 * * * *` = every 30 minutes)
+- `config`: Stream-specific settings:
   - `site`: Zulip organization URL
   - `channel`: Stream/channel name to monitor
   - `pollingInterval`: How often to poll (milliseconds)
   - `batchSize`: Messages per fetch
-  - `ignoreOldMessages`: Skip historical messages
-- `enabled`: `true` to activate, `false` to disable
-- `schedule`: Cron expression (e.g., `*/30 * * * *` = every 30 minutes)
+  - `ignoreOldMessages`: Skip historical messages before now
+  - `startDate`: (Optional) ISO date to start fetching from (e.g., "2024-09-01")
 
-### 3.3 Verify Configuration
+**Note:** API credentials (`email` and `apiKey`) are **NOT** in the config file. They come from environment variables.
 
-```sql
--- Check stream config
-SELECT * FROM stream_configs WHERE stream_id = 'near-zulip-community-support';
+### 3.2 Verify Configuration
 
--- Check watermark (will be created on first run)
-SELECT * FROM import_watermarks WHERE stream_id = 'near-zulip-community-support';
+```bash
+# Validate JSON syntax
+cat config/near/instance.json | jq .
+
+# Check streams array
+cat config/near/instance.json | jq '.streams'
 ```
 
 ---
@@ -214,7 +203,18 @@ Stream near-zulip-community-support registered successfully for instance near
 
 ## Step 5: Verify Messages Are Being Ingested
 
-### 5.1 Check Database
+### 5.1 Check Application Logs
+
+Look for:
+```
+StreamManager initialized with 1 streams across 1 instances
+Registering stream: near-zulip-community-support (zulip) for instance: near
+Using Zulip email from NEAR_ZULIP_BOT_EMAIL (env)
+Zulip connection successful. Bot: neardocs-bot@near.zulipchat.com
+ZulipBotAdapter initialized for channel: community-support
+```
+
+### 5.2 Check Database
 
 ```sql
 -- Check unified messages from Zulip
@@ -230,7 +230,7 @@ ORDER BY timestamp DESC
 LIMIT 10;
 ```
 
-### 5.2 Check Watermark
+### 5.3 Check Watermark
 
 ```sql
 -- Check last processed message
@@ -242,7 +242,7 @@ FROM import_watermarks
 WHERE stream_id = 'near-zulip-community-support';
 ```
 
-### 5.3 Manual Trigger (via API)
+### 5.4 Manual Trigger (via API)
 
 ```bash
 # Trigger manual import
@@ -296,37 +296,53 @@ curl -X POST http://localhost:3762/api/admin/streams/near-zulip-community-suppor
    SELECT * FROM stream_configs WHERE adapter_type = 'zulip';
    ```
 
-### Issue: "Stream disabled after error"
+### Issue: "Stream not initializing"
 
 **Causes:**
-- API errors (auth, rate limit, etc.)
-- Network failures
+- `enabled: false` in config
+- Invalid JSON in config file
+- Missing environment variables
 
 **Solutions:**
-1. Check error logs
-2. Fix underlying issue (credentials, network)
-3. Re-enable stream:
-   ```sql
-   UPDATE stream_configs
-   SET enabled = true
-   WHERE stream_id = 'near-zulip-community-support';
+1. Check `enabled: true` in `config/{instance}/instance.json`
+2. Validate JSON syntax:
+   ```bash
+   cat config/near/instance.json | jq .
    ```
+3. Check environment variables are set
 4. Restart application
 
 ---
 
 ## Multiple Channels
 
-To monitor multiple Zulip channels, create separate stream configs:
+To monitor multiple Zulip channels, add multiple stream objects to the `streams` array:
 
-```sql
--- Channel 1: community-support
-INSERT INTO stream_configs (stream_id, adapter_type, config, enabled)
-VALUES ('near-zulip-community-support', 'zulip', '{"site": "https://near.zulipchat.com", "channel": "community-support"}', true);
-
--- Channel 2: validators
-INSERT INTO stream_configs (stream_id, adapter_type, config, enabled)
-VALUES ('near-zulip-validators', 'zulip', '{"site": "https://near.zulipchat.com", "channel": "validators"}', true);
+```json
+{
+  "streams": [
+    {
+      "streamId": "near-zulip-community-support",
+      "adapterType": "zulip",
+      "enabled": true,
+      "schedule": "*/30 * * * *",
+      "config": {
+        "site": "https://near.zulipchat.com",
+        "channel": "community-support"
+      }
+    },
+    {
+      "streamId": "near-zulip-validators",
+      "adapterType": "zulip",
+      "enabled": true,
+      "schedule": "*/30 * * * *",
+      "config": {
+        "site": "https://near.zulipchat.com",
+        "channel": "validators"
+      }
+    }
+  ]
+}
 ```
 
 **Note:** Each channel gets:
@@ -350,38 +366,51 @@ VALUES ('near-zulip-validators', 'zulip', '{"site": "https://near.zulipchat.com"
 
 ### Custom Polling Schedule
 
-```sql
--- Poll every 15 minutes
-UPDATE stream_configs
-SET schedule = '*/15 * * * *'
-WHERE stream_id = 'near-zulip-community-support';
+Edit `config/{instance}/instance.json`:
 
--- Poll hourly
-UPDATE stream_configs
-SET schedule = '0 * * * *'
-WHERE stream_id = 'near-zulip-community-support';
-
--- Disable scheduling (manual only)
-UPDATE stream_configs
-SET schedule = NULL
-WHERE stream_id = 'near-zulip-community-support';
+```json
+{
+  "streams": [
+    {
+      "streamId": "near-zulip-community-support",
+      "schedule": "*/15 * * * *",  // Every 15 minutes
+      // Or: "0 * * * *"  // Hourly
+      // Or: null  // Disable scheduling (manual only)
+      ...
+    }
+  ]
+}
 ```
+
+Then redeploy the application.
 
 ### Fetch Historical Messages
 
-```sql
--- Enable historical message import
-UPDATE stream_configs
-SET config = jsonb_set(config, '{ignoreOldMessages}', 'false')
-WHERE stream_id = 'near-zulip-community-support';
+In `config/{instance}/instance.json`:
 
--- Increase batch size for faster import
-UPDATE stream_configs
-SET config = jsonb_set(config, '{batchSize}', '500')
-WHERE stream_id = 'near-zulip-community-support';
+```json
+{
+  "streams": [
+    {
+      "streamId": "near-zulip-community-support",
+      "config": {
+        "ignoreOldMessages": false,  // Fetch historical messages
+        "batchSize": 1000,            // Larger batches for faster import
+        "startDate": "2024-09-01"     // Start from this date
+      }
+    }
+  ]
+}
 ```
 
+Then redeploy. The adapter will:
+1. Start fetching from September 1st, 2024
+2. Work forward to present
+3. Then switch to incremental mode
+
 ### Reset Watermark
+
+If you need to re-import messages:
 
 ```sql
 -- Reset to start from latest messages
@@ -393,6 +422,8 @@ UPDATE import_watermarks
 SET last_imported_id = '12345678', last_imported_time = NOW()
 WHERE stream_id = 'near-zulip-community-support';
 ```
+
+Then restart the application.
 
 ---
 
@@ -438,25 +469,36 @@ WHERE enabled = false;
 ## FAQ
 
 **Q: Can I use the same bot for multiple channels?**
-A: Yes! Create separate stream configs with the same credentials but different channel names.
+A: Yes! Create separate stream objects in the `streams` array with the same credentials but different channel names.
 
 **Q: How do I pause a stream temporarily?**
-A: Set `enabled = false` in the stream config:
-```sql
-UPDATE stream_configs SET enabled = false WHERE stream_id = 'near-zulip-community-support';
+A: Set `"enabled": false` in `config/{instance}/instance.json` and redeploy:
+```json
+{
+  "streams": [
+    {
+      "streamId": "near-zulip-community-support",
+      "enabled": false,  // Temporarily disabled
+      ...
+    }
+  ]
+}
 ```
 
 **Q: Can I monitor private streams?**
 A: Yes, as long as the bot is invited to the private stream.
 
 **Q: What happens if the bot is removed from a channel?**
-A: The stream will fail to fetch messages and be automatically disabled. Add the bot back and re-enable the stream.
+A: The stream will fail to fetch messages. Check logs and re-add the bot to the channel.
 
 **Q: How often should I poll?**
 A: 30-60 seconds is recommended for active channels. Adjust based on message volume.
 
 **Q: Can I filter messages by topic?**
 A: Not currently. The adapter fetches all messages from the channel. Filtering happens during classification.
+
+**Q: Do I need to modify the database when adding a stream?**
+A: No! Just edit the `config/{instance}/instance.json` file and redeploy. The watermark table is created automatically.
 
 ---
 
