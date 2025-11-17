@@ -72,7 +72,8 @@
       "Bash(DATABASE_URL=\"postgresql://neardocs:neardocs_secure_password@localhost:5433/confluxdocs\" npx prisma migrate deploy:*)",
       "Bash(DATABASE_URL=\"postgresql://neardocs:neardocs_secure_password@localhost:5433/confluxdocs\" npx tsx:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(sha256sum:*)"
     ],
     "deny": [],
     "ask": []

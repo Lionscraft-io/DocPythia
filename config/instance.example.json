@@ -20,25 +20,8 @@
     "branch": "main",
     "docsPath": ""
   },
-  "community": {
-    "zulip": {
-      "enabled": false,
-      "site": "https://near.zulipchat.com",
-      "botEmail": "bot@example.com",
-      "apiKey": "your-zulip-api-key",
-      "channel": "community-support"
-    },
-    "telegram": {
-      "enabled": false,
-      "botToken": "your-telegram-bot-token",
-      "channelId": "@near_protocol"
-    },
-    "discord": {
-      "enabled": false,
-      "botToken": "your-discord-bot-token",
-      "guildId": "your-guild-id",
-      "channelId": "your-channel-id"
-    }
+  "database": {
+    "name": "neardocs"
   },
   "widget": {
     "enabled": true,
@@ -61,16 +44,17 @@
     "versionHistoryEnabled": true
   },
   "admin": {
-    "token": "change_me_in_production",
+    "passwordHash": "40fa27bcb2dbdc73264c1e7ace54f229a0d95a25ee765a3c06b512592c23528e",
     "allowedOrigins": [
       "http://localhost:3762",
       "http://localhost:5173"
-    ]
+    ],
+    "comment": "passwordHash is SHA256 of 'near123' - change in production! Use: echo -n 'yourpassword' | sha256sum"
   },
   "streams": [
     {
       "streamId": "near-zulip-community-support",
-      "adapterType": "zulip",
+      "adapterType": "zulipchat",
       "enabled": false,
       "schedule": "*/30 * * * *",
       "config": {

@@ -21,18 +21,6 @@
   "database": {
     "name": "confluxdocs"
   },
-  "community": {
-    "zulip": {
-      "enabled": false
-    },
-    "telegram": {
-      "enabled": false
-      
-    },
-    "discord": {
-      "enabled": false
-    }
-  },
   "widget": {
     "enabled": true,
     "title": "Conflux Assistant",
@@ -60,7 +48,7 @@
   "streams": [
     {
       "streamId": "conflux-zulip-dev-chat",
-      "adapterType": "zulip",
+      "adapterType": "zulipchat",
       "enabled": false,
       "schedule": "*/30 * * * *",
       "config": {

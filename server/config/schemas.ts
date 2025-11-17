@@ -35,50 +35,26 @@ export const ZulipConfigSchema = z.object({
   botEmail: z.string().email().optional(),
   apiKey: z.string().optional(),
   channel: z.string().optional(),
-}).refine(
-  (data) => {
-    if (data.enabled) {
-      return data.site && data.botEmail && data.apiKey && data.channel;
-    }
-    return true;
-  },
-  {
-    message: 'When Zulip is enabled, site, botEmail, apiKey, and channel are required',
-  }
-);
+});
+// Note: Validation removed - this is legacy config.
+// Actual Zulip configuration is done via streams array with environment variables.
 
 export const TelegramConfigSchema = z.object({
   enabled: z.boolean(),
   botToken: z.string().optional(),
   channelId: z.string().optional(),
-}).refine(
-  (data) => {
-    if (data.enabled) {
-      return data.botToken && data.channelId;
-    }
-    return true;
-  },
-  {
-    message: 'When Telegram is enabled, botToken and channelId are required',
-  }
-);
+});
+// Note: Validation removed - this is legacy config.
+// Actual Telegram configuration is done via streams array with environment variables.
 
 export const DiscordConfigSchema = z.object({
   enabled: z.boolean(),
   botToken: z.string().optional(),
   guildId: z.string().optional(),
   channelId: z.string().optional(),
-}).refine(
-  (data) => {
-    if (data.enabled) {
-      return data.botToken && data.guildId && data.channelId;
-    }
-    return true;
-  },
-  {
-    message: 'When Discord is enabled, botToken, guildId, and channelId are required',
-  }
-);
+});
+// Note: Validation removed - this is legacy config.
+// Actual Discord configuration would be done via streams array with environment variables.
 
 export const CommunityConfigSchema = z.object({
   zulip: ZulipConfigSchema.optional(),
@@ -122,7 +98,7 @@ export const InstanceConfigSchema = z.object({
   branding: BrandingConfigSchema,
   documentation: DocumentationConfigSchema,
   database: DatabaseConfigSchema,
-  community: CommunityConfigSchema,
+  community: CommunityConfigSchema.optional(), // Legacy config - now optional (use streams array instead)
   widget: WidgetConfigSchema,
   features: FeatureFlagsSchema,
   admin: AdminConfigSchema,
