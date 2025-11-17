@@ -205,7 +205,7 @@ export class StreamManager {
         }
         break;
 
-      case 'zulip':
+      case 'zulipchat':
         // Check for credentials in order of precedence
         const instanceEmailKey = `${instanceUpper}_ZULIP_BOT_EMAIL`;
         const instanceApiKeyKey = `${instanceUpper}_ZULIP_API_KEY`;
