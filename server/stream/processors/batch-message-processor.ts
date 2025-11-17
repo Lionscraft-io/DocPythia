@@ -6,16 +6,18 @@
  * - 24-hour batch windows with 24-hour context
  * - Batch classification for efficiency
  * - Proposal generation only for valuable messages
+ * - Multi-instance aware: Each instance has its own batch processor
  *
  * Author: Wayne
  * Date: 2025-10-31
+ * Updated: 2025-11-14 - Multi-instance support
  */
 
-import prisma from '../../db.js';
+import { PrismaClient } from '@prisma/client';
 import { llmService } from '../llm/llm-service.js';
-import { messageVectorSearch } from '../message-vector-search.js';
+import { MessageVectorSearch } from '../message-vector-search.js';
 import { PROMPT_TEMPLATES, fillTemplate } from '../llm/prompt-templates.js';
-import { getConfig } from '../../config/loader.js';
+import { InstanceConfigLoader } from '../../config/instance-loader.js';
 import { z } from 'zod';
 
 // ========== Batch Classification Schema ==========
@@ -106,9 +108,16 @@ const DEFAULT_CONFIG: BatchProcessorConfig = {
 export class BatchMessageProcessor {
   private config: BatchProcessorConfig;
   private static isProcessing: boolean = false;
+  private instanceId: string;
+  private db: PrismaClient;
+  private messageVectorSearch: MessageVectorSearch;
 
-  constructor(config: Partial<BatchProcessorConfig> = {}) {
+  constructor(instanceId: string, db: PrismaClient, config: Partial<BatchProcessorConfig> = {}) {
+    this.instanceId = instanceId;
+    this.db = db;
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.messageVectorSearch = new MessageVectorSearch(instanceId, db);
+    console.log(`[${instanceId}] BatchMessageProcessor initialized`);
   }
 
   /**
@@ -147,7 +156,7 @@ export class BatchMessageProcessor {
         console.log(`[BatchProcessor] Current watermark: ${watermark.toISOString()}`);
 
         // 2. Find the earliest unprocessed message after the watermark
-        const earliestUnprocessed = await prisma.unifiedMessage.findFirst({
+        const earliestUnprocessed = await this.db.unifiedMessage.findFirst({
           where: {
             timestamp: { gte: watermark },
             processingStatus: 'PENDING',
@@ -175,7 +184,7 @@ export class BatchMessageProcessor {
         console.log(`[BatchProcessor] Batch window: ${batchStart.toISOString()} to ${batchEnd.toISOString()}`);
 
         // Check if there are any messages in this window
-        const messageCount = await prisma.unifiedMessage.count({
+        const messageCount = await this.db.unifiedMessage.count({
           where: {
             timestamp: { gte: batchStart, lt: batchEnd },
             processingStatus: 'PENDING',
@@ -280,7 +289,7 @@ export class BatchMessageProcessor {
 
       // 9. Mark only successfully processed messages as COMPLETED
       if (successfullyProcessedMessageIds.size > 0) {
-        await prisma.unifiedMessage.updateMany({
+        await this.db.unifiedMessage.updateMany({
           where: { id: { in: Array.from(successfullyProcessedMessageIds) } },
           data: { processingStatus: 'COMPLETED' },
         });
@@ -293,7 +302,7 @@ export class BatchMessageProcessor {
         .filter(id => !successfullyProcessedMessageIds.has(id));
 
       if (failedMessageIds.length > 0) {
-        await prisma.messageClassification.deleteMany({
+        await this.db.messageClassification.deleteMany({
           where: { messageId: { in: failedMessageIds } },
         });
         anyMessagesFailed = true;
@@ -332,14 +341,14 @@ export class BatchMessageProcessor {
    * Get current processing watermark
    */
   private async getProcessingWatermark(): Promise<Date> {
-    const watermark = await prisma.processingWatermark.findUnique({
+    const watermark = await this.db.processingWatermark.findUnique({
       where: { id: 1 },
     });
 
     if (!watermark) {
       // Initialize watermark to 7 days ago
       const initialWatermark = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      await prisma.processingWatermark.create({
+      await this.db.processingWatermark.create({
         data: {
           id: 1,
           watermarkTime: initialWatermark,
@@ -355,7 +364,7 @@ export class BatchMessageProcessor {
    * Update processing watermark
    */
   private async updateProcessingWatermark(newTime: Date): Promise<void> {
-    await prisma.processingWatermark.upsert({
+    await this.db.processingWatermark.upsert({
       where: { id: 1 },
       update: {
         watermarkTime: newTime,
@@ -373,7 +382,7 @@ export class BatchMessageProcessor {
    * Fetch messages for batch window (only PENDING messages)
    */
   private async fetchMessagesForBatch(start: Date, end: Date): Promise<any[]> {
-    return await prisma.unifiedMessage.findMany({
+    return await this.db.unifiedMessage.findMany({
       where: {
         timestamp: {
           gte: start,
@@ -392,7 +401,7 @@ export class BatchMessageProcessor {
    * Fetch context messages (can include COMPLETED messages for context)
    */
   private async fetchContextMessages(start: Date, end: Date): Promise<any[]> {
-    return await prisma.unifiedMessage.findMany({
+    return await this.db.unifiedMessage.findMany({
       where: {
         timestamp: {
           gte: start,
@@ -499,7 +508,7 @@ export class BatchMessageProcessor {
 
     const systemPrompt = PROMPT_TEMPLATES.threadClassification.system;
 
-    const config = getConfig();
+    const config = InstanceConfigLoader.get(this.instanceId);
     const userPrompt = fillTemplate(PROMPT_TEMPLATES.threadClassification.user, {
       projectName: config.project.name,
       contextText: contextText || '(No context messages)',
@@ -560,7 +569,7 @@ export class BatchMessageProcessor {
         const conversationId = messageToConversationMap.get(messageId) || null;
 
         // Use upsert to handle retries where classification may already exist
-        await prisma.messageClassification.upsert({
+        await this.db.messageClassification.upsert({
           where: { messageId },
           update: {
             batchId,
@@ -592,7 +601,7 @@ export class BatchMessageProcessor {
       console.warn(`[BatchProcessor] LLM missed ${missedMessages.length} messages - creating fallback classifications`);
       for (const message of missedMessages) {
         // Use upsert to handle retries where classification may already exist
-        await prisma.messageClassification.upsert({
+        await this.db.messageClassification.upsert({
           where: { messageId: message.id },
           update: {
             batchId,
@@ -718,7 +727,7 @@ export class BatchMessageProcessor {
       contentPreview: doc.content ? doc.content.substring(0, 1000) + '...' : '', // Store 1000 char preview
     }));
 
-    await prisma.conversationRagContext.create({
+    await this.db.conversationRagContext.create({
       data: {
         conversationId: conversation.id,
         batchId,
@@ -733,7 +742,7 @@ export class BatchMessageProcessor {
 
     // 3.5. Update RAG context with rejection info if proposals were rejected
     if (proposalsRejected || rejectionReason) {
-      await prisma.conversationRagContext.update({
+      await this.db.conversationRagContext.update({
         where: { conversationId: conversation.id },
         data: {
           proposalsRejected: proposalsRejected ?? null,
@@ -746,7 +755,7 @@ export class BatchMessageProcessor {
     // NOTE: Store ALL proposals including NONE type to capture LLM reasoning
     let proposalCount = 0;
     for (const proposal of proposals) {
-      await prisma.docProposal.create({
+      await this.db.docProposal.create({
         data: {
           conversationId: conversation.id,
           batchId,
@@ -783,7 +792,7 @@ export class BatchMessageProcessor {
       : conversation.summary;
 
     // Create RAG context with rejection marker
-    await prisma.conversationRagContext.create({
+    await this.db.conversationRagContext.create({
       data: {
         conversationId: conversation.id,
         batchId,
@@ -828,7 +837,7 @@ export class BatchMessageProcessor {
 
     console.log(`[BatchProcessor] RAG search for conversation: "${searchQuery.substring(0, 100)}..."`);
 
-    const results = await messageVectorSearch.searchSimilarDocs(
+    const results = await this.messageVectorSearch.searchSimilarDocs(
       searchQuery,
       this.config.ragTopK * 2 // Fetch more to account for translations
     );
@@ -909,7 +918,7 @@ Suggested Page: ${msg.suggestedDocPage || 'Not specified'}
 Content: ${msg.content}`;
     }).join('\n\n');
 
-    const config = getConfig();
+    const config = InstanceConfigLoader.get(this.instanceId);
     const userPrompt = fillTemplate(PROMPT_TEMPLATES.changesetGeneration.user, {
       projectName: config.project.name,
       messageCount: conversation.messageCount,
@@ -956,6 +965,3 @@ Content: ${msg.content}`;
     return Math.ceil(totalChars / 4); // Rough estimate: 4 chars per token
   }
 }
-
-// Export singleton instance
-export const batchMessageProcessor = new BatchMessageProcessor();

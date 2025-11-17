@@ -1,8 +1,10 @@
 /**
  * Git Documentation Fetcher Service
  * Handles cloning, pulling, and tracking changes in Git documentation repositories
+ * Multi-instance aware - each instance has its own repository and cache
  * Author: Wayne
  * Date: 2025-10-29
+ * Updated: 2025-11-14 - Multi-instance support
  * Reference: /docs/specs/rag-documentation-retrieval.md
  */
 
@@ -11,9 +13,7 @@ import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync } from 'fs';
-import { getConfig } from './config/loader';
-
-const prisma = new PrismaClient();
+import { InstanceConfigLoader } from './config/instance-loader';
 
 export interface UpdateInfo {
   hasUpdates: boolean;
@@ -36,14 +36,24 @@ export class GitFetcher {
   private branch: string;
   private cacheDir: string;
   private repoPath: string;
+  private instanceId: string;
+  private db: PrismaClient;
 
-  constructor() {
-    const config = getConfig();
-    this.gitUrl = process.env.DOCS_GIT_URL || config.documentation.gitUrl;
-    this.branch = process.env.DOCS_GIT_BRANCH || config.documentation.branch;
-    this.cacheDir = process.env.DOCS_CACHE_DIR || `/var/cache/${config.project.shortName}-docs`;
+  constructor(instanceId: string, db: PrismaClient) {
+    this.instanceId = instanceId;
+    this.db = db;
+
+    // Load instance-specific configuration
+    const config = InstanceConfigLoader.get(instanceId);
+    this.gitUrl = config.documentation.gitUrl;
+    this.branch = config.documentation.branch;
+
+    // Each instance gets its own cache directory
+    this.cacheDir = `/var/cache/${config.project.shortName}-docs`;
     this.repoPath = path.join(this.cacheDir, 'repo');
     this.git = simpleGit();
+
+    console.log(`GitFetcher initialized for ${instanceId}: ${this.gitUrl}#${this.branch}`);
   }
 
   /**
@@ -115,7 +125,7 @@ export class GitFetcher {
    * Get the stored commit hash from the database
    */
   async getStoredCommitHash(): Promise<string | null> {
-    const syncState = await prisma.gitSyncState.findUnique({
+    const syncState = await this.db.gitSyncState.findUnique({
       where: { gitUrl: this.gitUrl }
     });
     return syncState?.lastCommitHash || null;
@@ -125,7 +135,7 @@ export class GitFetcher {
    * Update the stored commit hash in the database
    */
   async updateCommitHash(hash: string): Promise<void> {
-    await prisma.gitSyncState.upsert({
+    await this.db.gitSyncState.upsert({
       where: { gitUrl: this.gitUrl },
       update: {
         lastCommitHash: hash,
@@ -140,7 +150,7 @@ export class GitFetcher {
         syncStatus: 'success'
       }
     });
-    console.log(`Updated commit hash to: ${hash}`);
+    console.log(`[${this.instanceId}] Updated commit hash to: ${hash}`);
   }
 
   /**
@@ -270,7 +280,7 @@ export class GitFetcher {
    * Update sync status in database
    */
   async updateSyncStatus(status: 'idle' | 'syncing' | 'success' | 'error', errorMessage?: string): Promise<void> {
-    await prisma.gitSyncState.upsert({
+    await this.db.gitSyncState.upsert({
       where: { gitUrl: this.gitUrl },
       update: {
         syncStatus: status,
@@ -285,15 +295,6 @@ export class GitFetcher {
         lastSyncAt: new Date()
       }
     });
-  }
-
-  /**
-   * Clean up resources
-   */
-  async cleanup(): Promise<void> {
-    await prisma.$disconnect();
+    console.log(`[${this.instanceId}] Sync status updated to: ${status}`);
   }
 }
-
-// Export singleton instance
-export const gitFetcher = new GitFetcher();

@@ -70,7 +70,9 @@
       "Bash(.gitignore)",
       "Bash(timeout 15 npm run dev:*)",
       "Bash(DATABASE_URL=\"postgresql://neardocs:neardocs_secure_password@localhost:5433/confluxdocs\" npx prisma migrate deploy:*)",
-      "Bash(DATABASE_URL=\"postgresql://neardocs:neardocs_secure_password@localhost:5433/confluxdocs\" npx tsx:*)"
+      "Bash(DATABASE_URL=\"postgresql://neardocs:neardocs_secure_password@localhost:5433/confluxdocs\" npx tsx:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

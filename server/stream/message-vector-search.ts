@@ -1,16 +1,16 @@
 /**
  * Message Vector Search Service
  * Search for similar messages using embeddings and pgvector
+ * Multi-instance aware - each instance has its own vector search
  * Author: Wayne
  * Date: 2025-10-31
+ * Updated: 2025-11-14 - Multi-instance support
  * Reference: /docs/specs/multi-stream-scanner-phase-1.md
  */
 
 import { PrismaClient } from '@prisma/client';
 import { geminiEmbedder } from '../embeddings/gemini-embedder.js';
-import { vectorStore } from '../vector-store.js';
-
-const prisma = new PrismaClient();
+import { PgVectorStore } from '../vector-store.js';
 
 export interface SimilarMessage {
   id: number;
@@ -22,6 +22,15 @@ export interface SimilarMessage {
 }
 
 export class MessageVectorSearch {
+  private db: PrismaClient;
+  private vectorStore: PgVectorStore;
+  private instanceId: string;
+
+  constructor(instanceId: string, db: PrismaClient) {
+    this.instanceId = instanceId;
+    this.db = db;
+    this.vectorStore = new PgVectorStore(instanceId, db);
+  }
   /**
    * Generate embedding for a message
    */
@@ -43,7 +52,7 @@ export class MessageVectorSearch {
       // Convert embedding array to PostgreSQL vector format
       const vectorString = `[${embedding.join(',')}]`;
 
-      await prisma.$executeRaw`
+      await this.db.$executeRaw`
         UPDATE "unified_messages"
         SET embedding = ${vectorString}::vector
         WHERE id = ${messageId}
@@ -95,7 +104,7 @@ export class MessageVectorSearch {
         LIMIT $3
       `;
 
-      const results = await prisma.$queryRawUnsafe<Array<{
+      const results = await this.db.$queryRawUnsafe<Array<{
         id: number;
         content: string;
         author: string;
@@ -146,7 +155,7 @@ export class MessageVectorSearch {
    */
   async getEmbeddedMessagesCount(): Promise<number> {
     try {
-      const result = await prisma.$queryRaw<[{ count: bigint }]>`
+      const result = await this.db.$queryRaw<[{ count: bigint }]>`
         SELECT COUNT(*) as count
         FROM "unified_messages"
         WHERE embedding IS NOT NULL
@@ -164,7 +173,7 @@ export class MessageVectorSearch {
    */
   async hasEmbedding(messageId: number): Promise<boolean> {
     try {
-      const result = await prisma.$queryRaw<[{ has_embedding: boolean }]>`
+      const result = await this.db.$queryRaw<[{ has_embedding: boolean }]>`
         SELECT (embedding IS NOT NULL) as has_embedding
         FROM "unified_messages"
         WHERE id = ${messageId}
@@ -212,7 +221,7 @@ export class MessageVectorSearch {
       const queryEmbedding = await this.generateEmbedding(queryText);
 
       // Search documentation using vector store
-      const results = await vectorStore.searchSimilar(queryEmbedding, limit);
+      const results = await this.vectorStore.searchSimilar(queryEmbedding, limit);
 
       // Transform results to expected format
       return results.map(doc => ({
@@ -228,6 +237,3 @@ export class MessageVectorSearch {
     }
   }
 }
-
-// Export singleton instance
-export const messageVectorSearch = new MessageVectorSearch();

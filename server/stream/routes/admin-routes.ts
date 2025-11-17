@@ -10,11 +10,30 @@
 import type { Express, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { batchMessageProcessor, BatchMessageProcessor } from '../processors/batch-message-processor.js';
+import { BatchMessageProcessor } from '../processors/batch-message-processor.js';
 import { instanceMiddleware } from '../../middleware/instance.js';
 import { getInstanceDb } from '../../db/instance-db.js';
 import pg from 'pg';
+import multer from 'multer';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 const { Pool } = pg;
+
+// Helper to get instance ID from request
+function getInstanceId(req: Request): string {
+  // First try: Instance middleware (for routes with /:instance prefix)
+  if (req.instance?.id) {
+    return req.instance.id;
+  }
+
+  // Second try: Admin auth middleware (for routes without /:instance prefix)
+  const adminInstance = (req as any).adminInstance;
+  if (adminInstance) {
+    return adminInstance;
+  }
+
+  throw new Error('No instance ID available. Instance middleware may not be applied.');
+}
 
 // Helper to get instance-aware database client from request
 function getDb(req: Request): PrismaClient {
@@ -51,7 +70,7 @@ const filterSchema = z.object({
 
 const processRequestSchema = z.object({
   streamId: z.string(),
-  batchSize: z.number().int().min(1).max(50).optional(),
+  batchSize: z.number().int().min(1).max(500).optional(),
 });
 
 const approveProposalSchema = z.object({
@@ -300,10 +319,14 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/process-batch', adminAuth, async (req: Request, res: Response) => {
     try {
+      const instanceId = getInstanceId(req);
       const db = getDb(req);
 
-      console.log('[Admin] Starting batch processing...');
-      const messagesProcessed = await batchMessageProcessor.processBatch();
+      console.log(`[${instanceId}] Starting batch processing...`);
+
+      // Create instance-specific batch processor
+      const processor = new BatchMessageProcessor(instanceId, db);
+      const messagesProcessed = await processor.processBatch();
 
       res.json({
         message: 'Batch processing complete',
@@ -679,6 +702,102 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       } else {
         res.status(500).json({ error: 'Failed to register stream', details: error.message });
       }
+    }
+  });
+
+  /**
+   * POST /api/admin/stream/upload-csv
+   * Upload a CSV file to the stream inbox for processing
+   */
+  const upload = multer({ dest: '/tmp/uploads/' });
+  app.post('/api/admin/stream/upload-csv', adminAuth, upload.single('file'), async (req: Request, res: Response) => {
+    try {
+      const db = getDb(req);
+      const instanceId = getInstanceId(req);
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      // Get streamId from request
+      const streamId = req.body.streamId;
+      if (!streamId) {
+        // Clean up uploaded file
+        await fs.unlink(req.file.path);
+        return res.status(400).json({ error: 'streamId is required' });
+      }
+
+      // Get stream config
+      const streamConfig = await db.streamConfig.findUnique({
+        where: { streamId },
+      });
+
+      if (!streamConfig) {
+        await fs.unlink(req.file.path);
+        return res.status(404).json({ error: `Stream ${streamId} not found` });
+      }
+
+      if (streamConfig.adapterType !== 'csv') {
+        await fs.unlink(req.file.path);
+        return res.status(400).json({ error: `Stream ${streamId} is not a CSV stream` });
+      }
+
+      // Get inbox directory from config
+      const config = streamConfig.config as any;
+      const inboxDir = config.inboxDir;
+
+      if (!inboxDir) {
+        await fs.unlink(req.file.path);
+        return res.status(500).json({ error: 'Stream config missing inboxDir' });
+      }
+
+      // Ensure inbox directory exists
+      await fs.mkdir(inboxDir, { recursive: true });
+
+      // Move file to inbox with original filename
+      const originalFilename = req.file.originalname;
+      const targetPath = path.join(inboxDir, originalFilename);
+
+      await fs.rename(req.file.path, targetPath);
+
+      console.log(`[${instanceId}] CSV file uploaded: ${targetPath}`);
+
+      // Auto-process the CSV file immediately (App Runner /tmp is ephemeral)
+      console.log(`[${instanceId}] Auto-processing CSV file: ${streamId}`);
+
+      try {
+        const { streamManager } = await import('../stream-manager.js');
+        const imported = await streamManager.importStream(streamId);
+
+        res.json({
+          success: true,
+          message: 'CSV file uploaded and processed successfully',
+          filename: originalFilename,
+          path: targetPath,
+          streamId,
+          imported,
+        });
+      } catch (processError: any) {
+        console.error(`[${instanceId}] Error processing CSV:`, processError);
+        // File uploaded but processing failed - return partial success
+        res.json({
+          success: true,
+          message: 'CSV file uploaded but processing failed',
+          filename: originalFilename,
+          path: targetPath,
+          streamId,
+          error: processError.message,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error uploading CSV:', error);
+      // Clean up uploaded file on error
+      if (req.file?.path) {
+        try {
+          await fs.unlink(req.file.path);
+        } catch {}
+      }
+      res.status(500).json({ error: 'Failed to upload CSV file', details: error.message });
     }
   });
 

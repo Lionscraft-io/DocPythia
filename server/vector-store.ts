@@ -1,16 +1,17 @@
 /**
  * Vector Store Service
  * Manages document embeddings storage and vector similarity search using pgvector
+ * Multi-instance aware - each instance has its own vector store
  * Author: Wayne
  * Date: 2025-10-29
+ * Updated: 2025-11-14 - Multi-instance support
  * Reference: /docs/specs/rag-documentation-retrieval.md
  */
 
 import { PrismaClient } from '@prisma/client';
+import { InstanceConfigLoader } from './config/instance-loader';
 import pg from 'pg';
 const { Pool } = pg;
-
-const prisma = new PrismaClient();
 
 export interface DocumentPage {
   filePath: string;
@@ -38,9 +39,18 @@ export interface VectorStore {
 
 export class PgVectorStore implements VectorStore {
   private pool: Pool;
+  private db: PrismaClient;
+  private instanceId: string;
 
-  constructor() {
-    const databaseUrl = process.env.DATABASE_URL;
+  constructor(instanceId: string, db: PrismaClient) {
+    this.instanceId = instanceId;
+    this.db = db;
+
+    // Get instance-specific database URL
+    const config = InstanceConfigLoader.get(instanceId);
+    const baseUrl = process.env.DATABASE_URL || '';
+    const databaseUrl = baseUrl.replace(/\/[^/]+$/, `/${config.database.name}`);
+
     if (!databaseUrl) {
       throw new Error('DATABASE_URL environment variable is not set');
     }
@@ -50,7 +60,7 @@ export class PgVectorStore implements VectorStore {
       connectionString: databaseUrl,
     });
 
-    console.log('PgVectorStore initialized');
+    console.log(`PgVectorStore initialized for ${instanceId} (${config.database.name})`);
   }
 
   /**
@@ -76,10 +86,10 @@ export class PgVectorStore implements VectorStore {
    */
   async upsertDocument(doc: DocumentPage): Promise<void> {
     try {
-      console.log(`Upserting document: ${doc.filePath}`);
+      console.log(`[${this.instanceId}] Upserting document: ${doc.filePath}`);
 
       // First, check if a document with this filePath already exists
-      const existing = await prisma.documentPage.findFirst({
+      const existing = await this.db.documentPage.findFirst({
         where: { filePath: doc.filePath }
       });
 
@@ -92,7 +102,7 @@ export class PgVectorStore implements VectorStore {
            WHERE file_path = $6`,
           [doc.title, doc.content, doc.gitHash, doc.gitUrl, this.vectorToString(doc.embedding), doc.filePath]
         );
-        console.log(`Updated document: ${doc.filePath}`);
+        console.log(`[${this.instanceId}] Updated document: ${doc.filePath}`);
       } else {
         // Insert new document
         await this.pool.query(
@@ -100,10 +110,10 @@ export class PgVectorStore implements VectorStore {
            VALUES ($1, $2, $3, $4, $5, $6::vector, NOW(), NOW())`,
           [doc.filePath, doc.title, doc.content, doc.gitHash, doc.gitUrl, this.vectorToString(doc.embedding)]
         );
-        console.log(`Inserted new document: ${doc.filePath}`);
+        console.log(`[${this.instanceId}] Inserted new document: ${doc.filePath}`);
       }
     } catch (error) {
-      console.error(`Error upserting document ${doc.filePath}:`, error);
+      console.error(`[${this.instanceId}] Error upserting document ${doc.filePath}:`, error);
       throw error;
     }
   }
@@ -113,15 +123,15 @@ export class PgVectorStore implements VectorStore {
    */
   async deleteDocument(filePath: string): Promise<void> {
     try {
-      console.log(`Deleting document: ${filePath}`);
+      console.log(`[${this.instanceId}] Deleting document: ${filePath}`);
 
-      await prisma.documentPage.deleteMany({
+      await this.db.documentPage.deleteMany({
         where: { filePath }
       });
 
-      console.log(`Deleted document: ${filePath}`);
+      console.log(`[${this.instanceId}] Deleted document: ${filePath}`);
     } catch (error) {
-      console.error(`Error deleting document ${filePath}:`, error);
+      console.error(`[${this.instanceId}] Error deleting document ${filePath}:`, error);
       throw error;
     }
   }
@@ -273,10 +283,6 @@ export class PgVectorStore implements VectorStore {
    */
   async cleanup(): Promise<void> {
     await this.pool.end();
-    await prisma.$disconnect();
-    console.log('PgVectorStore cleaned up');
+    console.log(`[${this.instanceId}] PgVectorStore cleaned up`);
   }
 }
-
-// Export singleton instance
-export const vectorStore = new PgVectorStore();

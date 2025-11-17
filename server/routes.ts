@@ -7,10 +7,11 @@ import { createZulipchatScraperFromEnv } from "./scraper/zulipchat";
 import { createAnalyzerFromEnv } from "./analyzer/gemini-analyzer";
 import { triggerJobManually } from "./scheduler";
 import { getConfig } from "./config/loader";
-import { gitFetcher } from "./git-fetcher.js";
+import { GitFetcher } from "./git-fetcher.js";
+import { PgVectorStore } from "./vector-store.js";
+import { getInstanceDb } from "./db/instance-db.js";
 import { docIndexGenerator } from "./stream/doc-index-generator.js";
 import { geminiEmbedder, GeminiEmbedder } from "./embeddings/gemini-embedder.js";
-import { vectorStore } from "./vector-store.js";
 // RAG context manager removed - using vectorStore directly for widget endpoint
 import { llmCache } from "./llm/llm-cache.js";
 import { multiInstanceAdminAuth as adminAuth } from "./middleware/multi-instance-admin-auth.js";
@@ -87,10 +88,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(diagnostics);
   });
 
-  // Public configuration endpoint
-  app.get("/api/config", (req, res) => {
+  // Public configuration endpoint (instance-aware)
+  app.get("/api/config", async (req, res) => {
     try {
-      const config = getConfig();
+      let config;
+
+      // Try to detect instance from Referer header (e.g., https://domain.com/near/admin)
+      const referer = req.get('Referer') || req.get('Referrer');
+      let instanceId: string | undefined;
+
+      if (referer) {
+        const match = referer.match(/\/(near|conflux)\//i);
+        if (match) {
+          instanceId = match[1].toLowerCase();
+          console.log(`[/api/config] Detected instance "${instanceId}" from Referer: ${referer}`);
+        }
+      }
+
+      // Also check query parameter
+      if (!instanceId && req.query.instance) {
+        instanceId = String(req.query.instance).toLowerCase();
+        console.log(`[/api/config] Using instance "${instanceId}" from query param`);
+      }
+
+      // Load instance-specific config or fall back to default
+      if (instanceId) {
+        try {
+          const { InstanceConfigLoader } = await import('./config/instance-loader.js');
+          config = InstanceConfigLoader.get(instanceId);
+          console.log(`[/api/config] Loaded config for instance "${instanceId}"`);
+        } catch (error) {
+          console.warn(`[/api/config] Instance "${instanceId}" not found, falling back to default`);
+          config = getConfig();
+        }
+      } else {
+        config = getConfig();
+        console.log(`[/api/config] No instance detected, using default config`);
+      }
 
       // Return safe subset (no secrets)
       res.json({
@@ -1039,7 +1073,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { force } = bodyValidation.data;
       const startTime = Date.now();
 
-      console.log(`Starting documentation sync (force: ${force})...`);
+      // Get instance from authenticated admin
+      const adminInstance = (req as any).adminInstance;
+      if (!adminInstance) {
+        return res.status(401).json({ error: "No instance associated with admin" });
+      }
+
+      console.log(`[${adminInstance}] Starting documentation sync (force: ${force})...`);
+
+      // Create instance-specific gitFetcher and vectorStore
+      const instanceDb = getInstanceDb(adminInstance);
+      const gitFetcher = new GitFetcher(adminInstance, instanceDb);
+      const vectorStore = new PgVectorStore(adminInstance, instanceDb);
+
+      // Get instance config for gitUrl
+      const { InstanceConfigLoader } = await import('./config/instance-loader.js');
+      const instanceConfig = InstanceConfigLoader.get(adminInstance);
+      const gitUrl = instanceConfig.documentation.gitUrl;
 
       // Update sync status to 'syncing'
       await gitFetcher.updateSyncStatus('syncing');
@@ -1111,7 +1161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               title,
               content: file.content,
               gitHash: file.commitHash,
-              gitUrl: process.env.DOCS_GIT_URL || 'https://github.com/near/docs',
+              gitUrl,
               embedding
             });
 
@@ -1164,10 +1214,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get sync status endpoint
   app.get("/api/docs/sync/status", adminAuth, async (req, res) => {
     try {
-      const syncState = await prisma.gitSyncState.findFirst({
-        where: {
-          gitUrl: process.env.DOCS_GIT_URL || 'https://github.com/near/docs'
-        }
+      // Get instance from authenticated admin
+      const adminInstance = (req as any).adminInstance;
+      if (!adminInstance) {
+        return res.status(401).json({ error: "No instance associated with admin" });
+      }
+
+      // Get instance config for gitUrl
+      const { InstanceConfigLoader } = await import('./config/instance-loader.js');
+      const instanceConfig = InstanceConfigLoader.get(adminInstance);
+      const gitUrl = instanceConfig.documentation.gitUrl;
+
+      // Create instance-specific db and vectorStore
+      const instanceDb = getInstanceDb(adminInstance);
+      const vectorStore = new PgVectorStore(adminInstance, instanceDb);
+
+      const syncState = await instanceDb.gitSyncState.findFirst({
+        where: { gitUrl }
       });
 
       if (!syncState) {

@@ -164,6 +164,8 @@ export class CsvFileAdapter extends BaseStreamAdapter {
       skip_empty_lines: true,
       trim: true,
       relax_column_count: true,
+      relax_quotes: true, // Allow quotes inside fields without strict escaping
+      escape: '"', // Standard CSV escape character
     });
 
     const messages: StreamMessage[] = [];

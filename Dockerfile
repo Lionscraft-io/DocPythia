@@ -64,9 +64,12 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Create cache directories for LLM responses and documentation sync
 RUN mkdir -p /cache/llm && \
+    mkdir -p /var/cache/near-docs && \
     mkdir -p /var/cache/conflux-docs && \
+    mkdir -p /tmp/uploads && \
     chown -R nextjs:nodejs /cache && \
-    chown -R nextjs:nodejs /var/cache/conflux-docs
+    chown -R nextjs:nodejs /var/cache && \
+    chown -R nextjs:nodejs /tmp/uploads
 
 # Change ownership of the app directory
 RUN chown -R nextjs:nodejs /app

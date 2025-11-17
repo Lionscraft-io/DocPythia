@@ -1,17 +1,19 @@
 /**
  * Integration Test for Batch Message Processor
  * Tests the complete flow: classification → grouping → RAG → changeset proposals
+ * Updated for multi-instance support
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BatchMessageProcessor } from '../server/stream/processors/batch-message-processor';
 import { PrismaClient } from '@prisma/client';
+import { getInstanceDb } from '../server/db/instance-db';
 
-const prisma = new PrismaClient();
+const TEST_INSTANCE = 'near'; // Test with NEAR instance
 
 // Mock dependencies
 vi.mock('../server/stream/message-vector-search', () => ({
-  messageVectorSearch: {
+  MessageVectorSearch: vi.fn().mockImplementation(() => ({
     searchSimilarDocs: vi.fn().mockResolvedValue([
       {
         id: 1,
@@ -28,7 +30,7 @@ vi.mock('../server/stream/message-vector-search', () => ({
         distance: 0.78,
       },
     ]),
-  },
+  })),
 }));
 
 vi.mock('../server/stream/llm/llm-service', () => ({
@@ -38,23 +40,24 @@ vi.mock('../server/stream/llm/llm-service', () => ({
 }));
 
 import { llmService } from '../server/stream/llm/llm-service';
-import { messageVectorSearch } from '../server/stream/message-vector-search';
 
 describe('Batch Processor Integration', () => {
   let processor: BatchMessageProcessor;
+  let db: PrismaClient;
 
   beforeEach(async () => {
-    processor = new BatchMessageProcessor();
+    db = getInstanceDb(TEST_INSTANCE);
+    processor = new BatchMessageProcessor(TEST_INSTANCE, db);
 
     // Clean up test data
-    await prisma.$executeRaw`DELETE FROM doc_proposals WHERE batch_id LIKE 'test_%'`;
-    await prisma.$executeRaw`DELETE FROM conversation_rag_context WHERE batch_id LIKE 'test_%'`;
-    await prisma.$executeRaw`DELETE FROM message_classification WHERE batch_id LIKE 'test_%'`;
-    await prisma.$executeRaw`DELETE FROM unified_messages WHERE stream_id = 'test-stream'`;
-    await prisma.$executeRaw`DELETE FROM stream_configs WHERE stream_id = 'test-stream'`;
+    await db.$executeRaw`DELETE FROM doc_proposals WHERE batch_id LIKE 'test_%'`;
+    await db.$executeRaw`DELETE FROM conversation_rag_context WHERE batch_id LIKE 'test_%'`;
+    await db.$executeRaw`DELETE FROM message_classification WHERE batch_id LIKE 'test_%'`;
+    await db.$executeRaw`DELETE FROM unified_messages WHERE stream_id = 'test-stream'`;
+    await db.$executeRaw`DELETE FROM stream_configs WHERE stream_id = 'test-stream'`;
 
     // Create test stream config
-    await prisma.streamConfig.create({
+    await db.streamConfig.create({
       data: {
         streamId: 'test-stream',
         adapterType: 'test',
@@ -68,11 +71,11 @@ describe('Batch Processor Integration', () => {
 
   afterEach(async () => {
     // Clean up test data
-    await prisma.$executeRaw`DELETE FROM doc_proposals WHERE batch_id LIKE 'test_%'`;
-    await prisma.$executeRaw`DELETE FROM conversation_rag_context WHERE batch_id LIKE 'test_%'`;
-    await prisma.$executeRaw`DELETE FROM message_classification WHERE batch_id LIKE 'test_%'`;
-    await prisma.$executeRaw`DELETE FROM unified_messages WHERE stream_id = 'test-stream'`;
-    await prisma.$executeRaw`DELETE FROM stream_configs WHERE stream_id = 'test-stream'`;
+    await db.$executeRaw`DELETE FROM doc_proposals WHERE batch_id LIKE 'test_%'`;
+    await db.$executeRaw`DELETE FROM conversation_rag_context WHERE batch_id LIKE 'test_%'`;
+    await db.$executeRaw`DELETE FROM message_classification WHERE batch_id LIKE 'test_%'`;
+    await db.$executeRaw`DELETE FROM unified_messages WHERE stream_id = 'test-stream'`;
+    await db.$executeRaw`DELETE FROM stream_configs WHERE stream_id = 'test-stream'`;
   });
 
   describe('Full Batch Processing Flow', () => {
