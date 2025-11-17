@@ -18,6 +18,7 @@ export interface ZulipBotConfig {
   pollingInterval?: number;   // Default: 30000ms (30 seconds)
   batchSize?: number;         // Messages per fetch (default: 100)
   ignoreOldMessages?: boolean; // Ignore messages before adapter initialization
+  startDate?: string;         // ISO date to start fetching from (e.g., "2024-09-01")
 }
 
 export interface ZulipMessage {
@@ -113,7 +114,7 @@ export class ZulipBotAdapter extends BaseStreamAdapter {
   async fetchMessages(watermark?: StreamWatermark): Promise<StreamMessage[]> {
     this.ensureInitialized();
 
-    const { channel, batchSize } = this.botConfig;
+    const { channel, batchSize, startDate } = this.botConfig;
 
     let anchor: string | number = 'newest';
     let numBefore = batchSize || 100;
@@ -124,6 +125,14 @@ export class ZulipBotAdapter extends BaseStreamAdapter {
       anchor = watermark.lastProcessedId;
       numBefore = 0;
       numAfter = batchSize || 100;
+    }
+    // If startDate is specified and no watermark, start from that date
+    else if (startDate && !watermark?.lastProcessedId) {
+      const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
+      anchor = startTimestamp;
+      numBefore = 0;
+      numAfter = batchSize || 100;
+      console.log(`Starting historical fetch from ${startDate} (timestamp: ${startTimestamp})`);
     }
 
     // Build narrow filter for specific stream/channel
