@@ -146,81 +146,97 @@ export class BatchMessageProcessor {
       let totalMessagesProcessedAcrossAllBatches = 0;
       let batchNumber = 0;
 
-      // Keep processing batches until no more pending messages
-      while (true) {
-        batchNumber++;
-        console.log(`\n[BatchProcessor] ========== BATCH ${batchNumber} ==========`);
+      // Get all distinct streams with pending messages
+      const allStreams = await this.db.unifiedMessage.findMany({
+        where: { processingStatus: 'PENDING' },
+        distinct: ['streamId'],
+        select: { streamId: true },
+      });
 
-        // 1. Get processing watermark
-        const watermark = await this.getProcessingWatermark();
-        console.log(`[BatchProcessor] Current watermark: ${watermark.toISOString()}`);
+      if (allStreams.length === 0) {
+        console.log(`[BatchProcessor] No pending messages found across any streams.`);
+        return 0;
+      }
 
-        // 2. Find the earliest unprocessed message after the watermark
-        const earliestUnprocessed = await this.db.unifiedMessage.findFirst({
-          where: {
-            timestamp: { gte: watermark },
-            processingStatus: 'PENDING',
-          },
-          orderBy: { timestamp: 'asc' },
-          select: { timestamp: true },
-        });
+      console.log(`[BatchProcessor] Found ${allStreams.length} streams with pending messages`);
 
-        if (!earliestUnprocessed) {
-          console.log(`[BatchProcessor] No more unprocessed messages found. Processed ${batchNumber - 1} batches total.`);
-          break;
-        }
+      // Process each stream independently
+      for (const { streamId } of allStreams) {
+        console.log(`\n[BatchProcessor] ========== PROCESSING STREAM: ${streamId} ==========`);
 
-        console.log(`[BatchProcessor] Found earliest unprocessed message at: ${earliestUnprocessed.timestamp.toISOString()}`);
+        // Process batches for this stream until no more pending messages
+        while (true) {
+          batchNumber++;
 
-        // 3. Calculate batch window starting from earliest unprocessed message
-        const batchStart = earliestUnprocessed.timestamp;
-        const idealBatchEnd = new Date(batchStart.getTime() + this.config.batchWindowHours * 60 * 60 * 1000);
-        const now = new Date();
+          // 1. Get processing watermark for this stream
+          const watermark = await this.getProcessingWatermark(streamId);
+          console.log(`[BatchProcessor] Stream ${streamId} watermark: ${watermark.toISOString()}`);
 
-        // Use the earlier of: ideal batch end (24h) or current time
-        // This allows processing of messages even if we don't have a full 24h batch yet
-        const batchEnd = idealBatchEnd < now ? idealBatchEnd : now;
+          // 2. Find the earliest unprocessed message for this stream after its watermark
+          const earliestUnprocessed = await this.db.unifiedMessage.findFirst({
+            where: {
+              streamId,
+              timestamp: { gte: watermark },
+              processingStatus: 'PENDING',
+            },
+            orderBy: { timestamp: 'asc' },
+            select: { timestamp: true },
+          });
 
-        console.log(`[BatchProcessor] Batch window: ${batchStart.toISOString()} to ${batchEnd.toISOString()}`);
+          if (!earliestUnprocessed) {
+            console.log(`[BatchProcessor] Stream ${streamId}: No more unprocessed messages.`);
+            break;
+          }
 
-        // Check if there are any messages in this window
-        const messageCount = await this.db.unifiedMessage.count({
-          where: {
-            timestamp: { gte: batchStart, lt: batchEnd },
-            processingStatus: 'PENDING',
-          },
-        });
+          console.log(`[BatchProcessor] Stream ${streamId}: Earliest unprocessed at ${earliestUnprocessed.timestamp.toISOString()}`);
 
-        if (messageCount === 0) {
-          console.log(`[BatchProcessor] No pending messages in this batch window, moving watermark forward`);
-          await this.updateProcessingWatermark(batchEnd);
-          continue; // Try next batch
-        }
+          // 3. Calculate batch window for this stream
+          const batchStart = earliestUnprocessed.timestamp;
+          const idealBatchEnd = new Date(batchStart.getTime() + this.config.batchWindowHours * 60 * 60 * 1000);
+          const now = new Date();
+          const batchEnd = idealBatchEnd < now ? idealBatchEnd : now;
 
-        console.log(`[BatchProcessor] Found ${messageCount} pending messages in batch window`);
+          console.log(`[BatchProcessor] Stream ${streamId} batch window: ${batchStart.toISOString()} to ${batchEnd.toISOString()}`);
 
-        // Use timestamps instead of ISO strings to keep batch_id under 50 chars
-        const batchId = `b_${batchStart.getTime()}_${batchEnd.getTime()}`;
+          // Check if there are any messages in this window for this stream
+          const messageCount = await this.db.unifiedMessage.count({
+            where: {
+              streamId,
+              timestamp: { gte: batchStart, lt: batchEnd },
+              processingStatus: 'PENDING',
+            },
+          });
 
-        // 4. Fetch context messages (24 hours BEFORE batch start)
-        const contextStart = new Date(batchStart.getTime() - this.config.contextWindowHours * 60 * 60 * 1000);
-        const contextMessages = await this.fetchContextMessages(contextStart, batchStart);
-        console.log(`[BatchProcessor] Fetched ${contextMessages.length} context messages from ${contextStart.toISOString()} to ${batchStart.toISOString()}`);
+          if (messageCount === 0) {
+            console.log(`[BatchProcessor] Stream ${streamId}: No pending messages in batch window, moving watermark forward`);
+            await this.updateProcessingWatermark(streamId, batchEnd);
+            continue;
+          }
 
-        // Process messages in chunks until the batch window is exhausted
-        let totalMessagesProcessed = 0;
-        let totalConversationsProcessed = 0;
-        let totalProposalsGenerated = 0;
-        let iteration = 0;
-        let anyMessagesFailed = false;
+          console.log(`[BatchProcessor] Stream ${streamId}: Found ${messageCount} pending messages`);
 
-    while (true) {
-      iteration++;
-      console.log(`[BatchProcessor] Iteration ${iteration}: Fetching next chunk...`);
+          // Use timestamps instead of ISO strings to keep batch_id under 50 chars
+          const batchId = `${streamId.substring(0, 10)}_${batchStart.getTime()}`;
 
-      // 3. Fetch next chunk of messages for batch (up to maxBatchSize)
-      const messages = await this.fetchMessagesForBatch(batchStart, batchEnd);
-      console.log(`[BatchProcessor] Iteration ${iteration}: Fetched ${messages.length} messages`);
+          // Fetch context messages for this stream batch
+          const contextStart = new Date(batchStart.getTime() - this.config.contextWindowHours * 60 * 60 * 1000);
+          const contextMessages = await this.fetchContextMessages(contextStart, batchStart, streamId);
+          console.log(`[BatchProcessor] Stream ${streamId}: Fetched ${contextMessages.length} context messages`);
+
+          // Process messages in chunks until this batch window is exhausted
+          let totalMessagesProcessed = 0;
+          let totalConversationsProcessed = 0;
+          let totalProposalsGenerated = 0;
+          let anyMessagesFailed = false;
+          let iteration = 0;
+
+          while (true) {
+            iteration++;
+            console.log(`[BatchProcessor] Stream ${streamId} - Iteration ${iteration}: Fetching next chunk...`);
+
+            // Fetch next chunk of messages for batch (up to maxBatchSize) from this stream
+            const messages = await this.fetchMessagesForBatch(batchStart, batchEnd, streamId);
+            console.log(`[BatchProcessor] Stream ${streamId} - Iteration ${iteration}: Fetched ${messages.length} messages`);
 
       if (messages.length === 0) {
         // No more messages in this batch window
@@ -311,19 +327,22 @@ export class BatchMessageProcessor {
 
         totalMessagesProcessed += successfullyProcessedMessageIds.size;
         totalProposalsGenerated += iterationProposals;
-        console.log(`[BatchProcessor] Iteration ${iteration} complete: ${successfullyProcessedMessageIds.size}/${messages.length} messages successfully processed, ${allConversations.length} conversations (${valuableConversations.length} valuable, ${noValueConversations.length} no-value), ${iterationProposals} proposals`);
-      }
+            console.log(`[BatchProcessor] Stream ${streamId} - Iteration ${iteration} complete: ${successfullyProcessedMessageIds.size}/${messages.length} messages successfully processed, ${allConversations.length} conversations (${valuableConversations.length} valuable, ${noValueConversations.length} no-value), ${iterationProposals} proposals`);
+          }
 
-        // 9. Update processing watermark only if ALL messages succeeded
-        if (!anyMessagesFailed) {
-          await this.updateProcessingWatermark(batchEnd);
-          console.log(`[BatchProcessor] Batch ${batchNumber} complete: ${totalMessagesProcessed} messages, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark updated to ${batchEnd.toISOString()}`);
-        } else {
-          console.warn(`[BatchProcessor] Batch ${batchNumber} complete with failures: ${totalMessagesProcessed} messages succeeded, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark NOT updated - failed messages will retry on next run.`);
+          // Update stream watermark only if ALL messages in this batch succeeded
+          if (!anyMessagesFailed) {
+            await this.updateProcessingWatermark(streamId, batchEnd);
+            console.log(`[BatchProcessor] Stream ${streamId} batch complete: ${totalMessagesProcessed} messages, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark updated to ${batchEnd.toISOString()}`);
+          } else {
+            console.warn(`[BatchProcessor] Stream ${streamId} batch complete with failures: ${totalMessagesProcessed} messages succeeded, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark NOT updated - failed messages will retry on next run.`);
+          }
+
+          // Accumulate totals across all batches
+          totalMessagesProcessedAcrossAllBatches += totalMessagesProcessed;
         }
 
-        // Accumulate totals across all batches
-        totalMessagesProcessedAcrossAllBatches += totalMessagesProcessed;
+        console.log(`[BatchProcessor] Stream ${streamId} processing complete`);
       }
 
       // All batches processed
@@ -338,19 +357,26 @@ export class BatchMessageProcessor {
   }
 
   /**
-   * Get current processing watermark
+   * Get current processing watermark for a specific stream
    */
-  private async getProcessingWatermark(): Promise<Date> {
+  private async getProcessingWatermark(streamId: string): Promise<Date> {
     const watermark = await this.db.processingWatermark.findUnique({
-      where: { id: 1 },
+      where: { streamId },
     });
 
     if (!watermark) {
-      // Initialize watermark to 7 days ago
-      const initialWatermark = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      // Initialize watermark to earliest message in this stream, or 7 days ago if no messages
+      const earliestMessage = await this.db.unifiedMessage.findFirst({
+        where: { streamId },
+        orderBy: { timestamp: 'asc' },
+        select: { timestamp: true },
+      });
+
+      const initialWatermark = earliestMessage?.timestamp || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
       await this.db.processingWatermark.create({
         data: {
-          id: 1,
+          streamId,
           watermarkTime: initialWatermark,
         },
       });
@@ -361,17 +387,17 @@ export class BatchMessageProcessor {
   }
 
   /**
-   * Update processing watermark
+   * Update processing watermark for a specific stream
    */
-  private async updateProcessingWatermark(newTime: Date): Promise<void> {
+  private async updateProcessingWatermark(streamId: string, newTime: Date): Promise<void> {
     await this.db.processingWatermark.upsert({
-      where: { id: 1 },
+      where: { streamId },
       update: {
         watermarkTime: newTime,
         lastProcessedBatch: new Date(),
       },
       create: {
-        id: 1,
+        streamId,
         watermarkTime: newTime,
         lastProcessedBatch: new Date(),
       },
@@ -381,9 +407,10 @@ export class BatchMessageProcessor {
   /**
    * Fetch messages for batch window (only PENDING messages)
    */
-  private async fetchMessagesForBatch(start: Date, end: Date): Promise<any[]> {
+  private async fetchMessagesForBatch(start: Date, end: Date, streamId?: string): Promise<any[]> {
     return await this.db.unifiedMessage.findMany({
       where: {
+        ...(streamId && { streamId }), // Filter by stream if provided
         timestamp: {
           gte: start,
           lt: end,
@@ -400,9 +427,10 @@ export class BatchMessageProcessor {
   /**
    * Fetch context messages (can include COMPLETED messages for context)
    */
-  private async fetchContextMessages(start: Date, end: Date): Promise<any[]> {
+  private async fetchContextMessages(start: Date, end: Date, streamId?: string): Promise<any[]> {
     return await this.db.unifiedMessage.findMany({
       where: {
+        ...(streamId && { streamId }), // Filter by stream if provided
         timestamp: {
           gte: start,
           lt: end,
@@ -496,7 +524,9 @@ export class BatchMessageProcessor {
       }
 
       // Add the message itself with indentation
-      formatted += `${indent}[${msg.timestamp.toISOString()}] ${msg.author} in ${msg.channel || 'general'}: ${msg.content}`;
+      // Include Zulip topic if present (important for grouping Zulip conversations)
+      const topic = msg.metadata?.topic ? ` [Topic: ${msg.metadata.topic}]` : '';
+      formatted += `${indent}[${msg.timestamp.toISOString()}] ${msg.author} in ${msg.channel || 'general'}${topic}: ${msg.content}`;
 
       return formatted;
     };
@@ -550,6 +580,9 @@ export class BatchMessageProcessor {
     // Track which messages have been classified
     const classifiedMessageIds = new Set<number>();
 
+    // Create a set of valid message IDs in the current batch (to filter out context messages)
+    const validMessageIds = new Set(allMessages.map(msg => msg.id));
+
     // Create a map of messageId -> conversationId for valuable threads
     const messageToConversationMap = new Map<number, string>();
     for (const conversation of conversations) {
@@ -563,6 +596,11 @@ export class BatchMessageProcessor {
       const isNoValue = thread.category === 'no-doc-value';
 
       for (const messageId of thread.messages) {
+        // Skip message IDs that aren't in the current batch (e.g., context messages)
+        if (!validMessageIds.has(messageId)) {
+          console.log(`Message ${messageId} not found in batch, skipping`);
+          continue;
+        }
         classifiedMessageIds.add(messageId);
 
         // Get conversationId if this message is in a valuable conversation
@@ -680,8 +718,11 @@ export class BatchMessageProcessor {
       const firstMsg = messageDetails[0]!;
       const lastMsg = messageDetails[messageDetails.length - 1]!;
 
+      // Include topic in conversation ID for Zulip messages to ensure different topics get unique IDs
+      const topic = firstMsg.metadata?.topic ? `_${firstMsg.metadata.topic.replace(/[^a-zA-Z0-9]/g, '-')}` : '';
+
       conversations.push({
-        id: `thread_${firstMsg.channel || 'general'}_${firstMsg.timestamp.getTime()}`,
+        id: `thread_${firstMsg.channel || 'general'}${topic}_${firstMsg.timestamp.getTime()}`,
         channel: firstMsg.channel,
         summary: thread.summary, // Thread summary from LLM
         messages: messageDetails as any[],
