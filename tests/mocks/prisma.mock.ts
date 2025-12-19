@@ -17,6 +17,7 @@ export const mockPrismaClient = {
   unifiedMessage: {
     count: vi.fn(),
     findMany: vi.fn(),
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -36,6 +37,13 @@ export const mockPrismaClient = {
   messageRagContext: {
     create: vi.fn(),
     deleteMany: vi.fn(),
+  },
+
+  // Conversation RAG Context (newer naming)
+  conversationRagContext: {
+    create: vi.fn(),
+    deleteMany: vi.fn(),
+    findUnique: vi.fn(),
   },
 
   // Doc Proposals
@@ -123,7 +131,8 @@ export const createMockProposal = (overrides = {}) => ({
 });
 
 export const createMockWatermark = (overrides = {}) => ({
-  id: 1,
+  id: Math.floor(Math.random() * 10000), // Auto-increment simulation
+  streamId: 'test-stream', // Per-stream watermarks require streamId
   watermarkTime: new Date('2025-10-31T00:00:00Z'),
   lastProcessedBatch: new Date('2025-10-30T00:00:00Z'),
   updatedAt: new Date(),

@@ -230,9 +230,10 @@ model ImportWatermark {
   @@map("import_watermarks")
 }
 
-// Processing watermark (global, single row)
+// Processing watermark (per stream)
 model ProcessingWatermark {
-  id                  Int       @id @default(1)
+  id                  Int       @id @default(autoincrement())
+  streamId            String    @unique @map("stream_id")
   watermarkTime       DateTime  @map("watermark_time")
   lastProcessedBatch  DateTime? @map("last_processed_batch")
   updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at")

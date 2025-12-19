@@ -1,4 +1,5 @@
 import { storage } from "../storage";
+import https from 'https';
 
 export interface ZulipConfig {
   email: string;
@@ -26,14 +27,75 @@ export interface ZulipMessagesResponse {
 
 export class ZulipchatScraper {
   private config: ZulipConfig;
+  private agent: https.Agent;
 
   constructor(config: ZulipConfig) {
     this.config = config;
+    // Create custom HTTPS agent that forces IPv4 (fixes IPv6 timeout issue)
+    this.agent = new https.Agent({
+      family: 4, // Force IPv4
+      keepAlive: true,
+    });
   }
 
   private getAuthHeader(): string {
     const credentials = `${this.config.email}:${this.config.apiKey}`;
     return `Basic ${Buffer.from(credentials).toString('base64')}`;
+  }
+
+  /**
+   * Make an HTTPS request using IPv4-only agent
+   */
+  private async makeRequest(url: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const urlObj = new URL(url);
+
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 443,
+        path: urlObj.pathname + urlObj.search,
+        method: 'GET',
+        headers: {
+          'Authorization': this.getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        agent: this.agent,
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`Zulipchat API error (${res.statusCode}): ${data}`));
+            return;
+          }
+
+          try {
+            const jsonData = JSON.parse(data);
+            resolve(jsonData);
+          } catch (error) {
+            reject(new Error(`Failed to parse JSON response: ${error}`));
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        reject(error);
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Request timeout'));
+      });
+
+      req.setTimeout(30000); // 30 second timeout
+      req.end();
+    });
   }
 
   async fetchMessages(
@@ -52,22 +114,9 @@ export class ZulipchatScraper {
     });
 
     const url = `${this.config.site}/api/v1/messages?${params.toString()}`;
-    
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: this.getAuthHeader(),
-        "Content-Type": "application/json",
-      },
-    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Zulipchat API error (${response.status}): ${errorText}`);
-    }
+    const data: ZulipMessagesResponse = await this.makeRequest(url);
 
-    const data: ZulipMessagesResponse = await response.json();
-    
     if (data.result !== "success") {
       throw new Error(`Zulipchat API error: ${data.msg}`);
     }
@@ -101,19 +150,8 @@ export class ZulipchatScraper {
       });
 
       const url = `${this.config.site}/api/v1/messages?${params.toString()}`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: this.getAuthHeader(),
-          "Content-Type": "application/json",
-        },
-      });
+      const data: ZulipMessagesResponse = await this.makeRequest(url);
 
-      if (!response.ok) {
-        throw new Error(`Zulipchat API error (${response.status})`);
-      }
-
-      const data: ZulipMessagesResponse = await response.json();
       // Filter out the anchor message itself
       messages = data.messages.filter(msg => msg.id.toString() !== metadata.lastMessageId);
     } else {
@@ -284,14 +322,8 @@ export class ZulipchatScraper {
   async testConnection(): Promise<boolean> {
     try {
       const url = `${this.config.site}/api/v1/users/me`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: this.getAuthHeader(),
-        },
-      });
-
-      return response.ok;
+      await this.makeRequest(url);
+      return true;
     } catch (error) {
       console.error("Zulipchat connection test failed:", error);
       return false;
