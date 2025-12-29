@@ -1,0 +1,86 @@
+/**
+ * Routes Index - Central route registration
+ *
+ * This file combines all modular route files for cleaner code organization.
+ * Each route module handles a specific domain of functionality.
+ */
+
+import type { Express, RequestHandler } from "express";
+import { createServer, type Server } from "http";
+import { multiInstanceAdminAuth as adminAuth } from "../middleware/multi-instance-admin-auth.js";
+import { createLogger } from "../utils/logger.js";
+
+// Import route modules
+import healthRoutes from "./health-routes.js";
+import authRoutes from "./auth-routes.js";
+import configRoutes from "./config-routes.js";
+import widgetRoutes from "./widget-routes.js";
+import widgetEmbedRoutes from "./widget-embed-routes.js";
+import { createDocsRoutes, createDocsIndexRoutes } from "./docs-routes.js";
+import { createAdminPanelRoutes } from "./admin-panel-routes.js";
+
+const logger = createLogger('Routes');
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  logger.info('Registering modular routes...');
+
+  // ==================== PUBLIC ROUTES ====================
+
+  // Authentication routes (must be before adminAuth middleware)
+  app.use('/api/auth', authRoutes);
+
+  // Health and diagnostics (public)
+  app.use('/api', healthRoutes);
+
+  // Public configuration endpoint
+  app.use('/api/config', configRoutes);
+
+  // Widget embed assets (widget.js and demo page)
+  app.use('/', widgetEmbedRoutes);
+
+  // Widget routes (includes both HTML and ask endpoint)
+  app.use('/widget', widgetRoutes);
+  app.use('/api/widget', widgetRoutes);
+
+  // Documentation routes (public and admin)
+  const docsRoutes = createDocsRoutes(adminAuth);
+  app.use('/api/docs', docsRoutes);
+
+  // Section routes (history and rollback - admin only)
+  // These are registered on /api/sections/:sectionId path
+  app.get('/api/sections/:sectionId/history', adminAuth, async (req, res) => {
+    // Forward to docs routes handler
+    req.url = `/${req.params.sectionId}/history`;
+    docsRoutes(req, res, () => {});
+  });
+
+  app.post('/api/sections/:sectionId/rollback', adminAuth, async (req, res) => {
+    // Forward to docs routes handler
+    req.url = `/${req.params.sectionId}/rollback`;
+    docsRoutes(req, res, () => {});
+  });
+
+  // Documentation index endpoint
+  const docsIndexRoutes = createDocsIndexRoutes();
+  app.use('/api/docs-index', docsIndexRoutes);
+
+  // ==================== ADMIN ROUTES ====================
+
+  // Admin panel routes (updates, messages, scraper, analyzer, jobs, LLM cache)
+  const adminPanelRoutes = createAdminPanelRoutes(adminAuth);
+  app.use('/api', adminPanelRoutes);
+  app.use('/api/admin', adminPanelRoutes);
+
+  // Register Multi-Stream Scanner admin routes (Phase 1)
+  // Routes are now registered with dual registration (instance and non-instance)
+  const { registerAdminStreamRoutes } = await import('../stream/routes/admin-routes.js');
+  registerAdminStreamRoutes(app, adminAuth);
+
+  logger.info('All routes registered successfully');
+
+  const httpServer = createServer(app);
+
+  return httpServer;
+}
+
+export default registerRoutes;
