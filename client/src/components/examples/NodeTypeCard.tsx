@@ -6,7 +6,7 @@ export default function NodeTypeCardExample() {
     <div className="max-w-sm">
       <NodeTypeCard
         title="Validator Node"
-        description="Participate in consensus and produce blocks and chunks on the NEAR network."
+        description="Participate in consensus and produce blocks and chunks on the network."
         icon={Server}
         href="/validator"
       />

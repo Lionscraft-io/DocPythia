@@ -25,7 +25,7 @@ declare global {
 
 /**
  * Instance detection middleware
- * Expects URL format: /{instanceId}/... (e.g., /near/admin, /conflux/api/...)
+ * Expects URL format: /{instanceId}/... (e.g., /projecta/admin, /projectb/api/...)
  */
 export function instanceMiddleware(req: Request, res: Response, next: NextFunction) {
   try {

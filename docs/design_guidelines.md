@@ -1,4 +1,4 @@
-# Design Guidelines: NEAR Validator Documentation Platform
+# Design Guidelines: DocsAI Documentation Platform
 
 ## Design Approach
 
@@ -20,7 +20,7 @@
 - Text Muted: 0 0% 50% (metadata, timestamps)
 
 **Brand Colors:**
-- Primary: 185 85% 55% (NEAR teal/cyan - for CTAs, links)
+- Primary: 185 85% 55% (Teal/cyan - for CTAs, links)
 - Primary Hover: 185 85% 48%
 - Success: 142 76% 45% (approved changes)
 - Warning: 38 92% 50% (pending review)

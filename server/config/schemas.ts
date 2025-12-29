@@ -12,13 +12,13 @@ export const ProjectConfigSchema = z.object({
 });
 
 export const BrandingConfigSchema = z.object({
-  logo: z.string().url('Logo must be a valid URL'),
-  favicon: z.string().url().optional(),
+  logo: z.string().min(1, 'Logo path or URL is required'),  // Can be URL or relative path
+  favicon: z.string().optional(),  // Can be URL or relative path
   primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Primary color must be a valid hex color'),
   secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   darkModePrimaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  projectUrl: z.string().url('Project URL must be valid'),
+  projectUrl: z.string().min(1, 'Project URL is required'),  // Can be full URL or path
 });
 
 export const DocumentationConfigSchema = z.object({

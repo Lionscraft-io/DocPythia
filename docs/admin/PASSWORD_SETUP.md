@@ -2,20 +2,20 @@
 
 ## Overview
 
-The system uses multi-instance authentication where each instance (NEAR, Conflux, etc.) has its own admin password stored as a SHA256 hash in the instance configuration file.
+The system uses multi-instance authentication where each instance (e.g., projecta, projectb) has its own admin password stored as a SHA256 hash in the instance configuration file.
 
 ## Current Passwords
 
 **IMPORTANT:** These are development passwords and should be changed before production deployment.
 
-- **NEAR Instance**: `near123`
-- **Conflux Instance**: `conflux123`
+- **Project A Instance**: `projecta123`
+- **Project B Instance**: `projectb123`
 
 ## How Authentication Works
 
 1. User enters password at `/login` (generic) or `/{instance}/admin/login` (instance-specific)
 2. Backend tries the password against all configured instances
-3. If match found, returns `instanceId` and `redirectUrl` (e.g., `/near/admin`)
+3. If match found, returns `instanceId` and `redirectUrl` (e.g., `/projecta/admin`)
 4. Frontend stores `admin_token` (the password) in sessionStorage
 5. All admin API calls include `Authorization: Bearer {token}` header
 6. Backend validates token against instance-specific password hashes
@@ -61,7 +61,7 @@ After successful login, these items are stored in browser sessionStorage:
 
 - `admin_token` - The password (used for API authentication)
 - `admin_password` - Duplicate of admin_token (legacy)
-- `admin_instance` - The instance ID (e.g., "near", "conflux")
+- `admin_instance` - The instance ID (e.g., "projecta", "projectb")
 
 ## Logout
 

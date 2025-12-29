@@ -16,6 +16,9 @@ import { InstanceConfigLoader } from '../config/instance-loader.js';
 import { getInstanceDb } from '../db/instance-db.js';
 import type { StreamMessage } from './types.js';
 
+// Create prisma client for stream management operations
+const prisma = new PrismaClient();
+
 export interface StreamManagerConfig {
   maxConcurrentStreams?: number;
   defaultBatchSize?: number;
@@ -160,7 +163,7 @@ export class StreamManager {
     switch (adapterType) {
       case 'telegram-bot':
         // Check for bot token in order of precedence:
-        // 1. Instance-specific: NEAR_TELEGRAM_BOT_TOKEN
+        // 1. Instance-specific: PROJECTA_TELEGRAM_BOT_TOKEN
         // 2. Generic: TELEGRAM_BOT_TOKEN
         // 3. Database config: config.botToken
         const instanceTokenKey = `${instanceUpper}_TELEGRAM_BOT_TOKEN`;

@@ -1,6 +1,6 @@
 -- ==============================================
 -- Stream Configuration Diagnostic Queries
--- Run against the neardocs database
+-- Run against the docsai database
 -- ==============================================
 
 -- 1. Check what streams are configured

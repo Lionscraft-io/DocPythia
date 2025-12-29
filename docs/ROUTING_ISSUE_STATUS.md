@@ -5,12 +5,12 @@
 ## What Works ✅
 
 1. **Database Infrastructure**
-   - `neardocs` database: 24 sections
-   - `confluxdocs` database: 3 sections
+   - `projectadocs` database: 24 sections
+   - `projectbdocs` database: 3 sections
    - Both databases migrated and seeded
 
 2. **Instance Middleware**
-   - Correctly extracts instance ID from URL (`near`, `conflux`)
+   - Correctly extracts instance ID from URL (`projecta`, `projectb`)
    - Loads instance-specific configuration
    - Creates instance-specific database connections
    - Attaches `req.instance` context with `{ id, config, db }`
@@ -20,15 +20,15 @@
    - Returns instance-specific Prisma client
 
 4. **Multi-Instance Authentication**
-   - Works correctly for both NEAR and Conflux
-   - Passwords: `near123`, `conflux123`
+   - Works correctly for all instances
+   - Passwords: configurable per instance
    - Smart login detects correct instance
 
 ## The Routing Problem ❌
 
 ### Current Behavior
-- Request: `GET /near/api/admin/stream/stats`
-- Middleware runs correctly, extracts `instance="near"`
+- Request: `GET /projecta/api/admin/stream/stats`
+- Middleware runs correctly, extracts `instance="projecta"`
 - Route handler NEVER executes
 - Falls through to Vite middleware → Returns HTML instead of JSON
 
@@ -36,12 +36,12 @@
 Express routing with parametric middleware is complex:
 
 **Attempt 1**: Mount middleware at `/:instance/api/admin`
-- Problem: After stripping `/near/api/admin`, remaining path is `/stream/stats`
+- Problem: After stripping `/projecta/api/admin`, remaining path is `/stream/stats`
 - Route expects: `/api/admin/stream/stats`
 - NO MATCH
 
 **Attempt 2**: Mount middleware at `/:instance`
-- Problem: After stripping `/near`, remaining path is `/api/admin/stream/stats`
+- Problem: After stripping `/projecta`, remaining path is `/api/admin/stream/stats`
 - But routes are in different routing context
 - NO MATCH
 
@@ -53,9 +53,9 @@ Express routing with parametric middleware is complex:
 
 | Attempt | Mount Point | Request | Remaining Path | Route | Match? |
 |---------|------------|---------|----------------|-------|--------|
-| 1 | `/:instance/api/admin` | `/near/api/admin/stream/stats` | `/stream/stats` | `/api/admin/stream/stats` | ❌ |
-| 2 | `/:instance` | `/near/api/admin/stream/stats` | `/api/admin/stream/stats` | `/api/admin/stream/stats` (wrong context) | ❌ |
-| 3 | `/:instance/api` | `/near/api/admin/stream/stats` | `/admin/stream/stats` | `/api/admin/stream/stats` | ❌ |
+| 1 | `/:instance/api/admin` | `/projecta/api/admin/stream/stats` | `/stream/stats` | `/api/admin/stream/stats` | ❌ |
+| 2 | `/:instance` | `/projecta/api/admin/stream/stats` | `/api/admin/stream/stats` | `/api/admin/stream/stats` (wrong context) | ❌ |
+| 3 | `/:instance/api` | `/projecta/api/admin/stream/stats` | `/admin/stream/stats` | `/api/admin/stream/stats` | ❌ |
 
 ## Potential Solutions
 
@@ -138,13 +138,13 @@ Once that's working, we can refactor to Option B (Helper Function) for cleaner c
 1. `server/middleware/instance.ts` - Instance detection middleware
 2. `server/routes.ts` - Middleware mounting configuration
 3. `server/stream/routes/admin-routes.ts` - Added `getDb()` to all handlers
-4. `config/near/instance.json` - NEAR instance config with database name
-5. `config/conflux/instance.json` - Conflux instance config with database name
+4. `config/projecta/instance.json` - Project A instance config with database name
+5. `config/projectb/instance.json` - Project B instance config with database name
 
 ## Next Steps
 
 1. Implement Option A or B above
-2. Test with `curl http://localhost:3762/near/api/admin/stream/stats -H "Authorization: Bearer near123"`
-3. Verify correct database is used (should return NEAR data, not Conflux data)
-4. Test Conflux instance similarly
+2. Test with `curl http://localhost:3762/projecta/api/admin/stream/stats -H "Authorization: Bearer token123"`
+3. Verify correct database is used (should return Project A data, not Project B data)
+4. Test Project B instance similarly
 5. Update MULTI_INSTANCE_DATABASE_STATUS.md with resolution

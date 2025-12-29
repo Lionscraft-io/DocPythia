@@ -30,8 +30,8 @@ You manually create `config/{instance}/doc-index.config.json` with:
   "maxPages": 50,
   "documentationHierarchy": {
     "overview": [
-      "NEAR Basics > What is NEAR?",
-      "NEAR Basics > Consensus"
+      "Basics > What is the Project?",
+      "Basics > Consensus"
     ],
     "core_concepts": [
       "Wallets",
@@ -166,7 +166,7 @@ const compactText = docIndexGenerator.formatCompact(index);
 50 pages available
 
 Overview (5 pages):
-- What is NEAR? (docs/basics/what-is-near.md)
+- What is This Project? (docs/basics/overview.md)
   Sections: Introduction, Sharding, Consensus
 - Consensus Mechanism (docs/basics/consensus.md)
   Sections: Proof of Stake, Validators, Block Production
@@ -238,8 +238,8 @@ private memoryCache: { index: DocumentationIndex, expiresAt: Date } | null = nul
 ## Key Files
 
 ### Configuration (Manual)
-- `config/near/doc-index.config.json` - NEAR Protocol structure
-- `config/conflux/doc-index.config.json` - Conflux Network structure
+- `config/projecta/doc-index.config.json` - Project A documentation structure
+- `config/projectb/doc-index.config.json` - Project B documentation structure
 
 ### Code
 - `server/stream/doc-index-generator.ts` - Main generator class
@@ -266,15 +266,15 @@ GET /api/docs-index?format=formatted  # Human-readable format
 {
   "pages": [
     {
-      "title": "What is NEAR?",
-      "path": "docs/basics/what-is-near.md",
+      "title": "What is This Project?",
+      "path": "docs/basics/overview.md",
       "sections": ["Introduction", "Sharding", "Consensus"],
-      "summary": "NEAR is a decentralized platform...",
+      "summary": "This is a decentralized platform...",
       "last_updated": "2025-01-15T10:30:00Z"
     }
   ],
   "categories": {
-    "basics": ["docs/basics/what-is-near.md"],
+    "basics": ["docs/basics/overview.md"],
     "nodes": ["docs/nodes/validator.md"]
   },
   "generated_at": "2025-01-15T12:00:00Z"
@@ -342,13 +342,13 @@ Each instance has its own:
 **Example:**
 
 ```typescript
-// NEAR instance
-const nearGenerator = new DocumentationIndexGenerator('near');
-// Loads config/near/doc-index.config.json
+// Project A instance
+const projectAGenerator = new DocumentationIndexGenerator('projecta');
+// Loads config/projecta/doc-index.config.json
 
-// Conflux instance
-const confluxGenerator = new DocumentationIndexGenerator('conflux');
-// Loads config/conflux/doc-index.config.json
+// Project B instance
+const projectBGenerator = new DocumentationIndexGenerator('projectb');
+// Loads config/projectb/doc-index.config.json
 ```
 
 ---
@@ -358,7 +358,7 @@ const confluxGenerator = new DocumentationIndexGenerator('conflux');
 **The doc-index.config.json is:**
 - ✅ Manually created and maintained by you
 - ✅ Controls filtering and organization
-- ✅ Instance-specific (NEAR vs Conflux have different configs)
+- ✅ Instance-specific (each project has its own config)
 - ✅ Used at runtime to generate indices from database
 
 **The doc-index.config.json is NOT:**

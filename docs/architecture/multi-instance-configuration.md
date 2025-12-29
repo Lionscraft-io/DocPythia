@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-This document describes the architecture for transforming NearDocsAI from a single-protocol platform into a multi-customer configurable system. The architecture supports independent deployments per customer with configuration-driven branding, documentation sources, and community integrations, without requiring code modifications.
+This document describes the architecture for transforming DocsAI from a single-protocol platform into a multi-customer configurable system. The architecture supports independent deployments per customer with configuration-driven branding, documentation sources, and community integrations, without requiring code modifications.
 
 ## System Context
 
@@ -15,14 +15,14 @@ This document describes the architecture for transforming NearDocsAI from a sing
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    NearDocsAI (Current)                 │
+│                    DocsAI (Current)                      │
 │                                                           │
 │  ┌─────────────┐      ┌──────────────┐                 │
 │  │  Frontend   │──────│  Backend      │                 │
 │  │  (React)    │      │  (Express)    │                 │
 │  │             │      │               │                 │
 │  │ HARDCODED:  │      │ HARDCODED:    │                 │
-│  │ - "NEAR"    │      │ - near/docs   │                 │
+│  │ - "Project" │      │ - owner/docs  │                 │
 │  │ - Logo      │      │ - Prompts     │                 │
 │  │ - Colors    │      │ - Zulip URL   │                 │
 │  └─────────────┘      └──────────────┘                 │
@@ -45,7 +45,7 @@ This document describes the architecture for transforming NearDocsAI from a sing
 │  │                                                          │     │
 │  │  ┌──────────────┐   ┌──────────────┐   ┌───────────┐ │     │
 │  │  │   Defaults   │───│ instance.json│───│    ENV    │ │     │
-│  │  │   (NEAR)     │   │  (Optional)  │   │ Variables │ │     │
+│  │  │  (Default)   │   │  (Optional)  │   │ Variables │ │     │
 │  │  └──────────────┘   └──────────────┘   └───────────┘ │     │
 │  │         │                   │                  │        │     │
 │  │         └───────────────────▼──────────────────┘        │     │
@@ -77,10 +77,10 @@ This document describes the architecture for transforming NearDocsAI from a sing
 └──────────────────────────────────────────────────────────────────┘
 
 ┌────────────────────────┐          ┌────────────────────────┐
-│ NEAR Instance          │          │ Conflux Instance       │
-│ neardocs.ai            │          │ confluxdocs.ai         │
-│ - near/docs            │          │ - conflux-docs         │
-│ - NEAR DB              │          │ - Conflux DB           │
+│ Project A Instance     │          │ Project B Instance     │
+│ projectadocs.example   │          │ projectbdocs.example   │
+│ - projecta/docs        │          │ - projectb-docs        │
+│ - Project A DB         │          │ - Project B DB         │
 └────────────────────────┘          └────────────────────────┘
 ```
 
@@ -102,7 +102,7 @@ This document describes the architecture for transforming NearDocsAI from a sing
 - Runtime Zod validation
 
 ### 4. Backward Compatibility
-- NEAR defaults built-in
+- Sensible defaults built-in
 - Existing deployments work without changes
 - Gradual migration path
 
@@ -144,7 +144,7 @@ class ConfigLoader {
 ```
 Startup
    │
-   ├─► Load DEFAULT_CONFIG (hardcoded NEAR)
+   ├─► Load DEFAULT_CONFIG (built-in defaults)
    │
    ├─► Check for config/instance.json
    │   ├─ Exists? → Parse JSON
@@ -269,7 +269,7 @@ const gitRepo = instanceConfig.documentation.gitRepo;
 **Git Scraper (`server/scraper/git-scraper.ts`):**
 ```typescript
 // Before: Hardcoded
-const gitRepo = "near/docs";
+const gitRepo = "owner/docs";
 
 // After: Configuration-driven
 const gitRepo = instanceConfig.documentation.gitRepo;
@@ -280,7 +280,7 @@ const gitUrl = `https://github.com/${gitRepo}`;
 **Analyzer (`server/analyzer/gemini-analyzer.ts`):**
 ```typescript
 // Before: Hardcoded
-const systemPrompt = `You are analyzing NEAR Protocol documentation...`;
+const systemPrompt = `You are analyzing Example Project documentation...`;
 
 // After: Configuration-driven
 const systemPrompt = `You are analyzing ${instanceConfig.project.name} documentation...`;
@@ -289,7 +289,7 @@ const systemPrompt = `You are analyzing ${instanceConfig.project.name} documenta
 **Zulip Scraper (`server/scraper/zulipchat.ts`):**
 ```typescript
 // Before: Hardcoded
-const zulipDomain = "near.zulipchat.com";
+const zulipDomain = "example.zulipchat.com";
 
 // After: Configuration-driven
 const zulipSource = instanceConfig.community.sources.find(
@@ -436,7 +436,7 @@ Server Startup
             ▼
 ┌────────────────────────┐
 │  Load default config   │
-│  (NEAR hardcoded)      │
+│  (hardcoded default)   │
 └───────────┬────────────┘
             │
             ▼
@@ -568,7 +568,7 @@ Restart application
 {
   admin: {
     allowedOrigins: [
-      'https://neardocs.ai',
+      'https://projectadocs.example',
       'http://localhost:3000'  // Development only
     ]
   }
@@ -599,12 +599,12 @@ Restart application
 **Horizontal Scaling:**
 Each customer instance is independent:
 ```
-NEAR Instance (neardocs.ai)
+Project A Instance (projectadocs.example)
 ├─ Server 1 (config loaded at start)
 ├─ Server 2 (config loaded at start)
 └─ Server N (config loaded at start)
 
-Conflux Instance (confluxdocs.ai)
+Project B Instance (projectbdocs.example)
 ├─ Server 1 (different config loaded at start)
 └─ Server 2 (different config loaded at start)
 ```
@@ -620,8 +620,8 @@ No shared state between instances.
 │                  Deployment Infrastructure               │
 │                                                           │
 │  ┌──────────────────────┐    ┌──────────────────────┐  │
-│  │  NEAR Instance       │    │  Conflux Instance    │  │
-│  │  neardocs.ai         │    │  confluxdocs.ai      │  │
+│  │  Project A Instance  │    │  Project B Instance  │  │
+│  │  projectadocs.example│    │  projectbdocs.example│  │
 │  │                      │    │                      │  │
 │  │  ┌────────────────┐ │    │  ┌────────────────┐ │  │
 │  │  │ App Server     │ │    │  │ App Server     │ │  │
@@ -630,7 +630,7 @@ No shared state between instances.
 │  │          │           │    │          │           │  │
 │  │  ┌───────▼────────┐ │    │  ┌───────▼────────┐ │  │
 │  │  │ PostgreSQL     │ │    │  │ PostgreSQL     │ │  │
-│  │  │ (NEAR data)    │ │    │  │ (Conflux data) │ │  │
+│  │  │ (Project A)    │ │    │  │ (Project B)    │ │  │
 │  │  └────────────────┘ │    │  └────────────────┘ │  │
 │  └──────────────────────┘    └──────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
@@ -649,7 +649,7 @@ No shared state between instances.
 1. **Clone Repository**
    ```bash
    git clone <repo-url>
-   cd neardocs-ai
+   cd docsai
    ```
 
 2. **Create Configuration**
@@ -698,7 +698,7 @@ No shared state between instances.
 1. Create `server/config/` directory
 2. Implement `ConfigLoader` class
 3. Define TypeScript interfaces and Zod schemas
-4. Add default NEAR configuration
+4. Add sensible default configuration
 5. Create `config/instance.example.json`
 6. Write unit tests for config loader
 
@@ -717,7 +717,7 @@ No shared state between instances.
 6. Add integration tests
 
 **Risk:** Medium (affects core functionality)
-**Mitigation:** Extensive testing with NEAR config (should behave identically)
+**Mitigation:** Extensive testing with default config (should behave identically)
 
 ### Phase 3: Frontend Integration (Week 2)
 
@@ -729,7 +729,7 @@ No shared state between instances.
 3. Update App component
 4. Update index.html meta tags
 5. Configure Vite for build-time injection
-6. Update all components with hardcoded "NEAR"
+6. Update all components with hardcoded project references
 
 **Risk:** Medium (UI changes)
 **Mitigation:** Visual regression testing
@@ -750,9 +750,9 @@ No shared state between instances.
 **Objective:** Comprehensive testing and documentation
 
 **Tasks:**
-1. Comprehensive grep for "NEAR" references
-2. Test NEAR configuration (should be identical to current)
-3. Test Conflux configuration end-to-end
+1. Comprehensive grep for hardcoded project references
+2. Test default configuration (should be identical to current)
+3. Test custom configuration end-to-end
 4. Load testing with different configs
 5. Update deployment documentation
 6. Create customer onboarding guide
@@ -777,7 +777,7 @@ No shared state between instances.
 2025-10-29 12:00:00 INFO  Configuration loading...
 2025-10-29 12:00:00 INFO  ✓ Loaded configuration from config/instance.json
 2025-10-29 12:00:00 INFO  ✓ Applied 5 environment variable overrides
-2025-10-29 12:00:00 INFO  ✓ Configuration validated for project: Conflux Protocol
+2025-10-29 12:00:00 INFO  ✓ Configuration validated for project: Custom Project
 2025-10-29 12:00:01 INFO  Server started on port 8080
 ```
 
@@ -807,9 +807,9 @@ No shared state between instances.
 **Configuration Loader Tests:**
 ```typescript
 describe('ConfigLoader', () => {
-  test('loads default NEAR configuration', () => {
+  test('loads default configuration', () => {
     const config = new ConfigLoader().getConfig();
-    expect(config.project.name).toBe('NEAR Protocol');
+    expect(config.project.name).toBe('DocsAI');
   });
 
   test('merges config file with defaults', () => {
@@ -881,22 +881,22 @@ describe('useInstanceConfig', () => {
 
 ### End-to-End Tests
 
-**NEAR Configuration (Backward Compatibility):**
+**Default Configuration (Backward Compatibility):**
 1. Deploy with no `config/instance.json`
-2. Verify "NEAR Protocol" appears in header
-3. Verify `near/docs` repository used
-4. Verify NEAR branding throughout
+2. Verify default project name appears in header
+3. Verify default repository used
+4. Verify default branding throughout
 
-**Conflux Configuration:**
-1. Deploy with Conflux `config/instance.json`
-2. Verify "Conflux" appears in header
-3. Verify `conflux-chain/conflux-docs` repository used
-4. Verify Conflux branding throughout
-5. Verify widget shows Conflux colors
+**Custom Configuration:**
+1. Deploy with custom `config/instance.json`
+2. Verify custom name appears in header
+3. Verify custom repository used
+4. Verify custom branding throughout
+5. Verify widget shows custom colors
 
 **Environment Variable Override:**
 1. Set `PROJECT_NAME=Test Protocol`
-2. Deploy with NEAR config file
+2. Deploy with default config file
 3. Verify "Test Protocol" appears (overrides config file)
 
 ## Future Enhancements

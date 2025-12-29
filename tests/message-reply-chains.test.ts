@@ -144,7 +144,6 @@ describe('Message Reply Chains', () => {
             chatId: testChatId,
             messageId: 100,
           },
-          rawData: {},
         },
       });
 
@@ -163,7 +162,6 @@ describe('Message Reply Chains', () => {
             messageId: 101,
             replyToMessageId: 100,
           },
-          rawData: {},
         },
       });
 

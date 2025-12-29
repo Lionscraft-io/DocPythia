@@ -294,4 +294,217 @@ describe('ZulipBotAdapter', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('fetchMessages', () => {
+    it('should throw error if not initialized', async () => {
+      // Adapter not initialized, so fetchMessages should fail
+      await expect(adapter.fetchMessages()).rejects.toThrow();
+    });
+
+    it('should fetch messages successfully from Zulip API', async () => {
+      const config = {
+        email: 'bot@zulipchat.com',
+        apiKey: 'test-api-key',
+        site: 'https://test.zulipchat.com',
+        channel: 'community-support',
+      };
+      adapter.validateConfig(config);
+
+      // Mark as initialized by setting private flag
+      (adapter as any).initialized = true;
+
+      // Mock messages API response
+      const mockMessages = {
+        result: 'success',
+        messages: [
+          {
+            id: 123456,
+            sender_id: 111,
+            sender_full_name: 'Test User',
+            sender_email: 'test@example.com',
+            timestamp: 1699012345,
+            content: 'Hello world',
+            display_recipient: 'community-support',
+            subject: 'Test Topic',
+            type: 'stream',
+          },
+        ],
+      };
+
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockMessages,
+      });
+
+      // Mock save messages
+      mockDb.unifiedMessage.findUnique.mockResolvedValue(null);
+      mockDb.unifiedMessage.create.mockResolvedValue({ id: 1 });
+      mockDb.streamConfig.findUnique.mockResolvedValue({ id: 1, streamId: 'test', config: {} });
+      mockDb.importWatermark.findFirst.mockResolvedValue(null);
+      mockDb.importWatermark.create.mockResolvedValue({});
+
+      const messages = await adapter.fetchMessages();
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].messageId).toBe('123456');
+      expect(messages[0].content).toBe('Hello world');
+    });
+
+    it('should handle API error response', async () => {
+      const config = {
+        email: 'bot@zulipchat.com',
+        apiKey: 'test-api-key',
+        site: 'https://test.zulipchat.com',
+        channel: 'general',
+      };
+      adapter.validateConfig(config);
+      (adapter as any).initialized = true;
+
+      // Mock error response
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => 'Internal Server Error',
+      });
+
+      await expect(adapter.fetchMessages()).rejects.toThrow('Zulip API error (500)');
+    });
+
+    it('should handle non-success result', async () => {
+      const config = {
+        email: 'bot@zulipchat.com',
+        apiKey: 'test-api-key',
+        site: 'https://test.zulipchat.com',
+        channel: 'general',
+      };
+      adapter.validateConfig(config);
+      (adapter as any).initialized = true;
+
+      // Mock non-success result
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ result: 'error', msg: 'Invalid channel' }),
+      });
+
+      await expect(adapter.fetchMessages()).rejects.toThrow('Zulip API error: Invalid channel');
+    });
+
+    it('should use watermark for incremental fetch', async () => {
+      const config = {
+        email: 'bot@zulipchat.com',
+        apiKey: 'test-api-key',
+        site: 'https://test.zulipchat.com',
+        channel: 'general',
+        batchSize: 50,
+      };
+      adapter.validateConfig(config);
+      (adapter as any).initialized = true;
+
+      const mockMessages = {
+        result: 'success',
+        messages: [
+          {
+            id: 123457,
+            sender_id: 111,
+            sender_full_name: 'Test User',
+            sender_email: 'test@example.com',
+            timestamp: 1699012346,
+            content: 'New message',
+            display_recipient: 'general',
+            subject: 'Test',
+            type: 'stream',
+          },
+        ],
+      };
+
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockMessages,
+      });
+
+      mockDb.unifiedMessage.findUnique.mockResolvedValue(null);
+      mockDb.unifiedMessage.create.mockResolvedValue({ id: 1 });
+      mockDb.importWatermark.findFirst.mockResolvedValue(null);
+      mockDb.importWatermark.create.mockResolvedValue({});
+
+      const watermark = {
+        lastProcessedId: '123456',
+        lastProcessedTime: new Date(),
+        totalProcessed: 100,
+      };
+
+      const messages = await adapter.fetchMessages(watermark);
+
+      expect(messages).toHaveLength(1);
+      // Verify fetch was called with num_after (incremental fetch)
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('num_after=50'),
+        expect.any(Object)
+      );
+    });
+
+    it('should return empty array for no messages', async () => {
+      const config = {
+        email: 'bot@zulipchat.com',
+        apiKey: 'test-api-key',
+        site: 'https://test.zulipchat.com',
+        channel: 'general',
+      };
+      adapter.validateConfig(config);
+      (adapter as any).initialized = true;
+
+      const mockMessages = {
+        result: 'success',
+        messages: [],
+      };
+
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockMessages,
+      });
+
+      const messages = await adapter.fetchMessages();
+
+      expect(messages).toHaveLength(0);
+    });
+  });
+
+  describe('Cleanup', () => {
+    it('should cleanup adapter resources without error', async () => {
+      const config = {
+        email: 'bot@zulipchat.com',
+        apiKey: 'test-api-key',
+        site: 'https://test.zulipchat.com',
+        channel: 'general',
+      };
+      adapter.validateConfig(config);
+      (adapter as any).initialized = true;
+
+      await expect(adapter.cleanup()).resolves.not.toThrow();
+    });
+
+    it('should cleanup when not initialized', async () => {
+      await expect(adapter.cleanup()).resolves.not.toThrow();
+    });
+  });
+
+  describe('Configuration Edge Cases', () => {
+    it('should handle configuration with all optional values', () => {
+      const config = {
+        email: 'bot@zulipchat.com',
+        apiKey: 'abc123xyz',
+        site: 'https://test.zulipchat.com',
+        channel: 'community-support',
+        pollingInterval: 10000,
+        batchSize: 200,
+        ignoreOldMessages: false,
+      };
+      adapter.validateConfig(config);
+
+      const botConfig = (adapter as any).botConfig;
+      expect(botConfig.pollingInterval).toBe(10000);
+      expect(botConfig.batchSize).toBe(200);
+      expect(botConfig.ignoreOldMessages).toBe(false);
+    });
+  });
 });

@@ -38,7 +38,7 @@ export class DocumentationIndexGenerator {
   private configHash: string = '';
   private instanceId: string;
 
-  constructor(instanceId: string = 'near') {
+  constructor(instanceId: string = 'default') {
     this.instanceId = instanceId;
     console.log(`DocumentationIndexGenerator initialized for instance: ${instanceId}`);
     this.config = this.loadConfig();
@@ -94,7 +94,7 @@ export class DocumentationIndexGenerator {
     try {
       const syncState = await prisma.gitSyncState.findFirst({
         where: {
-          gitUrl: process.env.DOCS_GIT_URL || 'https://github.com/near/docs'
+          gitUrl: process.env.DOCS_GIT_URL || ''
         }
       });
       return syncState?.lastCommitHash || null;
@@ -554,10 +554,10 @@ export async function loadProjectContext(generator: DocumentationIndexGenerator)
   const docIndex = await generator.generateIndex();
 
   return {
-    project_name: process.env.PROJECT_NAME || 'NearDocsAI',
-    project_description: process.env.PROJECT_DESCRIPTION || 'AI-powered documentation management system for NEAR Protocol',
-    doc_purpose: process.env.DOC_PURPOSE || 'Technical documentation for developers building on NEAR',
-    target_audience: process.env.TARGET_AUDIENCE || 'Blockchain developers, DevOps engineers, and NEAR validators',
+    project_name: process.env.PROJECT_NAME || 'DocsAI',
+    project_description: process.env.PROJECT_DESCRIPTION || 'AI-powered documentation management system',
+    doc_purpose: process.env.DOC_PURPOSE || 'Technical documentation for developers',
+    target_audience: process.env.TARGET_AUDIENCE || 'Developers, DevOps engineers, and technical users',
     style_guide: process.env.STYLE_GUIDE || 'Clear, concise, technical writing with code examples',
     doc_index: docIndex,
   };

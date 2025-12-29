@@ -8,10 +8,10 @@ Bot Token: `8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8`
 
 ```bash
 # From project root
-PGPASSWORD=neardocs_secure_password psql -h localhost -p 5433 -U neardocs -d neardocs -f scripts/permanent/setup-telegram-bot.sql
+PGPASSWORD=docsai_secure_password psql -h localhost -p 5433 -U docsai -d docsai -f scripts/permanent/setup-telegram-bot.sql
 ```
 
-This creates the `telegram-bot-neardocs` stream configuration.
+This creates the `telegram-bot` stream configuration.
 
 ## Step 2: Add Bot to Telegram Group/Channel
 
@@ -47,7 +47,7 @@ npm run dev
 **Look for these log messages:**
 ```
 StreamManager initialized with config: {...}
-Registering stream: telegram-bot-neardocs (telegram-bot)
+Registering stream: telegram-bot (telegram-bot)
 TelegramBotAdapter initialized in polling mode
 Telegram bot polling started
 ```
@@ -62,7 +62,7 @@ Telegram bot polling started
 
 3. **Verify in database**:
    ```bash
-   PGPASSWORD=neardocs_secure_password psql -h localhost -p 5433 -U neardocs -d neardocs -c "SELECT id, author, channel, LEFT(content, 50) as content FROM unified_messages WHERE stream_id = 'telegram-bot-neardocs' ORDER BY timestamp DESC LIMIT 5;"
+   PGPASSWORD=docsai_secure_password psql -h localhost -p 5433 -U docsai -d docsai -c "SELECT id, author, channel, LEFT(content, 50) as content FROM unified_messages WHERE stream_id = 'telegram-bot' ORDER BY timestamp DESC LIMIT 5;"
    ```
 
 ## Step 6: Process Messages
@@ -122,7 +122,7 @@ If someone sends commands in the group:
 
 3. **Verify stream is enabled:**
    ```sql
-   SELECT * FROM stream_configs WHERE stream_id = 'telegram-bot-neardocs';
+   SELECT * FROM stream_configs WHERE stream_id = 'telegram-bot';
    ```
 
 ### Messages saved but not processed?

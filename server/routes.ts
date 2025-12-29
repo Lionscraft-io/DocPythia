@@ -93,12 +93,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let config;
 
-      // Try to detect instance from Referer header (e.g., https://domain.com/near/admin)
+      // Try to detect instance from Referer header (e.g., https://domain.com/projecta/admin)
       const referer = req.get('Referer') || req.get('Referrer');
       let instanceId: string | undefined;
 
       if (referer) {
-        const match = referer.match(/\/(near|conflux)\//i);
+        // Extract instance from URL path (e.g., /instance-name/admin)
+        // Accepts any instance name pattern (alphanumeric with dashes)
+        const match = referer.match(/\/([a-z0-9-]+)\/(?:admin|api|widget)/i);
         if (match) {
           instanceId = match[1].toLowerCase();
           console.log(`[/api/config] Detected instance "${instanceId}" from Referer: ${referer}`);
@@ -163,6 +165,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { expertId } = req.params;
     const { theme = 'light', embedded = 'false' } = req.query;
     const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
+
+    // Configurable widget content
+    const projectName = process.env.PROJECT_NAME || 'DocsAI';
+    const widgetTitle = process.env.WIDGET_TITLE || `${projectName} Assistant`;
+    const welcomeMessage = process.env.WIDGET_WELCOME_MESSAGE || `Hello! I'm your ${projectName} documentation assistant. How can I help you today?`;
+    const placeholderText = process.env.WIDGET_PLACEHOLDER || `Ask me anything about ${projectName}...`;
+
+    // Suggested questions from env (comma-separated) or defaults
+    const suggestedQuestionsEnv = process.env.WIDGET_SUGGESTED_QUESTIONS || '';
+    const suggestedQuestions = suggestedQuestionsEnv
+      ? suggestedQuestionsEnv.split('|').map(q => q.trim()).filter(q => q)
+      : [
+          'How do I get started?',
+          'What are the system requirements?',
+          'How do I configure the service?'
+        ];
 
     const widgetHtml = `
 <!DOCTYPE html>
@@ -293,7 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     <div class="widget-header">
         <div class="widget-title">
             <span>🤖</span>
-            <span>NearDocs AI Assistant</span>
+            <span>${widgetTitle}</span>
         </div>
     </div>
 
@@ -301,19 +319,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <div class="chat-container">
             <div class="messages" id="messages">
                 <div class="message assistant">
-                    Hello! I'm your NEAR Protocol documentation assistant. How can I help you today?
+                    ${welcomeMessage}
                 </div>
 
                 <div class="suggested-questions">
-                    <button class="suggestion-button" onclick="askQuestion('How do I set up a NEAR validator node?')">
-                        How do I set up a NEAR validator node?
-                    </button>
-                    <button class="suggestion-button" onclick="askQuestion('What are the hardware requirements for running a node?')">
-                        What are the hardware requirements for running a node?
-                    </button>
-                    <button class="suggestion-button" onclick="askQuestion('How do I monitor my node performance?')">
-                        How do I monitor my node performance?
-                    </button>
+                    ${suggestedQuestions.map(q => `
+                    <button class="suggestion-button" onclick="askQuestion('${q.replace(/'/g, "\\'")}')">
+                        ${q}
+                    </button>`).join('')}
                 </div>
             </div>
 
@@ -321,7 +334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <input
                     type="text"
                     class="chat-input"
-                    placeholder="Ask me anything about NEAR Protocol..."
+                    placeholder="${placeholderText}"
                     id="chatInput"
                     onkeypress="handleKeyPress(event)"
                 />
@@ -333,6 +346,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     </div>
 
     <script>
+        const projectName = '${projectName}';
+
         function askQuestion(question) {
             const input = document.getElementById('chatInput');
             input.value = question;
@@ -357,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Simulate AI response (replace with actual API call)
             setTimeout(() => {
-                addMessage('I\\'m processing your question about NEAR Protocol. This is a demo response.', 'assistant');
+                addMessage('I\\'m processing your question. This is a demo response.', 'assistant');
             }, 1000);
         }
 
@@ -397,18 +412,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Widget JavaScript library
   app.get("/widget.js", (req, res) => {
     const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
+    const projectName = process.env.PROJECT_NAME || 'DocsAI';
+    const widgetNamespace = process.env.WIDGET_NAMESPACE || 'DocsAIWidget';
 
     const widgetJs = `
 (function() {
     'use strict';
 
-    window.NearDocsWidget = {
+    window.${widgetNamespace} = {
         init: function(options) {
             const config = {
                 expertId: options.expertId || 'default',
                 theme: options.theme || 'light',
                 position: options.position || 'bottom-right',
-                title: options.title || 'NearDocs AI',
+                title: options.title || '${projectName} AI',
                 domain: '${domain}',
                 ...options
             };
@@ -419,7 +436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createWidget: function(config) {
             // Create widget container
             const widgetContainer = document.createElement('div');
-            widgetContainer.id = 'neardocs-widget-container';
+            widgetContainer.id = 'docsai-widget-container';
             widgetContainer.style.cssText = \`
                 position: fixed;
                 z-index: 10000;
@@ -428,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Create toggle button
             const toggleButton = document.createElement('button');
-            toggleButton.id = 'neardocs-widget-toggle';
+            toggleButton.id = 'docsai-widget-toggle';
             toggleButton.innerHTML = '💬';
             toggleButton.style.cssText = \`
                 width: 60px;
@@ -445,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Create widget iframe
             const widgetFrame = document.createElement('iframe');
-            widgetFrame.id = 'neardocs-widget-frame';
+            widgetFrame.id = 'docsai-widget-frame';
             widgetFrame.src = \`\${config.domain}/widget/\${config.expertId}?theme=\${config.theme}&embedded=true\`;
             widgetFrame.style.cssText = \`
                 width: 350px;
@@ -496,15 +513,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Auto-init if data attributes are present
     document.addEventListener('DOMContentLoaded', function() {
-        const autoInit = document.querySelector('[data-neardocs-widget]');
+        const autoInit = document.querySelector('[data-docsai-widget]');
         if (autoInit) {
             const config = {
                 expertId: autoInit.getAttribute('data-expert-id') || 'default',
                 theme: autoInit.getAttribute('data-theme') || 'light',
                 position: autoInit.getAttribute('data-position') || 'bottom-right',
-                title: autoInit.getAttribute('data-title') || 'NearDocs AI'
+                title: autoInit.getAttribute('data-title') || '${projectName} AI'
             };
-            window.NearDocsWidget.init(config);
+            window.${widgetNamespace}.init(config);
         }
     });
 })();`;
@@ -517,6 +534,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Widget demo page
   app.get("/widget-demo", (req, res) => {
     const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
+    const projectName = process.env.PROJECT_NAME || 'DocsAI';
+    const widgetNamespace = process.env.WIDGET_NAMESPACE || 'DocsAIWidget';
 
     const demoHtml = `
 <!DOCTYPE html>
@@ -524,7 +543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NearDocs Widget Demo</title>
+    <title>${projectName} Widget Demo</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -573,27 +592,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 </head>
 <body>
     <div class="container">
-        <h1>🤖 NearDocs AI Widget Demo</h1>
+        <h1>🤖 ${projectName} AI Widget Demo</h1>
 
-        <p>This page demonstrates the NearDocs AI widget integration. The widget provides AI-powered assistance for NEAR Protocol documentation and can be easily embedded on any website.</p>
+        <p>This page demonstrates the ${projectName} AI widget integration. The widget provides AI-powered documentation assistance and can be easily embedded on any website.</p>
 
         <h2>🚀 Quick Start</h2>
         <p>Add this script to your website to enable the widget:</p>
 
         <div class="code-block">
 &lt;script src="${domain}/widget.js"&gt;&lt;/script&gt;
-&lt;div data-neardocs-widget data-expert-id="default" data-theme="light"&gt;&lt;/div&gt;
+&lt;div data-docsai-widget data-expert-id="default" data-theme="light"&gt;&lt;/div&gt;
         </div>
 
         <h2>📋 Manual Integration</h2>
         <div class="code-block">
 &lt;script src="${domain}/widget.js"&gt;&lt;/script&gt;
 &lt;script&gt;
-  NearDocsWidget.init({
+  ${widgetNamespace}.init({
     expertId: 'default',
     theme: 'light',
     position: 'bottom-right',
-    title: 'NEAR Help'
+    title: '${projectName} Help'
   });
 &lt;/script&gt;
         </div>
@@ -617,7 +636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <li><code>expertId</code> - The expert/assistant ID (default: 'default')</li>
             <li><code>theme</code> - 'light' or 'dark' (default: 'light')</li>
             <li><code>position</code> - 'bottom-right', 'bottom-left', 'top-right', 'top-left'</li>
-            <li><code>title</code> - Widget title (default: 'NearDocs AI')</li>
+            <li><code>title</code> - Widget title (default: '${projectName} AI')</li>
         </ul>
 
         <h2>🔗 Direct Widget URL</h2>
@@ -643,20 +662,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     <script src="${domain}/widget.js"></script>
     <script>
+        const widgetNamespace = '${widgetNamespace}';
+        const projectName = '${projectName}';
+
         function initWidget(expertId, theme, position) {
             removeWidget();
             setTimeout(() => {
-                window.NearDocsWidget.init({
+                window[widgetNamespace].init({
                     expertId: expertId,
                     theme: theme,
                     position: position,
-                    title: 'NEAR Help Demo'
+                    title: projectName + ' Help Demo'
                 });
             }, 100);
         }
 
         function removeWidget() {
-            const existing = document.getElementById('neardocs-widget-container');
+            const existing = document.getElementById('docsai-widget-container');
             if (existing) {
                 existing.remove();
             }
@@ -709,15 +731,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Public Git documentation stats endpoint (must be before :sectionId wildcard)
   app.get("/api/docs/git-stats", async (req, res) => {
     try {
+      const defaultGitUrl = process.env.DOCS_GIT_URL || '';
       const syncState = await prisma.gitSyncState.findFirst({
         where: {
-          gitUrl: process.env.DOCS_GIT_URL || 'https://github.com/near/docs'
+          gitUrl: defaultGitUrl
         }
       });
 
       if (!syncState) {
         return res.json({
-          gitUrl: process.env.DOCS_GIT_URL || 'https://github.com/near/docs',
+          gitUrl: defaultGitUrl,
           branch: process.env.DOCS_GIT_BRANCH || 'main',
           lastSyncAt: null,
           lastCommitHash: null,
@@ -1336,11 +1359,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      const projectName = process.env.PROJECT_NAME || 'the documentation';
       let prompt = '';
       if (context.usedRetrieval && context.formattedContext) {
         prompt = `${context.formattedContext}\n\n---\n\nQuestion: ${question}\n\nProvide a helpful answer based on the documentation above. If the documentation doesn't contain relevant information, let the user know.`;
       } else {
-        prompt = `Question: ${question}\n\nProvide a helpful answer about NEAR Protocol based on your general knowledge.`;
+        prompt = `Question: ${question}\n\nProvide a helpful answer about ${projectName} based on your general knowledge.`;
       }
 
       // Use the analyzer's generateAnswer method if available, otherwise use a basic response
@@ -1348,7 +1372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Build document URL helper
       const buildDocUrl = (filePath: string): string => {
-        const baseUrl = process.env.DOCS_GIT_URL || 'https://github.com/near/docs';
+        const baseUrl = process.env.DOCS_GIT_URL || '';
         const cleanBaseUrl = baseUrl.replace(/\.git$/, '');
         return `${cleanBaseUrl}/blob/main/${filePath}`;
       };

@@ -32,7 +32,7 @@ router.post('/login', async (req: Request, res: Response) => {
       const instances = InstanceConfigLoader.getAvailableInstances();
       return res.json({
         success: true,
-        instanceId: instances[0] || 'near',
+        instanceId: instances[0] || 'default',
         message: 'Authentication disabled (development mode)'
       });
     }

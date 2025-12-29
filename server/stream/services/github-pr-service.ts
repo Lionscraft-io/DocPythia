@@ -24,7 +24,7 @@ const execAsync = promisify(exec);
 interface GitHubConfig {
   token: string;
   targetRepo: string;    // e.g., "username/fork-repo"
-  sourceRepo: string;    // e.g., "conflux-chain/conflux-documentation"
+  sourceRepo: string;    // e.g., "org-name/documentation-repo"
   baseBranch: string;    // e.g., "main"
 }
 

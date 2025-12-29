@@ -5,6 +5,10 @@ import { getConfig } from "../config/loader";
 import { llmCache } from "../llm/llm-cache.js";
 import { PROMPT_TEMPLATES, fillTemplate } from "../stream/llm/prompt-templates.js";
 
+// Model configuration - uses same env vars as batch processor for consistency
+const ANALYSIS_MODEL = process.env.LLM_CLASSIFICATION_MODEL || 'gemini-2.5-flash';
+const ANSWER_MODEL = process.env.LLM_CLASSIFICATION_MODEL || 'gemini-2.5-flash';
+
 export interface AnalysisResult {
   relevant: boolean;
   updateType?: "minor" | "major" | "add" | "delete" | null;
@@ -65,7 +69,7 @@ export class MessageAnalyzer {
       const systemPrompt = "You are an expert technical writer analyzing community messages for documentation updates. Always respond with valid JSON.";
 
       const model = this.genAI.getGenerativeModel({
-        model: "gemini-2.5-pro",
+        model: ANALYSIS_MODEL,
         systemInstruction: systemPrompt,
         generationConfig: {
           responseMimeType: "application/json",
@@ -97,7 +101,7 @@ export class MessageAnalyzer {
 
       // Save to cache
       llmCache.set(prompt, rawJson, 'analysis', {
-        model: 'gemini-2.5-pro',
+        model: ANALYSIS_MODEL,
       });
 
       return result;
@@ -261,7 +265,7 @@ export class MessageAnalyzer {
       });
 
       const model = this.genAI.getGenerativeModel({
-        model: "gemini-2.0-flash-exp",
+        model: ANSWER_MODEL,
         systemInstruction: systemPrompt,
         generationConfig: {
           temperature: 0.7,
@@ -278,7 +282,7 @@ export class MessageAnalyzer {
 
       // Save to cache
       llmCache.set(prompt, answer, 'general', {
-        model: 'gemini-2.0-flash-exp',
+        model: ANSWER_MODEL,
       });
 
       return answer;

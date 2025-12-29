@@ -3,11 +3,11 @@
 ## What Was Done
 
 ### 1. Database Setup ✅
-- Created `confluxdocs` database
-- Ran migrations on both `neardocs` and `confluxdocs`
+- Created `projectbdocs` database
+- Ran migrations on both `projectadocs` and `projectbdocs`
 - Seeded both databases with documentation sections
-  - neardocs: 24 sections
-  - confluxdocs: 3 sections
+  - projectadocs: 24 sections
+  - projectbdocs: 3 sections
 
 ### 2. Code Infrastructure ✅
 - Instance-aware database manager exists: `server/db/instance-db.ts`
@@ -33,7 +33,7 @@
 - ✅ Instance middleware code is complete
 - ✅ Admin routes are updated to use instance database
 - ✅ Multi-instance authentication works
-- ✅ Passwords: `near123` (NEAR), `conflux123` (Conflux)
+- ✅ Passwords: `projecta123` (Project A), `projectb123` (Project B)
 
 **Not Working:**
 - ❌ Middleware routing is not correctly matching URLs
@@ -53,14 +53,14 @@ registerAdminStreamRoutes(app, adminAuth);
 app.get('/api/admin/stream/stats', ...)
 
 // Request URL:
-GET /near/api/admin/stream/stats
+GET /projecta/api/admin/stream/stats
 ```
 
 When the request comes in:
 1. Express tries to match `/:instance/api`
-2. It correctly captures `instance = "near"`
+2. It correctly captures `instance = "projecta"`
 3. But the admin routes are registered with absolute paths (`/api/admin/...`)
-4. The routes don't match because they expect `/api/admin/...` not `/near/api/admin/...`
+4. The routes don't match because they expect `/api/admin/...` not `/projecta/api/admin/...`
 5. Request falls through to static file handler → returns HTML
 
 ## Solutions to Consider
@@ -93,7 +93,7 @@ req.originalUrl = ...
 **Cons:** Fragile, might break other middleware
 
 ### Option C: Single Shared Database (Simplest)
-Don't use instance-specific databases. Use the existing `neardocs` database for both instances:
+Don't use instance-specific databases. Use the existing `projectadocs` database for both instances:
 ```typescript
 // Remove instance middleware
 // Keep using global prisma client
@@ -113,13 +113,13 @@ For production with data isolation, **Option A** (proper routing) is the right l
 
 Once fixed, test with:
 ```bash
-# NEAR instance
-curl -s "http://localhost:3762/near/api/admin/stream/stats" \
-  -H "Authorization: Bearer near123" | jq
+# Project A instance
+curl -s "http://localhost:3762/projecta/api/admin/stream/stats" \
+  -H "Authorization: Bearer projecta123" | jq
 
-# Conflux instance
-curl -s "http://localhost:3762/conflux/api/admin/stream/stats" \
-  -H "Authorization: Bearer conflux123" | jq
+# Project B instance
+curl -s "http://localhost:3762/projectb/api/admin/stream/stats" \
+  -H "Authorization: Bearer projectb123" | jq
 ```
 
 Expected: Different database stats for each instance

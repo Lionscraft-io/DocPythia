@@ -9,44 +9,41 @@ export const mockLLMService = {
   requestJSON: vi.fn(),
 };
 
+// Updated for thread-based architecture
 export const mockBatchClassificationResponse = {
-  valuableMessages: [
+  threads: [
     {
-      messageId: 1,
       category: 'troubleshooting',
+      messages: [1], // Message IDs in this thread
+      summary: 'User encountered RPC connection issues',
       docValueReason: 'User encountered an error not documented',
-      suggestedDocPage: 'docs/troubleshooting.md',
       ragSearchCriteria: {
         keywords: ['error', 'rpc', 'connection'],
         semanticQuery: 'RPC connection troubleshooting',
       },
     },
-    {
-      messageId: 2,
-      category: 'update',
-      docValueReason: 'New feature announcement',
-      suggestedDocPage: 'docs/updates.md',
-      ragSearchCriteria: {
-        keywords: ['feature', 'release'],
-        semanticQuery: 'new features and releases',
-      },
-    },
   ],
-  batchSummary: 'Found 2 valuable messages: 1 troubleshooting, 1 update',
+  batchSummary: 'Found 1 valuable thread: 1 troubleshooting',
 };
 
+// Updated for conversation-based architecture
 export const mockProposalResponse = {
-  updateType: 'UPDATE',
-  page: 'docs/troubleshooting.md',
-  section: 'Common Errors',
-  location: {
-    lineStart: 45,
-    lineEnd: 50,
-    sectionName: 'RPC Timeout Errors',
-  },
-  suggestedText: 'Updated section about RPC timeout errors...',
-  reasoning: 'This error pattern is common but not documented',
-  confidence: 0.85,
+  proposals: [
+    {
+      updateType: 'UPDATE',
+      page: 'docs/troubleshooting.md',
+      section: 'Common Errors',
+      location: {
+        lineStart: 45,
+        lineEnd: 50,
+        sectionName: 'RPC Timeout Errors',
+      },
+      suggestedText: 'Updated section about RPC timeout errors...',
+      reasoning: 'This error pattern is common but not documented',
+      sourceMessages: [1],
+    },
+  ],
+  proposalsRejected: false,
 };
 
 export const createMockLLMResponse = (data: any) => ({

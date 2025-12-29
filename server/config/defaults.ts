@@ -1,42 +1,43 @@
-// Default configuration (NEAR Protocol)
+// Default configuration - Generic template
 // Multi-instance configuration system - Wayne (2025-10-29)
+// Updated: 2025-12-29 - Removed client-specific references
 
 import type { InstanceConfig } from './types';
 
 export const defaultConfig: InstanceConfig = {
   project: {
-    name: 'NearDocs AI',
-    shortName: 'near',
-    description: 'AI-powered documentation assistant for NEAR Protocol',
-    domain: 'neardocs.ai',
-    supportEmail: 'support@neardocs.ai',
+    name: 'DocsAI',
+    shortName: 'docs',
+    description: 'AI-powered documentation assistant',
+    domain: 'docs.example.com',
+    supportEmail: 'support@example.com',
   },
 
   branding: {
-    logo: 'https://near.org/wp-content/themes/near-19/assets/img/logo.svg',
-    favicon: 'https://near.org/wp-content/themes/near-19/assets/img/favicon.ico',
-    primaryColor: '#00EC97',
-    secondaryColor: '#000000',
-    accentColor: '#0072CE',
-    darkModePrimaryColor: '#00EC97',
-    projectUrl: 'https://near.org',
+    logo: '/assets/logo.svg',
+    favicon: '/assets/favicon.ico',
+    primaryColor: '#3B82F6',
+    secondaryColor: '#1F2937',
+    accentColor: '#10B981',
+    darkModePrimaryColor: '#60A5FA',
+    projectUrl: 'https://example.com',
   },
 
   documentation: {
-    gitUrl: 'https://github.com/near/docs',
+    gitUrl: 'https://github.com/example/docs',
     branch: 'main',
     docsPath: '',
   },
 
   database: {
-    name: 'neardocs', // Default database name
+    name: 'docsai',
   },
 
   community: {
     zulip: {
       enabled: false,
-      site: 'https://near.zulipchat.com',
-      channel: 'community-support',
+      site: 'https://example.zulipchat.com',
+      channel: 'general',
     },
     telegram: {
       enabled: false,
@@ -48,13 +49,13 @@ export const defaultConfig: InstanceConfig = {
 
   widget: {
     enabled: true,
-    title: 'NEAR Assistant',
-    welcomeMessage: 'Hello! I\'m your NEAR Protocol documentation assistant. How can I help you today?',
+    title: 'Documentation Assistant',
+    welcomeMessage: 'Hello! I\'m your documentation assistant. How can I help you today?',
     suggestedQuestions: [
-      'How do I set up a validator node?',
-      'What are the hardware requirements for RPC nodes?',
-      'How do I stake NEAR tokens?',
-      'What is sharding in NEAR?',
+      'How do I get started?',
+      'Where can I find the API documentation?',
+      'What are the system requirements?',
+      'How do I configure the application?',
     ],
     position: 'bottom-right',
     theme: 'auto',

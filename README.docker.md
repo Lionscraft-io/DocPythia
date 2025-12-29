@@ -1,6 +1,6 @@
-# NearDocsAI - Docker Setup
+# DocsAI - Docker Setup
 
-Run NearDocsAI with its own isolated PostgreSQL database using Docker Compose.
+Run DocsAI with its own isolated PostgreSQL database using Docker Compose.
 
 ## Quick Start
 
@@ -65,16 +65,16 @@ The PostgreSQL database is isolated within Docker. To access it:
 
 ```bash
 # Connect to database
-docker-compose exec db psql -U neardocs -d neardocs
+docker-compose exec db psql -U docsai -d docsai
 
 # Or from host (if DB_PORT is exposed in docker-compose.dev.yml)
-psql -h localhost -p 5433 -U neardocs -d neardocs
+psql -h localhost -p 5433 -U docsai -d docsai
 ```
 
 **Default credentials:**
-- User: `neardocs`
-- Password: `neardocs_secure_password`
-- Database: `neardocs`
+- User: `docsai`
+- Password: `docsai_secure_password`
+- Database: `docsai`
 
 ## Development Mode
 
@@ -96,16 +96,16 @@ Data is persisted in Docker volumes:
 
 ```bash
 # List volumes
-docker volume ls | grep neardocs
+docker volume ls | grep docsai
 
 # Inspect volume
-docker volume inspect lionscraft-neardocsai_neardocs_db_data
+docker volume inspect lionscraft-docsaiai_docsai_db_data
 
 # Backup database
-docker-compose exec db pg_dump -U neardocs neardocs > backup.sql
+docker-compose exec db pg_dump -U docsai docsai > backup.sql
 
 # Restore database
-docker-compose exec -T db psql -U neardocs neardocs < backup.sql
+docker-compose exec -T db psql -U docsai docsai < backup.sql
 ```
 
 ## Troubleshooting
@@ -121,7 +121,7 @@ APP_PORT=3763  # or any available port
 
 ```bash
 # Check database health
-docker-compose exec db pg_isready -U neardocs
+docker-compose exec db pg_isready -U docsai
 
 # View database logs
 docker-compose logs db

@@ -3,79 +3,150 @@
  * Unified service for LLM requests with model tiering and retry logic
  * Author: Wayne
  * Date: 2025-10-30
+ * Updated: 2025-12-23 - Refactored for testability with dependency injection
  * Reference: /docs/specs/multi-stream-scanner-phase-1.md
  */
 
-import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from '@google/generative-ai';
 import { LLMModel, LLMRequest, LLMResponse } from '../types.js';
-import { llmCache, CachePurpose } from '../../llm/llm-cache.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { llmCache as defaultLlmCache, CachePurpose, ILLMCache } from '../../llm/llm-cache.js';
+import { ILLMProvider, GeminiProvider, MODEL_MAP, DEFAULT_CONFIGS } from './llm-provider.js';
+import { SchemaConverter } from './schema-converter.js';
+import { ResponseParser } from './response-parser.js';
+import { PromptBuilder } from './prompt-builder.js';
+import { RetryHandler, RetryConfig, DEFAULT_RETRY_CONFIG } from './retry-handler.js';
+
+/**
+ * Configuration options for LLMService
+ */
+export interface LLMServiceConfig {
+  provider?: ILLMProvider;
+  cache?: ILLMCache;
+  retryConfig?: Partial<RetryConfig>;
+  delayFn?: (ms: number) => Promise<void>;
+  logger?: LLMLogger;
+}
+
+/**
+ * Logger interface for LLM operations
+ */
+export interface LLMLogger {
+  logRequest(request: LLMRequest, schema?: any): void;
+  logResponse(response: LLMResponse, rawJson?: string): void;
+  logError(error: Error, context: string): void;
+  logRetry(attempt: number, error: Error, delayMs: number): void;
+}
+
+/**
+ * Default console logger
+ */
+export class ConsoleLogger implements LLMLogger {
+  logRequest(request: LLMRequest, schema?: any): void {
+    console.log('\n' + '='.repeat(80));
+    console.log('📤 LLM REQUEST');
+    console.log('='.repeat(80));
+    console.log('Model:', request.model);
+    console.log('Temperature:', request.temperature || 'default');
+    console.log('Max Tokens:', request.maxTokens || 'default');
+    if (request.history && request.history.length > 0) {
+      console.log('Conversation History:', request.history.length, 'messages');
+    }
+    console.log('\n--- SYSTEM PROMPT ---');
+    console.log(request.systemPrompt || '(none)');
+    console.log('\n--- USER PROMPT ---');
+    console.log(request.userPrompt);
+    if (schema) {
+      console.log('\n--- RESPONSE SCHEMA ---');
+      console.log(JSON.stringify(schema, null, 2));
+    }
+    console.log('='.repeat(80) + '\n');
+  }
+
+  logResponse(response: LLMResponse, rawJson?: string): void {
+    console.log('\n' + '='.repeat(80));
+    console.log('📥 LLM RESPONSE');
+    console.log('='.repeat(80));
+    console.log('Model Used:', response.modelUsed);
+    console.log('Tokens Used:', response.tokensUsed || 'unknown');
+    console.log('Finish Reason:', response.finishReason || 'unknown');
+    if (rawJson) {
+      console.log('\n--- RAW JSON RESPONSE ---');
+      console.log(rawJson || '(empty)');
+    }
+    console.log('='.repeat(80) + '\n');
+  }
+
+  logError(error: Error, context: string): void {
+    console.error('\n' + '='.repeat(80));
+    console.error(`❌ ${context}`);
+    console.error('='.repeat(80));
+    console.error('Error:', error);
+    console.error('='.repeat(80) + '\n');
+  }
+
+  logRetry(attempt: number, error: Error, delayMs: number): void {
+    console.log(`⏳ Retry attempt ${attempt}, waiting ${delayMs}ms...`);
+  }
+}
+
+/**
+ * Silent logger for testing
+ */
+export class SilentLogger implements LLMLogger {
+  logRequest(): void {}
+  logResponse(): void {}
+  logError(): void {}
+  logRetry(): void {}
+}
 
 export class LLMService {
-  private genAI: GoogleGenerativeAI;
-  private modelCache: Map<LLMModel, GenerativeModel> = new Map();
+  private provider: ILLMProvider;
+  private cache: ILLMCache;
+  private retryHandler: RetryHandler;
+  private logger: LLMLogger;
 
-  // Model tiering configuration
-  private static readonly MODEL_MAP: Record<LLMModel, string> = {
-    [LLMModel.FLASH]: 'gemini-2.0-flash-exp', // Fast, cheap for classification
-    [LLMModel.PRO]: 'gemini-1.5-pro', // Balanced for proposals
-    [LLMModel.PRO_2]: 'gemini-exp-1206', // Powerful for final review
-  };
+  constructor(apiKeyOrConfig?: string | LLMServiceConfig) {
+    // Handle both legacy (apiKey string) and new (config object) signatures
+    if (typeof apiKeyOrConfig === 'string' || apiKeyOrConfig === undefined) {
+      const apiKey = apiKeyOrConfig || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY environment variable is required');
+      }
+      this.provider = new GeminiProvider(apiKey);
+      this.cache = defaultLlmCache;
+      this.retryHandler = new RetryHandler();
+      this.logger = new ConsoleLogger();
+    } else {
+      // Config object provided
+      const config = apiKeyOrConfig;
 
-  // Default generation configs per model tier
-  private static readonly DEFAULT_CONFIGS: Record<LLMModel, Partial<GenerationConfig>> = {
-    [LLMModel.FLASH]: {
-      temperature: 0.2, // Lower temperature for consistent classification
-      maxOutputTokens: 2048,
-    },
-    [LLMModel.PRO]: {
-      temperature: 0.4, // Slightly higher for creative proposals
-      maxOutputTokens: 4096,
-    },
-    [LLMModel.PRO_2]: {
-      temperature: 0.3, // Balanced for thorough review
-      maxOutputTokens: 4096,
-    },
-  };
+      if (!config.provider) {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          throw new Error('GEMINI_API_KEY environment variable is required');
+        }
+        this.provider = new GeminiProvider(apiKey);
+      } else {
+        this.provider = config.provider;
+      }
 
-  constructor(apiKey?: string) {
-    const key = apiKey || process.env.GEMINI_API_KEY;
-    if (!key) {
-      throw new Error('GEMINI_API_KEY environment variable is required');
+      this.cache = config.cache || defaultLlmCache;
+      this.retryHandler = new RetryHandler(config.retryConfig, config.delayFn);
+      this.logger = config.logger || new ConsoleLogger();
     }
 
-    this.genAI = new GoogleGenerativeAI(key);
-    console.log('LLMService initialized with Gemini API');
+    console.log('LLMService initialized');
   }
 
   /**
    * Make an LLM request with automatic retry logic
    */
   async request(request: LLMRequest): Promise<LLMResponse> {
-    const maxRetries = 3;
-    const baseRetryDelay = 2000; // 2 seconds base delay (increased from 1s)
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await this.makeRequest(request);
-      } catch (error) {
-        const isTransient = (error as any).transient === true;
-        console.error(`LLM request failed (attempt ${attempt}/${maxRetries}):`, error);
-        console.error(`Error type: ${isTransient ? 'TRANSIENT (will retry)' : 'PERMANENT'}`);
-
-        if (attempt < maxRetries) {
-          // Use longer delays for transient errors (empty response, malformed JSON)
-          const delayMultiplier = isTransient ? 2 : 1;
-          const delay = baseRetryDelay * Math.pow(2, attempt - 1) * delayMultiplier;
-          console.log(`⏳ Waiting ${delay}ms before retry...`);
-          await this.delay(delay);
-        } else {
-          throw error;
-        }
+    return this.retryHandler.execute(
+      () => this.makeRequest(request),
+      (attempt, error, delay) => {
+        this.logger.logRetry(attempt, error, delay);
       }
-    }
-
-    throw new Error('LLM request failed after maximum retries');
+    );
   }
 
   /**
@@ -87,55 +158,37 @@ export class LLMService {
     cachePurpose?: CachePurpose,
     messageId?: number
   ): Promise<{ data: T; response: LLMResponse }> {
-    const maxRetries = 3;
-    const baseRetryDelay = 2000; // 2 seconds base delay
-
-    const prompt = this.buildPrompt(request);
+    const prompt = PromptBuilder.build(request);
 
     // Check cache if purpose is provided
     if (cachePurpose) {
-      const cached = llmCache.get(prompt, cachePurpose);
+      const cached = this.cache.get(prompt, cachePurpose);
       if (cached) {
-        try {
-          const data = JSON.parse(cached.response) as T;
+        const parseResult = ResponseParser.parseJSON<T>(cached.response);
+        if (parseResult.success && parseResult.data) {
           const llmResponse: LLMResponse = {
             content: cached.response,
             modelUsed: cached.model || 'cached',
             tokensUsed: cached.tokensUsed,
             finishReason: 'CACHED',
           };
-          return { data, response: llmResponse };
-        } catch (error) {
-          console.warn('Failed to parse cached response, will regenerate');
+          return { data: parseResult.data, response: llmResponse };
         }
+        console.warn('Failed to parse cached response, will regenerate');
       }
     }
 
-    // Retry loop for transient errors
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await this.makeRequestJSON(request, responseSchema, cachePurpose, messageId, prompt);
-      } catch (error) {
-        const isTransient = (error as any).transient === true;
-        console.error(`LLM JSON request failed (attempt ${attempt}/${maxRetries}):`, error);
-        console.error(`Error type: ${isTransient ? 'TRANSIENT (will retry)' : 'PERMANENT'}`);
-
-        if (attempt < maxRetries && isTransient) {
-          // Use longer delays for transient errors (empty response, malformed JSON, API errors)
-          const delay = baseRetryDelay * Math.pow(2, attempt - 1);
-          console.log(`⏳ Waiting ${delay}ms before retry...`);
-          await this.delay(delay);
-        } else {
-          throw error;
-        }
+    // Execute with retry logic
+    return this.retryHandler.execute(
+      () => this.makeRequestJSON<T>(request, responseSchema, cachePurpose, messageId, prompt),
+      (attempt, error, delay) => {
+        this.logger.logRetry(attempt, error, delay);
       }
-    }
-
-    throw new Error('LLM JSON request failed after maximum retries');
+    );
   }
 
   /**
-   * Core JSON request logic (called by requestJSON retry loop)
+   * Core JSON request logic
    */
   private async makeRequestJSON<T = any>(
     request: LLMRequest,
@@ -144,177 +197,89 @@ export class LLMService {
     messageId: number | undefined,
     prompt: string
   ): Promise<{ data: T; response: LLMResponse }> {
+    // Convert schema
+    const cleanedSchema = SchemaConverter.toGeminiSchema(responseSchema);
 
-    // Convert Zod schema to JSON schema for Gemini API
-    const rawJsonSchema = zodToJsonSchema(responseSchema, {
-      target: 'openApi3', // Use OpenAPI 3.0 format
-      $refStrategy: 'none', // Don't use $ref, inline all definitions
-    });
+    // Log request
+    this.logger.logRequest(request, cleanedSchema);
 
-    // Clean the schema to remove fields Gemini doesn't support
-    const cleanedSchema = this.cleanSchemaForGemini(rawJsonSchema);
-
-    const model = this.getOrCreateModel(request.model, {
-      responseMimeType: 'application/json',
-      responseSchema: cleanedSchema,
-      temperature: request.temperature,
-      maxOutputTokens: request.maxTokens,
-    });
-
-    // Log full prompt
-    console.log('\n' + '='.repeat(80));
-    console.log('📤 LLM REQUEST');
-    console.log('='.repeat(80));
-    console.log('Model:', request.model);
-    console.log('Temperature:', request.temperature || 'default');
-    console.log('Max Tokens:', request.maxTokens || 'default');
-    if (request.history && request.history.length > 0) {
-      console.log('Conversation History:', request.history.length, 'messages');
-    }
-    console.log('\n--- SYSTEM PROMPT ---');
-    if (request.systemPrompt) {
-      console.log(request.systemPrompt);
-    } else {
-      console.log('(none)');
-    }
-    console.log('\n--- USER PROMPT ---');
-    console.log(request.userPrompt);
-    console.log('\n--- RESPONSE SCHEMA ---');
-    console.log(JSON.stringify(cleanedSchema, null, 2));
-    console.log('='.repeat(80) + '\n');
-
+    // Make API request
     let result;
     try {
-      // Build conversation for multi-turn request if history is provided
-      if (request.history && request.history.length > 0) {
-        // Build conversation with history
-        const contents = [
-          // Add history messages
-          ...request.history.map(msg => ({
-            role: msg.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: msg.content }],
-          })),
-          // Add current request (system + user prompts combined)
-          {
-            role: 'user',
-            parts: [{ text: prompt }],
-          },
-        ];
-
-        result = await model.generateContent({ contents });
-      } else {
-        // Single-turn request (backward compatible)
-        result = await model.generateContent(prompt);
-      }
-    } catch (apiError) {
-      // Catch API errors (rate limiting, network issues, etc.)
-      console.error('\n' + '='.repeat(80));
-      console.error('❌ GEMINI API ERROR');
-      console.error('='.repeat(80));
-      console.error('API Error:', apiError);
-      console.error('='.repeat(80) + '\n');
-
-      const err = new Error(`Gemini API error: ${(apiError as Error).message}`);
-      (err as any).transient = true; // Mark as transient - could be rate limiting or network issue
-      throw err;
-    }
-
-    try {
-      const rawJson = result.response.text();
-
-      // Log full response
-      console.log('\n' + '='.repeat(80));
-      console.log('📥 LLM RESPONSE');
-      console.log('='.repeat(80));
-      console.log('Model Used:', LLMService.MODEL_MAP[request.model] || request.model);
-      console.log('Tokens Used:', result.response.usageMetadata?.totalTokenCount || 'unknown');
-      console.log('Finish Reason:', result.response.candidates?.[0]?.finishReason || 'unknown');
-      console.log('\n--- RAW JSON RESPONSE ---');
-      console.log(rawJson || '(empty)');
-      console.log('='.repeat(80) + '\n');
-
-      if (!rawJson) {
-        const err = new Error('Empty response from LLM - possibly rate limited or timeout');
-        (err as any).transient = true; // Mark as transient for retry logic
-        throw err;
-      }
-
-      // Parse and validate JSON
-      let data: T;
-      try {
-        data = JSON.parse(rawJson) as T;
-      } catch (parseError) {
-        // Log details about malformed JSON for debugging
-        console.error('\n' + '='.repeat(80));
-        console.error('❌ JSON PARSE ERROR');
-        console.error('='.repeat(80));
-        console.error('Parse Error:', parseError);
-        console.error('Raw JSON (first 1000 chars):', rawJson.substring(0, 1000));
-        console.error('Raw JSON (last 200 chars):', rawJson.substring(Math.max(0, rawJson.length - 200)));
-        console.error('JSON Length:', rawJson.length);
-        console.error('='.repeat(80) + '\n');
-
-        const err = new Error(`Malformed JSON response: ${(parseError as Error).message}`);
-        (err as any).transient = true; // Mark as transient for retry logic
-        throw err;
-      }
-
-      const llmResponse: LLMResponse = {
-        content: rawJson,
-        modelUsed: LLMService.MODEL_MAP[request.model] || request.model,
-        tokensUsed: result.response.usageMetadata?.totalTokenCount,
-        finishReason: result.response.candidates?.[0]?.finishReason,
+      const options = {
+        model: request.model,
+        temperature: request.temperature,
+        maxOutputTokens: request.maxTokens,
+        responseMimeType: 'application/json',
+        responseSchema: cleanedSchema,
       };
 
-      // Save to cache if purpose is provided
-      if (cachePurpose) {
-        console.log(`[DEBUG] llm-service.ts: Calling llmCache.set() with purpose: ${cachePurpose}, messageId: ${messageId}`);
-        llmCache.set(prompt, rawJson, cachePurpose, {
-          model: llmResponse.modelUsed,
-          tokensUsed: llmResponse.tokensUsed,
-          messageId,
-        });
-        console.log(`[DEBUG] llm-service.ts: llmCache.set() returned`);
+      if (PromptBuilder.hasHistory(request)) {
+        const history = PromptBuilder.convertHistory(request.history);
+        result = await this.provider.generateWithHistory(prompt, history, options);
       } else {
-        console.log(`[DEBUG] llm-service.ts: No cache purpose provided, skipping cache`);
+        result = await this.provider.generate(prompt, options);
       }
+    } catch (apiError) {
+      this.logger.logError(apiError as Error, 'GEMINI API ERROR');
+      throw RetryHandler.transientError(`Gemini API error: ${(apiError as Error).message}`);
+    }
 
-      return { data, response: llmResponse };
-    } catch (error) {
-      console.error('\n' + '='.repeat(80));
-      console.error('❌ LLM REQUEST ERROR');
-      console.error('='.repeat(80));
-      console.error('Error:', error);
-      console.error('Is Transient:', (error as any).transient || false);
-      console.error('='.repeat(80) + '\n');
+    // Parse response
+    const parseResult = ResponseParser.parseJSON<T>(result.text);
+    if (!parseResult.success) {
+      this.logger.logError(new Error(parseResult.error!), 'JSON PARSE ERROR');
+      const error = new Error(parseResult.error);
+      (error as any).transient = parseResult.isTransient;
       throw error;
     }
+
+    const llmResponse: LLMResponse = {
+      content: result.text,
+      modelUsed: GeminiProvider.getModelName(request.model),
+      tokensUsed: result.tokensUsed,
+      finishReason: result.finishReason,
+    };
+
+    // Log response
+    this.logger.logResponse(llmResponse, result.text);
+
+    // Save to cache if purpose is provided
+    if (cachePurpose) {
+      console.log(`[DEBUG] llm-service.ts: Calling llmCache.set() with purpose: ${cachePurpose}, messageId: ${messageId}`);
+      this.cache.set(prompt, result.text, cachePurpose, {
+        model: llmResponse.modelUsed,
+        tokensUsed: llmResponse.tokensUsed,
+        messageId,
+      });
+      console.log(`[DEBUG] llm-service.ts: llmCache.set() returned`);
+    }
+
+    return { data: parseResult.data!, response: llmResponse };
   }
 
   /**
    * Make a simple text request
    */
   private async makeRequest(request: LLMRequest): Promise<LLMResponse> {
-    const model = this.getOrCreateModel(request.model, {
-      temperature: request.temperature,
-      maxOutputTokens: request.maxTokens,
-    });
-
-    const prompt = this.buildPrompt(request);
+    const prompt = PromptBuilder.build(request);
 
     try {
-      const result = await model.generateContent(prompt);
-      const content = result.response.text();
+      const result = await this.provider.generate(prompt, {
+        model: request.model,
+        temperature: request.temperature,
+        maxOutputTokens: request.maxTokens,
+      });
 
-      if (!content) {
-        throw new Error('Empty response from LLM');
+      if (!result.text) {
+        throw RetryHandler.transientError('Empty response from LLM');
       }
 
       return {
-        content,
-        modelUsed: typeof request.model === 'string' ? request.model : LLMService.MODEL_MAP[request.model],
-        tokensUsed: result.response.usageMetadata?.totalTokenCount,
-        finishReason: result.response.candidates?.[0]?.finishReason,
+        content: result.text,
+        modelUsed: GeminiProvider.getModelName(request.model),
+        tokensUsed: result.tokensUsed,
+        finishReason: result.finishReason,
       };
     } catch (error) {
       console.error('Error in LLM request:', error);
@@ -323,70 +288,18 @@ export class LLMService {
   }
 
   /**
-   * Get or create a model instance with configuration
-   */
-  private getOrCreateModel(
-    modelType: LLMModel | string,
-    configOverrides?: Partial<GenerationConfig>
-  ): GenerativeModel {
-    // If modelType is a string (direct model name), use it directly
-    // Otherwise, look it up in the MODEL_MAP
-    const modelName = typeof modelType === 'string'
-      ? modelType
-      : LLMService.MODEL_MAP[modelType];
-
-    if (!modelName) {
-      throw new Error(`Model name is empty or undefined. modelType: ${modelType}, typeof: ${typeof modelType}`);
-    }
-
-    const defaultConfig = typeof modelType === 'string'
-      ? LLMService.DEFAULT_CONFIGS[LLMModel.FLASH] // Use default config for string models
-      : LLMService.DEFAULT_CONFIGS[modelType];
-
-    // Merge default config with overrides
-    const generationConfig: GenerationConfig = {
-      ...defaultConfig,
-      ...configOverrides,
-    } as GenerationConfig;
-
-    // Create new model instance with config
-    // Note: We don't cache models with custom configs to avoid config conflicts
-    return this.genAI.getGenerativeModel({
-      model: modelName,
-      generationConfig,
-    });
-  }
-
-  /**
-   * Build prompt from request
-   */
-  private buildPrompt(request: LLMRequest): string {
-    if (request.systemPrompt) {
-      return `${request.systemPrompt}\n\n${request.userPrompt}`;
-    }
-    return request.userPrompt;
-  }
-
-  /**
-   * Helper to add delay
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
    * Get recommended model for task type
    */
   static getRecommendedModel(taskType: 'classification' | 'proposal' | 'review'): LLMModel {
     switch (taskType) {
       case 'classification':
-        return LLMModel.FLASH; // Fast, accurate classification
+        return LLMModel.FLASH;
       case 'proposal':
-        return LLMModel.PRO; // Balanced for creative proposals
+        return LLMModel.PRO;
       case 'review':
-        return LLMModel.PRO_2; // Thorough final review
+        return LLMModel.PRO_2;
       default:
-        return LLMModel.PRO; // Safe default
+        return LLMModel.PRO;
     }
   }
 
@@ -394,50 +307,18 @@ export class LLMService {
    * Estimate token count (rough approximation)
    */
   static estimateTokenCount(text: string): number {
-    // Rough estimate: ~4 characters per token
     return Math.ceil(text.length / 4);
-  }
-
-  /**
-   * Clean JSON schema to remove fields that Gemini API doesn't support
-   * Gemini has a more restricted schema format than OpenAPI 3.0
-   */
-  private cleanSchemaForGemini(schema: any): any {
-    if (typeof schema !== 'object' || schema === null) {
-      return schema;
-    }
-
-    if (Array.isArray(schema)) {
-      return schema.map(item => this.cleanSchemaForGemini(item));
-    }
-
-    const cleaned: any = {};
-
-    for (const [key, value] of Object.entries(schema)) {
-      // Skip fields that Gemini doesn't support
-      if (key === 'additionalProperties' ||
-          key === '$schema' ||
-          key === 'definitions' ||
-          key === '$ref') {
-        continue;
-      }
-
-      // Recursively clean nested objects
-      cleaned[key] = this.cleanSchemaForGemini(value);
-    }
-
-    return cleaned;
   }
 
   /**
    * Calculate cost estimate (USD)
    */
   static estimateCost(modelType: LLMModel, inputTokens: number, outputTokens: number): number {
-    // Pricing as of 2025 (approximate)
+    // Pricing for Gemini 2.5 models (PRO and PRO_2 are now both gemini-2.5-pro)
     const pricing = {
       [LLMModel.FLASH]: { input: 0.075 / 1_000_000, output: 0.30 / 1_000_000 },
       [LLMModel.PRO]: { input: 1.25 / 1_000_000, output: 5.00 / 1_000_000 },
-      [LLMModel.PRO_2]: { input: 2.50 / 1_000_000, output: 10.00 / 1_000_000 },
+      [LLMModel.PRO_2]: { input: 1.25 / 1_000_000, output: 5.00 / 1_000_000 },  // Same as PRO (consolidated)
     };
 
     const rates = pricing[modelType];

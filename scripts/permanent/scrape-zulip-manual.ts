@@ -20,7 +20,7 @@ async function main() {
     console.error('❌ Zulip scraper not configured.');
     console.error('   Please set ZULIP_BOT_EMAIL and ZULIP_API_KEY in your .env file.');
     console.error('\n   For instance-specific credentials, use:');
-    console.error('   NEAR_ZULIP_BOT_EMAIL and NEAR_ZULIP_API_KEY\n');
+    console.error('   PROJECTA_ZULIP_BOT_EMAIL and PROJECTA_ZULIP_API_KEY\n');
     process.exit(1);
   }
 

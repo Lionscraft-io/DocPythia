@@ -7,7 +7,7 @@
 -- Insert Telegram bot stream configuration
 INSERT INTO stream_configs (stream_id, adapter_type, config, enabled)
 VALUES (
-  'telegram-bot-neardocs',
+  'telegram-bot',
   'telegram-bot',
   jsonb_build_object(
     'botToken', '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8',
@@ -35,7 +35,7 @@ SELECT
   config->'processCommands' as commands_enabled,
   created_at
 FROM stream_configs
-WHERE stream_id = 'telegram-bot-neardocs';
+WHERE stream_id = 'telegram-bot';
 
 -- Show current streams
 SELECT stream_id, adapter_type, enabled FROM stream_configs ORDER BY created_at;

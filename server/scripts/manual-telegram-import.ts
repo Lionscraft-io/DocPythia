@@ -11,7 +11,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8';
-const STREAM_ID = 'telegram-bot-neardocs';
+const STREAM_ID = 'telegram-bot';
 
 interface TelegramUpdate {
   update_id: number;

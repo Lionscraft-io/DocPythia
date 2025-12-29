@@ -1,7 +1,9 @@
 /**
  * Instance-Aware Configuration Loader
  * Supports multi-tenant configuration with per-instance databases
+ * Loads configuration from S3 (production) or local files (development)
  * Author: Wayne (2025-11-13)
+ * Updated: 2025-12-29 - Added S3 storage support
  */
 
 import fs from 'fs';
@@ -9,13 +11,32 @@ import path from 'path';
 import { defaultConfig } from './defaults';
 import { InstanceConfigSchema } from './schemas';
 import type { InstanceConfig, ResolvedConfig } from './types';
+import { s3Storage } from '../storage/s3-client';
 
 export class InstanceConfigLoader {
   private static instances: Map<string, ResolvedConfig> = new Map();
+  private static s3Initialized: boolean = false;
 
   /**
-   * Load configuration for a specific instance
-   * @param instanceId - Instance identifier (e.g., "near", "conflux")
+   * Initialize S3 storage if configured
+   */
+  private static initS3(): void {
+    if (!this.s3Initialized) {
+      s3Storage.initializeFromEnv();
+      this.s3Initialized = true;
+    }
+  }
+
+  /**
+   * Check if S3 storage should be used
+   */
+  private static shouldUseS3(): boolean {
+    return process.env.CONFIG_SOURCE === 's3' && s3Storage.isEnabled();
+  }
+
+  /**
+   * Load configuration for a specific instance (sync version for backward compatibility)
+   * @param instanceId - Instance identifier (e.g., "projecta", "projectb")
    */
   static load(instanceId: string): ResolvedConfig {
     // Return cached config if available
@@ -24,7 +45,9 @@ export class InstanceConfigLoader {
       return cached;
     }
 
-    console.log(`🔧 Loading configuration for instance: ${instanceId}`);
+    this.initS3();
+
+    console.log(`Loading configuration for instance: ${instanceId}`);
 
     // Layer 1: Start with defaults
     let config: InstanceConfig = JSON.parse(JSON.stringify(defaultConfig));
@@ -32,16 +55,17 @@ export class InstanceConfigLoader {
       file: false,
       env: false,
       defaults: true,
+      s3: false,
     };
 
-    // Layer 2: Override with instance-specific file
+    // Layer 2: Override with instance-specific file (local only in sync mode)
     const fileConfig = this.loadFromFile(instanceId);
     if (fileConfig) {
       config = this.deepMerge(config, fileConfig);
       source.file = true;
-      console.log(`✓ Loaded configuration from config/${instanceId}/instance.json`);
+      console.log(`Loaded configuration from config/${instanceId}/instance.json`);
     } else {
-      console.log(`ℹ No config file found for instance "${instanceId}", using defaults`);
+      console.log(`No config file found for instance "${instanceId}", using defaults`);
     }
 
     // Layer 3: Override with environment variables (instance-specific)
@@ -49,10 +73,79 @@ export class InstanceConfigLoader {
     if (envConfig) {
       config = this.deepMerge(config, envConfig);
       source.env = true;
-      console.log('✓ Applied environment variable overrides');
+      console.log('Applied environment variable overrides');
     }
 
     // Validate final configuration
+    return this.validateAndCache(instanceId, config, source);
+  }
+
+  /**
+   * Load configuration for a specific instance (async version with S3 support)
+   * @param instanceId - Instance identifier (e.g., "projecta", "projectb")
+   */
+  static async loadAsync(instanceId: string): Promise<ResolvedConfig> {
+    // Return cached config if available
+    const cached = this.instances.get(instanceId);
+    if (cached) {
+      return cached;
+    }
+
+    this.initS3();
+
+    console.log(`Loading configuration for instance: ${instanceId}`);
+
+    // Layer 1: Start with defaults
+    let config: InstanceConfig = JSON.parse(JSON.stringify(defaultConfig));
+    const source = {
+      file: false,
+      env: false,
+      defaults: true,
+      s3: false,
+    };
+
+    // Layer 2a: Try S3 first if enabled
+    if (this.shouldUseS3()) {
+      const s3Config = await this.loadFromS3(instanceId);
+      if (s3Config) {
+        config = this.deepMerge(config, s3Config);
+        source.s3 = true;
+        console.log(`Loaded configuration from S3: configs/${instanceId}/instance.json`);
+      }
+    }
+
+    // Layer 2b: Fallback to local file if S3 didn't provide config
+    if (!source.s3) {
+      const fileConfig = this.loadFromFile(instanceId);
+      if (fileConfig) {
+        config = this.deepMerge(config, fileConfig);
+        source.file = true;
+        console.log(`Loaded configuration from config/${instanceId}/instance.json`);
+      } else {
+        console.log(`No config file found for instance "${instanceId}", using defaults`);
+      }
+    }
+
+    // Layer 3: Override with environment variables (instance-specific)
+    const envConfig = this.loadFromEnv(instanceId);
+    if (envConfig) {
+      config = this.deepMerge(config, envConfig);
+      source.env = true;
+      console.log('Applied environment variable overrides');
+    }
+
+    // Validate final configuration
+    return this.validateAndCache(instanceId, config, source);
+  }
+
+  /**
+   * Validate and cache configuration
+   */
+  private static validateAndCache(
+    instanceId: string,
+    config: InstanceConfig,
+    source: { file: boolean; env: boolean; defaults: boolean; s3?: boolean }
+  ): ResolvedConfig {
     try {
       const validated = InstanceConfigSchema.parse(config);
       const resolvedConfig: ResolvedConfig = {
@@ -63,13 +156,13 @@ export class InstanceConfigLoader {
       // Cache the configuration
       this.instances.set(instanceId, resolvedConfig);
 
-      console.log(`✅ Configuration loaded for ${instanceId}: ${resolvedConfig.project.name}`);
+      console.log(`Configuration loaded for ${instanceId}: ${resolvedConfig.project.name}`);
       console.log(`   Database: ${resolvedConfig.database.name}`);
       console.log(`   Documentation: ${resolvedConfig.documentation.gitUrl}`);
 
       return resolvedConfig;
     } catch (error) {
-      console.error(`❌ Configuration validation failed for instance "${instanceId}":`, error);
+      console.error(`Configuration validation failed for instance "${instanceId}":`, error);
       throw new Error(`Invalid configuration for instance "${instanceId}": ${error instanceof Error ? error.message : String(error)}`);
     }
   }
@@ -101,6 +194,14 @@ export class InstanceConfigLoader {
   }
 
   /**
+   * Reload configuration for instance (async with S3 support)
+   */
+  static async reloadAsync(instanceId: string): Promise<ResolvedConfig> {
+    this.instances.delete(instanceId);
+    return this.loadAsync(instanceId);
+  }
+
+  /**
    * Get list of available instances
    */
   static getAvailableInstances(): string[] {
@@ -113,6 +214,50 @@ export class InstanceConfigLoader {
     return entries
       .filter(entry => entry.isDirectory())
       .map(entry => entry.name);
+  }
+
+  /**
+   * Get list of available instances (async with S3 support)
+   */
+  static async getAvailableInstancesAsync(): Promise<string[]> {
+    this.initS3();
+
+    if (this.shouldUseS3()) {
+      try {
+        const prefix = process.env.CONFIG_S3_PREFIX || 'configs/';
+        const keys = await s3Storage.list(prefix);
+
+        // Extract unique instance IDs from paths like 'configs/projecta/instance.json'
+        const instances = new Set<string>();
+        for (const key of keys) {
+          const match = key.match(new RegExp(`^${prefix}([^/]+)/instance\\.json$`));
+          if (match) {
+            instances.add(match[1]);
+          }
+        }
+        return Array.from(instances);
+      } catch (error) {
+        console.warn('Failed to list instances from S3, falling back to local:', error);
+      }
+    }
+
+    return this.getAvailableInstances();
+  }
+
+  /**
+   * Load configuration from S3
+   */
+  private static async loadFromS3(instanceId: string): Promise<Partial<InstanceConfig> | null> {
+    const prefix = process.env.CONFIG_S3_PREFIX || 'configs/';
+    const s3Key = `${prefix}${instanceId}/instance.json`;
+
+    try {
+      const config = await s3Storage.getJson<Partial<InstanceConfig>>(s3Key);
+      return config;
+    } catch (error) {
+      console.warn(`Failed to load config from S3 for "${instanceId}":`, error);
+      return null;
+    }
   }
 
   /**
@@ -129,7 +274,7 @@ export class InstanceConfigLoader {
       const content = fs.readFileSync(configPath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      console.error(`⚠️  Failed to parse config file for "${instanceId}":`, error instanceof Error ? error.message : String(error));
+      console.error(`Failed to parse config file for "${instanceId}":`, error instanceof Error ? error.message : String(error));
       return null;
     }
   }
@@ -142,7 +287,7 @@ export class InstanceConfigLoader {
     const envPrefix = instanceId.toUpperCase();
     const envConfig: Partial<InstanceConfig> = {};
 
-    // Instance-specific env vars have format: NEAR_PROJECT_NAME, CONFLUX_PROJECT_NAME, etc.
+    // Instance-specific env vars have format: INSTANCE_PROJECT_NAME, etc.
     // But we also support non-prefixed for backward compatibility
 
     // Database config
@@ -161,6 +306,26 @@ export class InstanceConfigLoader {
     }
 
     return Object.keys(envConfig).length > 0 ? envConfig : null;
+  }
+
+  /**
+   * Save configuration to S3
+   */
+  static async saveToS3(instanceId: string, config: Partial<InstanceConfig>): Promise<void> {
+    this.initS3();
+
+    if (!s3Storage.isEnabled()) {
+      throw new Error('S3 storage is not enabled');
+    }
+
+    const prefix = process.env.CONFIG_S3_PREFIX || 'configs/';
+    const s3Key = `${prefix}${instanceId}/instance.json`;
+
+    await s3Storage.putJson(s3Key, config);
+    console.log(`Saved configuration to S3: ${s3Key}`);
+
+    // Clear cache to force reload on next access
+    this.instances.delete(instanceId);
   }
 
   /**
@@ -202,4 +367,8 @@ export function loadInstanceConfig(instanceId: string): ResolvedConfig {
 
 export function getInstanceConfig(instanceId: string): ResolvedConfig {
   return InstanceConfigLoader.get(instanceId);
+}
+
+export async function loadInstanceConfigAsync(instanceId: string): Promise<ResolvedConfig> {
+  return InstanceConfigLoader.loadAsync(instanceId);
 }

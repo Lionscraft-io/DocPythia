@@ -6,7 +6,7 @@
 set -e
 
 echo "========================================="
-echo "Starting NearDocsAI Application"
+echo "Starting DocsAI Application"
 echo "========================================="
 echo ""
 
@@ -14,17 +14,15 @@ echo ""
 FIRST_RUN_MARKER="/app/.initialized"
 
 if [ ! -f "$FIRST_RUN_MARKER" ]; then
-    echo "🆕 First run detected - importing initial documentation..."
+    echo "🆕 First run detected - initializing..."
 
     # Check if DATABASE_URL is set
     if [ -z "$DATABASE_URL" ]; then
-        echo "⚠️  Warning: DATABASE_URL not set, skipping import"
+        echo "⚠️  Warning: DATABASE_URL not set, skipping initialization"
     else
-        # Run the import script (it will wait for DB to be ready via server/migrate.ts)
-        echo "📥 Importing NEAR nodes documentation..."
-        npx tsx server/scripts/import-near-nodes-content.ts || {
-            echo "⚠️  Warning: Import failed, but continuing startup..."
-        }
+        # Run any initialization scripts here
+        echo "📥 Running database migrations..."
+        # Add custom import scripts as needed
     fi
 
     # Create marker file
@@ -32,7 +30,7 @@ if [ ! -f "$FIRST_RUN_MARKER" ]; then
     echo "✓ Initialization complete"
     echo ""
 else
-    echo "✓ Already initialized, skipping import"
+    echo "✓ Already initialized, skipping initialization"
     echo ""
 fi
 

@@ -7,7 +7,7 @@ This application supports multi-tenant operation with instance-specific database
 The multi-instance system allows you to run multiple blockchain documentation sites from a single deployment, each with:
 - **Separate databases** (different database names, same server)
 - **Independent configuration** (branding, docs repos, features)
-- **URL-based routing** (e.g., `/near/admin`, `/conflux/api`)
+- **URL-based routing** (e.g., `/projecta/admin`, `/projectb/api`)
 
 ## URL Structure
 
@@ -18,19 +18,19 @@ All URLs must include an instance prefix:
 ```
 
 **Examples:**
-- `http://localhost:3762/near/admin` - NEAR instance admin panel
-- `http://localhost:3762/conflux/admin` - Conflux instance admin panel
-- `http://localhost:3762/near/api/admin/stream/conversations` - NEAR API endpoint
-- `http://localhost:3762/conflux/api/admin/stream/conversations` - Conflux API endpoint
+- `http://localhost:3762/projecta/admin` - Project A instance admin panel
+- `http://localhost:3762/projectb/admin` - Project B instance admin panel
+- `http://localhost:3762/projecta/api/admin/stream/conversations` - Project A API endpoint
+- `http://localhost:3762/projectb/api/admin/stream/conversations` - Project B API endpoint
 
 ## Configuration Structure
 
 Instance configurations are stored in:
 ```
 config/
-├── near/
+├── projecta/
 │   └── instance.json
-├── conflux/
+├── projectb/
 │   └── instance.json
 └── {other-instances}/
     └── instance.json
@@ -82,8 +82,8 @@ Each `instance.json` must include:
 For each instance, create a database on your PostgreSQL server:
 
 ```sql
-CREATE DATABASE neardocs;
-CREATE DATABASE confluxdocs;
+CREATE DATABASE projectadocs;
+CREATE DATABASE projectbdocs;
 -- Add more as needed
 ```
 
@@ -102,11 +102,11 @@ The application will automatically replace the database name based on the instan
 You need to run Prisma migrations for each instance database:
 
 ```bash
-# For NEAR instance
-DATABASE_URL=postgresql://username:password@localhost:5432/neardocs npx prisma migrate deploy
+# For Project A instance
+DATABASE_URL=postgresql://username:password@localhost:5432/projectadocs npx prisma migrate deploy
 
-# For Conflux instance
-DATABASE_URL=postgresql://username:password@localhost:5432/confluxdocs npx prisma migrate deploy
+# For Project B instance
+DATABASE_URL=postgresql://username:password@localhost:5432/projectbdocs npx prisma migrate deploy
 ```
 
 ## Adding a New Instance
@@ -141,13 +141,13 @@ DATABASE_URL=postgresql://username:password@localhost:5432/confluxdocs npx prism
 You can override configuration values using environment variables with instance prefixes:
 
 ```env
-# Override for NEAR instance
-NEAR_PROJECT_NAME="Custom NEAR Name"
-NEAR_DATABASE_NAME="custom_neardocs"
+# Override for Project A instance
+PROJECTA_PROJECT_NAME="Custom Project A Name"
+PROJECTA_DATABASE_NAME="custom_projectadocs"
 
-# Override for Conflux instance
-CONFLUX_PROJECT_NAME="Custom Conflux Name"
-CONFLUX_DATABASE_NAME="custom_confluxdocs"
+# Override for Project B instance
+PROJECTB_PROJECT_NAME="Custom Project B Name"
+PROJECTB_DATABASE_NAME="custom_projectbdocs"
 
 # Generic overrides (apply to all instances without specific override)
 PROJECT_NAME="Default Name"
@@ -161,7 +161,7 @@ The frontend must include the instance ID in all routes:
 ```typescript
 // Redirect to instance-specific login
 <Route path="/">
-  <Redirect to="/near/admin/login" />
+  <Redirect to="/projecta/admin/login" />
 </Route>
 
 // Instance-aware routes
@@ -229,8 +229,8 @@ If migrating from a single-instance setup:
 
 1. **Move your config:**
    ```bash
-   mkdir config/near
-   mv config/instance.json config/near/instance.json
+   mkdir config/projecta
+   mv config/instance.json config/projecta/instance.json
    ```
 
 2. **Add database name to config:**
@@ -238,16 +238,16 @@ If migrating from a single-instance setup:
    {
      ...
      "database": {
-       "name": "neardocs"
+       "name": "projectadocs"
      }
    }
    ```
 
 3. **Update frontend routes:**
-   Add `/near` prefix to all routes and API calls
+   Add `/projecta` prefix to all routes and API calls
 
 4. **Update bookmarks/documentation:**
-   Update all URLs to include `/near` prefix
+   Update all URLs to include `/projecta` prefix
 
 ## Performance Considerations
 
@@ -261,7 +261,7 @@ If migrating from a single-instance setup:
 - **Database isolation**: Complete tenant separation with separate databases
 - **CORS configuration**: Origins can be configured per instance
 - **Password storage**: Never stored in plain text, only SHA256 hashes
-- **No shared credentials**: NEAR and Conflux have completely separate authentication
+- **No shared credentials**: Each instance has completely separate authentication
 
 ### Changing Admin Password
 

@@ -73,7 +73,7 @@ async function validateWorkflow() {
   
   // Summary
   console.log("\n=== Workflow Validation Summary ===");
-  console.log("✓ Scraping: Working (50 messages scraped from NEAR Zulipchat)");
+  console.log("✓ Scraping: Working (50 messages scraped from Zulipchat)");
   console.log("✓ AI Analysis: Working (Gemini analyzed messages, created updates)");
   console.log("✓ Auto-Apply: Working (Minor updates automatically applied)");
   console.log("✓ Manual Review: Ready (Major updates flagged for admin approval)");

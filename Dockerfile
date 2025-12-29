@@ -63,9 +63,9 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
 # Create cache directories for LLM responses and documentation sync
+# Instance-specific cache directories are created dynamically based on config
 RUN mkdir -p /cache/llm && \
-    mkdir -p /var/cache/near-docs && \
-    mkdir -p /var/cache/conflux-docs && \
+    mkdir -p /var/cache/docs && \
     mkdir -p /tmp/uploads && \
     chown -R nextjs:nodejs /cache && \
     chown -R nextjs:nodejs /var/cache && \

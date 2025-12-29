@@ -24,7 +24,7 @@ export default function Documentation() {
 
   const extractRepoName = (gitUrl: string): string => {
     try {
-      // Extract repo name from URL like "https://github.com/Conflux-Chain/conflux-documentation"
+      // Extract repo name from URL like "https://github.com/org-name/documentation-repo"
       const parts = gitUrl.split('/');
       const repoWithExt = parts[parts.length - 1];
       const owner = parts[parts.length - 2];

@@ -22,7 +22,7 @@ async function importTestData() {
     console.log(`📊 Found ${records.length} records in CSV`);
 
     // Create or get StreamConfig for this CSV import
-    const streamId = 'csv-testdata-conflux';
+    const streamId = 'csv-testdata';
     const streamConfig = await prisma.streamConfig.upsert({
       where: { streamId },
       update: {},
@@ -31,8 +31,8 @@ async function importTestData() {
         adapterType: 'csv',
         config: {
           filePath: 'testdata.csv',
-          source: 'conflux-community',
-          description: 'Test data from Conflux community discussions'
+          source: 'dev-community',
+          description: 'Test data from developer community discussions'
         },
         enabled: true,
       },

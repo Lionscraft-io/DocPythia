@@ -30,6 +30,8 @@ export const mockPrismaClient = {
     count: vi.fn(),
     create: vi.fn(),
     findUnique: vi.fn(),
+    findMany: vi.fn(),
+    deleteMany: vi.fn(),
     groupBy: vi.fn(),
   },
 
@@ -44,12 +46,25 @@ export const mockPrismaClient = {
     create: vi.fn(),
     deleteMany: vi.fn(),
     findUnique: vi.fn(),
+    findMany: vi.fn(),
   },
 
   // Doc Proposals
   docProposal: {
     count: vi.fn(),
     create: vi.fn(),
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
+    update: vi.fn(),
+    deleteMany: vi.fn(),
+    groupBy: vi.fn(),
+  },
+
+  // Doc Conversations
+  docConversation: {
+    count: vi.fn(),
+    create: vi.fn(),
+    findUnique: vi.fn(),
     findMany: vi.fn(),
     update: vi.fn(),
     deleteMany: vi.fn(),
@@ -59,6 +74,28 @@ export const mockPrismaClient = {
   streamConfig: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
+
+  // Changeset Batch
+  changesetBatch: {
+    count: vi.fn(),
+    create: vi.fn(),
+    findMany: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  },
+
+  // Batch Proposal
+  batchProposal: {
+    createMany: vi.fn(),
+  },
+
+  // Proposal Failure
+  proposalFailure: {
+    create: vi.fn(),
   },
 
   // Import Watermarks

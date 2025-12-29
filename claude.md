@@ -1,4 +1,4 @@
-# NearDocsAI Project Guide
+# DocsAI Project Guide
 
 ## Claude Development Standards
 

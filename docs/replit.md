@@ -1,7 +1,7 @@
-# NEAR Validator Documentation Website
+# Project Validator Documentation Website
 
 ## Project Overview
-An AI-powered documentation website for NEAR validator operations that automatically updates by scraping the NEAR Zulipchat #community-support channel. The system uses OpenAI to analyze scraped content, generate update suggestions, and apply them through a hybrid approval workflow.
+An AI-powered documentation website for Project validator operations that automatically updates by scraping the Project Zulipchat #community-support channel. The system uses OpenAI to analyze scraped content, generate update suggestions, and apply them through a hybrid approval workflow.
 
 ## Architecture
 - **Frontend**: React + TypeScript with TailwindCSS and Shadcn UI
@@ -15,7 +15,7 @@ An AI-powered documentation website for NEAR validator operations that automatic
 ## Current Features
 
 ### Automated Content Pipeline
-- **Zulipchat Scraper**: Fetches messages from NEAR's #community-support channel via REST API
+- **Zulipchat Scraper**: Fetches messages from Project's #community-support channel via REST API
 - **AI Analysis**: Google Gemini analyzes messages for documentation-worthy content
 - **Smart Classification**: Updates classified as "minor" (auto-applied) or "major" (requires review)
 - **Daily Automation**: Scheduled job runs scraping + analysis daily (configurable)
@@ -23,8 +23,8 @@ An AI-powered documentation website for NEAR validator operations that automatic
 
 ### Documentation System
 - Single-page documentation structure for easier AI content comparison
-- Content sourced from near-nodes.io with matching navigation structure
-- Hierarchical sections: NEAR Nodes Overview, Validator Node, RPC Node, Archival Node
+- Content sourced from docs.example.org with matching navigation structure
+- Hierarchical sections: Project Nodes Overview, Validator Node, RPC Node, Archival Node
 - Subsections include hardware requirements, setup guides, and best practices
 - Special content types: warnings, info, success callouts
 - Real-time updates from database
@@ -96,10 +96,10 @@ An AI-powered documentation website for NEAR validator operations that automatic
    - Level 2 sections (subsections) indented with medium font weight
    - Clear visual hierarchy in the navigation sidebar
 
-### Comprehensive Content Import from near-nodes.io (Sept 30, 2025)
-1. **Complete Documentation Import**: Successfully imported ALL content from near-nodes.io covering 24 comprehensive sections
+### Comprehensive Content Import from docs.example.org (Sept 30, 2025)
+1. **Complete Documentation Import**: Successfully imported ALL content from docs.example.org covering 24 comprehensive sections
 2. **Main Topics (5 sections)**:
-   - Overview: Introduction to NEAR node types
+   - Overview: Introduction to Project node types
    - Validator Node: 11 detailed subsections
    - RPC Node: 4 subsections
    - Archival Node: 4 subsections
@@ -112,12 +112,12 @@ An AI-powered documentation website for NEAR validator operations that automatic
    - Debug RPC and Debug Pages, Failover and Backup Node
 4. **RPC Node Coverage (4 subsections)**:
    - Hardware Requirements, Run RPC Node
-   - Run RPC with nearup, State Sync Configuration
+   - Run RPC with setup tool, State Sync Configuration
 5. **Archival Node Coverage (4 subsections)**:
-   - Hardware Requirements, Run without nearup
-   - Run with nearup, Split Storage Archival (hot/cold storage)
+   - Hardware Requirements, Run without setup tool
+   - Run with setup tool, Split Storage Archival (hot/cold storage)
 6. **Technical Details**:
-   - Fetched 15+ individual pages from near-nodes.io via web scraping
+   - Fetched 15+ individual pages from docs.example.org via web scraping
    - Fixed bash variable escaping issues in template literals
    - Hierarchical structure with proper level and orderIndex
    - Database verified: 24 sections (5 main + 19 subsections)
@@ -190,7 +190,7 @@ An AI-powered documentation website for NEAR validator operations that automatic
 - `SCRAPE_LIMIT`: Max messages to scrape per run (default: 100)
 - `ANALYSIS_LIMIT`: Max messages to analyze per run (default: 50)
 - `ZULIP_CHANNEL`: Zulipchat channel to monitor (default: "community-support")
-- `ZULIP_SITE`: Zulipchat site URL (default: "https://near.zulipchat.com")
+- `ZULIP_SITE`: Zulipchat site URL (default: "https://example.zulipchat.com")
 
 ### Scheduler Usage
 

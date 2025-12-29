@@ -10,10 +10,12 @@
 
 import { DocProposal } from '@prisma/client';
 import { llmService } from '../llm/llm-service.js';
-import { LLMModel } from '../types.js';
 import { PROMPT_TEMPLATES, fillTemplate } from '../llm/prompt-templates.js';
 import { getConfig } from '../../config/loader.js';
 import { z } from 'zod';
+
+// Consolidation model - configurable via env var, defaults to gemini-2.5-flash
+const CONSOLIDATION_MODEL = process.env.LLM_CONSOLIDATION_MODEL || 'gemini-2.5-flash';
 
 // Schema for the LLM response (just the raw file content)
 const FileConsolidationResponseSchema = z.object({
@@ -93,7 +95,7 @@ ${text}
       // Call LLM to consolidate changes
       const { data, response } = await llmService.requestJSON(
         {
-          model: LLMModel.PRO, // Use PRO model for quality consolidation
+          model: CONSOLIDATION_MODEL,
           systemPrompt,
           userPrompt,
           temperature: 0.3, // Lower temperature for consistent output

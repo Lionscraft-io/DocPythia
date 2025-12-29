@@ -1,8 +1,9 @@
 /**
  * LLM Response Cache Service
- * Local file-based caching of LLM requests and responses
+ * Supports both local file-based and S3-based caching
  * Author: Wayne
  * Date: 2025-10-30
+ * Updated: 2025-12-29 - Added S3 storage support
  * Purpose: Reduce redundant LLM API calls by caching prompt/response pairs
  */
 
@@ -10,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { cacheStorage } from '../storage/cache-storage';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,28 +29,56 @@ export interface CachedLLMRequest {
   messageId?: number; // Link to UnifiedMessage for grouping related LLM calls
 }
 
-export class LLMCache {
+/**
+ * Interface for LLM cache - enables dependency injection and testing
+ */
+export interface ILLMCache {
+  has(prompt: string, purpose: CachePurpose): boolean;
+  get(prompt: string, purpose: CachePurpose): CachedLLMRequest | null;
+  set(
+    prompt: string,
+    response: string,
+    purpose: CachePurpose,
+    metadata?: { model?: string; tokensUsed?: number; messageId?: number }
+  ): void;
+}
+
+type CacheBackendType = 'local' | 's3';
+
+export class LLMCache implements ILLMCache {
   private cacheRootDir: string;
   private enabled: boolean;
+  private backend: CacheBackendType;
+  private readonly purposes: CachePurpose[] = ['index', 'embeddings', 'analysis', 'changegeneration', 'review', 'general'];
 
   constructor() {
     // Cache directory at project root: /cache/llm/
     this.cacheRootDir = path.join(__dirname, '../../cache/llm');
     this.enabled = process.env.LLM_CACHE_ENABLED !== 'false'; // Enabled by default
+    this.backend = (process.env.CACHE_STORAGE as CacheBackendType) || 'local';
 
     if (this.enabled) {
-      this.ensureDirectories();
-      console.log('LLM Cache initialized at:', this.cacheRootDir);
+      if (this.backend === 'local') {
+        this.ensureDirectories();
+      }
+      console.log(`LLM Cache initialized: backend=${this.backend}, enabled=${this.enabled}`);
     } else {
       console.log('LLM Cache is disabled');
     }
   }
 
   /**
-   * Ensure cache directory structure exists
+   * Get the current backend type
+   */
+  getBackend(): CacheBackendType {
+    return this.backend;
+  }
+
+  /**
+   * Ensure cache directory structure exists (local only)
    */
   private ensureDirectories(): void {
-    const purposes: CachePurpose[] = ['index', 'embeddings', 'analysis', 'changegeneration', 'review', 'general'];
+    if (this.backend !== 'local') return;
 
     // Create root cache directory
     if (!fs.existsSync(this.cacheRootDir)) {
@@ -56,7 +86,7 @@ export class LLMCache {
     }
 
     // Create subdirectories for each purpose
-    for (const purpose of purposes) {
+    for (const purpose of this.purposes) {
       const purposeDir = path.join(this.cacheRootDir, purpose);
       if (!fs.existsSync(purposeDir)) {
         fs.mkdirSync(purposeDir, { recursive: true });
@@ -72,7 +102,7 @@ export class LLMCache {
   }
 
   /**
-   * Get cache file path for a given prompt and purpose
+   * Get cache file path for a given prompt and purpose (local only)
    */
   private getCacheFilePath(prompt: string, purpose: CachePurpose): string {
     const hash = this.hashPrompt(prompt);
@@ -80,10 +110,39 @@ export class LLMCache {
   }
 
   /**
+   * Get S3 cache key for a given prompt and purpose
+   */
+  private getS3CacheKey(prompt: string, purpose: CachePurpose): string {
+    const hash = this.hashPrompt(prompt);
+    return `llm/${purpose}/${hash}`;
+  }
+
+  /**
    * Check if a cached response exists for the given prompt
    */
   has(prompt: string, purpose: CachePurpose): boolean {
     if (!this.enabled) return false;
+
+    if (this.backend === 's3') {
+      // S3 has() is async, so we can't use it in sync context
+      // Return false and let get() handle the async check
+      return false;
+    }
+
+    const filePath = this.getCacheFilePath(prompt, purpose);
+    return fs.existsSync(filePath);
+  }
+
+  /**
+   * Async version of has() for S3 support
+   */
+  async hasAsync(prompt: string, purpose: CachePurpose): Promise<boolean> {
+    if (!this.enabled) return false;
+
+    if (this.backend === 's3') {
+      const key = this.getS3CacheKey(prompt, purpose);
+      return cacheStorage.has(`llm/${purpose}`, this.hashPrompt(prompt));
+    }
 
     const filePath = this.getCacheFilePath(prompt, purpose);
     return fs.existsSync(filePath);
@@ -95,6 +154,11 @@ export class LLMCache {
   get(prompt: string, purpose: CachePurpose): CachedLLMRequest | null {
     if (!this.enabled) return null;
 
+    if (this.backend === 's3') {
+      // S3 get is async, return null for sync version
+      return null;
+    }
+
     try {
       const filePath = this.getCacheFilePath(prompt, purpose);
 
@@ -105,12 +169,36 @@ export class LLMCache {
       const fileContent = fs.readFileSync(filePath, 'utf-8');
       const cached = JSON.parse(fileContent) as CachedLLMRequest;
 
-      console.log(`✓ LLM Cache HIT: ${purpose}/${cached.hash.substring(0, 8)}`);
+      console.log(`LLM Cache HIT: ${purpose}/${cached.hash.substring(0, 8)}`);
       return cached;
     } catch (error) {
       console.error('Error reading LLM cache:', error);
       return null;
     }
+  }
+
+  /**
+   * Async version of get() for S3 support
+   */
+  async getAsync(prompt: string, purpose: CachePurpose): Promise<CachedLLMRequest | null> {
+    if (!this.enabled) return null;
+
+    if (this.backend === 's3') {
+      try {
+        const hash = this.hashPrompt(prompt);
+        const entry = await cacheStorage.get<CachedLLMRequest>(`llm/${purpose}`, hash);
+        if (entry) {
+          console.log(`LLM Cache HIT (S3): ${purpose}/${hash.substring(0, 8)}`);
+          return entry.data;
+        }
+        return null;
+      } catch (error) {
+        console.error('Error reading LLM cache from S3:', error);
+        return null;
+      }
+    }
+
+    return this.get(prompt, purpose);
   }
 
   /**
@@ -126,53 +214,86 @@ export class LLMCache {
       messageId?: number;
     }
   ): void {
-    console.log(`[DEBUG] llmCache.set() called - enabled: ${this.enabled}, purpose: ${purpose}`);
+    if (!this.enabled) return;
 
-    if (!this.enabled) {
-      console.log(`[DEBUG] Cache is disabled, skipping save`);
+    const hash = this.hashPrompt(prompt);
+    const cacheEntry: CachedLLMRequest = {
+      hash,
+      purpose,
+      prompt,
+      response,
+      timestamp: new Date().toISOString(),
+      model: metadata?.model,
+      tokensUsed: metadata?.tokensUsed,
+      messageId: metadata?.messageId,
+    };
+
+    if (this.backend === 's3') {
+      // Fire and forget for S3 to maintain sync interface
+      this.setAsync(prompt, response, purpose, metadata).catch(err => {
+        console.error('Error writing LLM cache to S3:', err);
+      });
       return;
     }
 
     try {
-      const hash = this.hashPrompt(prompt);
       const filePath = this.getCacheFilePath(prompt, purpose);
-
-      console.log(`[DEBUG] Cache file path: ${filePath}`);
-      console.log(`[DEBUG] Prompt length: ${prompt.length}, Response length: ${response.length}`);
-
-      const cacheEntry: CachedLLMRequest = {
-        hash,
-        purpose,
-        prompt,
-        response,
-        timestamp: new Date().toISOString(),
-        model: metadata?.model,
-        tokensUsed: metadata?.tokensUsed,
-        messageId: metadata?.messageId,
-      };
-
-      console.log(`[DEBUG] About to write cache file...`);
       fs.writeFileSync(filePath, JSON.stringify(cacheEntry, null, 2), 'utf-8');
-      console.log(`✓ LLM Cache SAVED: ${purpose}/${hash.substring(0, 8)} at ${filePath}`);
-
-      // Verify the file was actually written
-      if (fs.existsSync(filePath)) {
-        const stats = fs.statSync(filePath);
-        console.log(`[DEBUG] Cache file written successfully, size: ${stats.size} bytes`);
-      } else {
-        console.error(`[DEBUG] ERROR: Cache file does not exist after write!`);
-      }
+      console.log(`LLM Cache SAVED: ${purpose}/${hash.substring(0, 8)}`);
     } catch (error) {
       console.error('Error writing LLM cache:', error);
-      console.error('[DEBUG] Full error:', error);
     }
+  }
+
+  /**
+   * Async version of set() for S3 support
+   */
+  async setAsync(
+    prompt: string,
+    response: string,
+    purpose: CachePurpose,
+    metadata?: {
+      model?: string;
+      tokensUsed?: number;
+      messageId?: number;
+    }
+  ): Promise<void> {
+    if (!this.enabled) return;
+
+    const hash = this.hashPrompt(prompt);
+    const cacheEntry: CachedLLMRequest = {
+      hash,
+      purpose,
+      prompt,
+      response,
+      timestamp: new Date().toISOString(),
+      model: metadata?.model,
+      tokensUsed: metadata?.tokensUsed,
+      messageId: metadata?.messageId,
+    };
+
+    if (this.backend === 's3') {
+      try {
+        await cacheStorage.set(`llm/${purpose}`, hash, cacheEntry, {
+          model: metadata?.model,
+          tokensUsed: metadata?.tokensUsed,
+          messageId: metadata?.messageId,
+        });
+        console.log(`LLM Cache SAVED (S3): ${purpose}/${hash.substring(0, 8)}`);
+      } catch (error) {
+        console.error('Error writing LLM cache to S3:', error);
+      }
+      return;
+    }
+
+    this.set(prompt, response, purpose, metadata);
   }
 
   /**
    * Get all cached requests for a specific purpose
    */
   listByPurpose(purpose: CachePurpose): CachedLLMRequest[] {
-    if (!this.enabled) return [];
+    if (!this.enabled || this.backend === 's3') return [];
 
     try {
       const purposeDir = path.join(this.cacheRootDir, purpose);
@@ -205,15 +326,35 @@ export class LLMCache {
   }
 
   /**
+   * Async version of listByPurpose() for S3 support
+   */
+  async listByPurposeAsync(purpose: CachePurpose): Promise<CachedLLMRequest[]> {
+    if (!this.enabled) return [];
+
+    if (this.backend === 's3') {
+      try {
+        const entries = await cacheStorage.listEntries<CachedLLMRequest>(`llm/${purpose}`);
+        const cached = entries.map(e => e.data);
+        cached.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        return cached;
+      } catch (error) {
+        console.error('Error listing cache from S3:', error);
+        return [];
+      }
+    }
+
+    return this.listByPurpose(purpose);
+  }
+
+  /**
    * Get all cached requests across all purposes
    */
   listAll(): { purpose: CachePurpose; requests: CachedLLMRequest[] }[] {
-    if (!this.enabled) return [];
+    if (!this.enabled || this.backend === 's3') return [];
 
-    const purposes: CachePurpose[] = ['index', 'embeddings', 'analysis', 'changegeneration', 'review', 'general'];
     const results: { purpose: CachePurpose; requests: CachedLLMRequest[] }[] = [];
 
-    for (const purpose of purposes) {
+    for (const purpose of this.purposes) {
       const requests = this.listByPurpose(purpose);
       if (requests.length > 0) {
         results.push({ purpose, requests });
@@ -230,34 +371,30 @@ export class LLMCache {
     totalCached: number;
     byPurpose: Record<CachePurpose, number>;
     totalSizeBytes: number;
+    backend: CacheBackendType;
   } {
-    if (!this.enabled) {
-      return {
-        totalCached: 0,
-        byPurpose: {
-          index: 0,
-          embeddings: 0,
-          analysis: 0,
-          changegeneration: 0,
-          review: 0,
-          general: 0,
-        },
-        totalSizeBytes: 0,
-      };
+    const emptyStats = {
+      totalCached: 0,
+      byPurpose: {
+        index: 0,
+        embeddings: 0,
+        analysis: 0,
+        changegeneration: 0,
+        review: 0,
+        general: 0,
+      },
+      totalSizeBytes: 0,
+      backend: this.backend,
+    };
+
+    if (!this.enabled || this.backend === 's3') {
+      return emptyStats;
     }
 
-    const purposes: CachePurpose[] = ['index', 'embeddings', 'analysis', 'changegeneration', 'review', 'general'];
-    const byPurpose: Record<CachePurpose, number> = {
-      index: 0,
-      embeddings: 0,
-      analysis: 0,
-      changegeneration: 0,
-      review: 0,
-      general: 0,
-    };
+    const byPurpose: Record<CachePurpose, number> = { ...emptyStats.byPurpose };
     let totalSizeBytes = 0;
 
-    for (const purpose of purposes) {
+    for (const purpose of this.purposes) {
       const purposeDir = path.join(this.cacheRootDir, purpose);
 
       if (fs.existsSync(purposeDir)) {
@@ -283,14 +420,62 @@ export class LLMCache {
       totalCached,
       byPurpose,
       totalSizeBytes,
+      backend: this.backend,
     };
+  }
+
+  /**
+   * Async version of getStats() for S3 support
+   */
+  async getStatsAsync(): Promise<{
+    totalCached: number;
+    byPurpose: Record<CachePurpose, number>;
+    totalSizeBytes: number;
+    backend: CacheBackendType;
+  }> {
+    if (!this.enabled) {
+      return this.getStats();
+    }
+
+    if (this.backend === 's3') {
+      const byPurpose: Record<CachePurpose, number> = {
+        index: 0,
+        embeddings: 0,
+        analysis: 0,
+        changegeneration: 0,
+        review: 0,
+        general: 0,
+      };
+      let totalSizeBytes = 0;
+
+      for (const purpose of this.purposes) {
+        try {
+          const stats = await cacheStorage.getStats(`llm/${purpose}`);
+          byPurpose[purpose] = stats.count;
+          totalSizeBytes += stats.totalSize;
+        } catch (error) {
+          console.error(`Error getting stats for ${purpose}:`, error);
+        }
+      }
+
+      const totalCached = Object.values(byPurpose).reduce((sum, count) => sum + count, 0);
+
+      return {
+        totalCached,
+        byPurpose,
+        totalSizeBytes,
+        backend: this.backend,
+      };
+    }
+
+    return this.getStats();
   }
 
   /**
    * Clear cache for a specific purpose
    */
   clearPurpose(purpose: CachePurpose): number {
-    if (!this.enabled) return 0;
+    if (!this.enabled || this.backend === 's3') return 0;
 
     try {
       const purposeDir = path.join(this.cacheRootDir, purpose);
@@ -320,15 +505,34 @@ export class LLMCache {
   }
 
   /**
+   * Async version of clearPurpose() for S3 support
+   */
+  async clearPurposeAsync(purpose: CachePurpose): Promise<number> {
+    if (!this.enabled) return 0;
+
+    if (this.backend === 's3') {
+      try {
+        const deleted = await cacheStorage.clearCategory(`llm/${purpose}`);
+        console.log(`Cleared ${deleted} cached requests from ${purpose} (S3)`);
+        return deleted;
+      } catch (error) {
+        console.error('Error clearing cache from S3:', error);
+        return 0;
+      }
+    }
+
+    return this.clearPurpose(purpose);
+  }
+
+  /**
    * Clear all cache
    */
   clearAll(): number {
-    if (!this.enabled) return 0;
+    if (!this.enabled || this.backend === 's3') return 0;
 
-    const purposes: CachePurpose[] = ['index', 'embeddings', 'analysis', 'changegeneration', 'review', 'general'];
     let totalDeleted = 0;
 
-    for (const purpose of purposes) {
+    for (const purpose of this.purposes) {
       totalDeleted += this.clearPurpose(purpose);
     }
 
@@ -337,21 +541,32 @@ export class LLMCache {
   }
 
   /**
+   * Async version of clearAll() for S3 support
+   */
+  async clearAllAsync(): Promise<number> {
+    if (!this.enabled) return 0;
+
+    let totalDeleted = 0;
+
+    for (const purpose of this.purposes) {
+      totalDeleted += await this.clearPurposeAsync(purpose);
+    }
+
+    console.log(`Cleared total of ${totalDeleted} cached requests`);
+    return totalDeleted;
+  }
+
+  /**
    * Search cache entries by text in prompt or response
-   * @param searchText Text to search for (case-insensitive)
-   * @param purpose Optional purpose to filter by
-   * @returns Array of matching cache entries
    */
   search(searchText: string, purpose?: CachePurpose): CachedLLMRequest[] {
-    if (!this.enabled) return [];
+    if (!this.enabled || this.backend === 's3') return [];
 
     const results: CachedLLMRequest[] = [];
     const searchLower = searchText.toLowerCase();
-    const purposes: CachePurpose[] = purpose
-      ? [purpose]
-      : ['index', 'embeddings', 'analysis', 'changegeneration', 'review', 'general'];
+    const searchPurposes = purpose ? [purpose] : this.purposes;
 
-    for (const p of purposes) {
+    for (const p of searchPurposes) {
       const purposeDir = path.join(this.cacheRootDir, p);
 
       if (!fs.existsSync(purposeDir)) {
@@ -366,7 +581,6 @@ export class LLMCache {
           const fileContent = fs.readFileSync(filePath, 'utf-8');
           const cached = JSON.parse(fileContent) as CachedLLMRequest;
 
-          // Search in prompt and response
           if (
             cached.prompt.toLowerCase().includes(searchLower) ||
             cached.response.toLowerCase().includes(searchLower)
@@ -379,23 +593,19 @@ export class LLMCache {
       }
     }
 
-    // Sort by timestamp descending (newest first)
     results.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
     return results;
   }
 
   /**
    * Find all cache entries related to a specific message ID
-   * Returns entries grouped by purpose
    */
   findByMessageId(messageId: number): { purpose: CachePurpose; request: CachedLLMRequest }[] {
-    if (!this.enabled) return [];
+    if (!this.enabled || this.backend === 's3') return [];
 
     const results: { purpose: CachePurpose; request: CachedLLMRequest }[] = [];
-    const purposes: CachePurpose[] = ['index', 'embeddings', 'analysis', 'changegeneration', 'review', 'general'];
 
-    for (const purpose of purposes) {
+    for (const purpose of this.purposes) {
       const purposeDir = path.join(this.cacheRootDir, purpose);
 
       if (!fs.existsSync(purposeDir)) {
@@ -419,31 +629,23 @@ export class LLMCache {
       }
     }
 
-    // Sort by timestamp (earliest first to show processing order)
     results.sort((a, b) => new Date(a.request.timestamp).getTime() - new Date(b.request.timestamp).getTime());
-
     return results;
   }
 
   /**
    * Search cache and include all related entries for matching messages
-   * This finds cache entries by text search, then also includes all other
-   * cache entries for the same messageId across different purposes
    */
   searchWithRelated(searchText: string, purpose?: CachePurpose): {
     messageId: number | null;
     entries: { purpose: CachePurpose; request: CachedLLMRequest }[];
   }[] {
-    if (!this.enabled) return [];
+    if (!this.enabled || this.backend === 's3') return [];
 
-    // First, find matching entries
     const searchResults = this.search(searchText, purpose);
-
-    // Group by messageId
     const messageGroups = new Map<number | null, Set<string>>();
     const allEntries = new Map<string, { purpose: CachePurpose; request: CachedLLMRequest }>();
 
-    // Add search results to groups
     for (const result of searchResults) {
       const msgId = result.messageId ?? null;
       if (!messageGroups.has(msgId)) {
@@ -453,7 +655,6 @@ export class LLMCache {
       allEntries.set(result.hash, { purpose: result.purpose, request: result });
     }
 
-    // For each messageId, find all related entries
     for (const [msgId] of messageGroups) {
       if (msgId !== null) {
         const relatedEntries = this.findByMessageId(msgId);
@@ -466,7 +667,6 @@ export class LLMCache {
       }
     }
 
-    // Convert to output format
     const results: {
       messageId: number | null;
       entries: { purpose: CachePurpose; request: CachedLLMRequest }[];
@@ -477,13 +677,9 @@ export class LLMCache {
         .map(hash => allEntries.get(hash)!)
         .sort((a, b) => new Date(a.request.timestamp).getTime() - new Date(b.request.timestamp).getTime());
 
-      results.push({
-        messageId: msgId,
-        entries,
-      });
+      results.push({ messageId: msgId, entries });
     }
 
-    // Sort by most recent first
     results.sort((a, b) => {
       const aTime = Math.max(...a.entries.map(e => new Date(e.request.timestamp).getTime()));
       const bTime = Math.max(...b.entries.map(e => new Date(e.request.timestamp).getTime()));
@@ -497,16 +693,14 @@ export class LLMCache {
    * Delete cache entries older than the specified age in days
    */
   clearOlderThan(days: number): number {
-    if (!this.enabled) return 0;
+    if (!this.enabled || this.backend === 's3') return 0;
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
     const cutoffTime = cutoffDate.getTime();
-
-    const purposes: CachePurpose[] = ['index', 'embeddings', 'analysis', 'changegeneration', 'review', 'general'];
     let deletedCount = 0;
 
-    for (const purpose of purposes) {
+    for (const purpose of this.purposes) {
       const purposeDir = path.join(this.cacheRootDir, purpose);
 
       if (!fs.existsSync(purposeDir)) {
@@ -534,6 +728,32 @@ export class LLMCache {
 
     console.log(`Deleted ${deletedCount} cached requests older than ${days} days`);
     return deletedCount;
+  }
+
+  /**
+   * Async version of clearOlderThan() for S3 support
+   */
+  async clearOlderThanAsync(days: number): Promise<number> {
+    if (!this.enabled) return 0;
+
+    if (this.backend === 's3') {
+      const maxAgeMs = days * 24 * 60 * 60 * 1000;
+      let totalDeleted = 0;
+
+      for (const purpose of this.purposes) {
+        try {
+          const deleted = await cacheStorage.clearOlderThan(`llm/${purpose}`, maxAgeMs);
+          totalDeleted += deleted;
+        } catch (error) {
+          console.error(`Error clearing old cache for ${purpose}:`, error);
+        }
+      }
+
+      console.log(`Deleted ${totalDeleted} cached requests older than ${days} days (S3)`);
+      return totalDeleted;
+    }
+
+    return this.clearOlderThan(days);
   }
 }
 

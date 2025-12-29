@@ -33,7 +33,7 @@ Implement `ZulipBotAdapter` to enable per-tenant Zulip stream ingestion within t
 export interface ZulipBotConfig {
   email: string;              // Bot email for Zulip authentication
   apiKey: string;             // API key from Zulip settings
-  site: string;               // Zulip site URL (e.g., https://near.zulipchat.com)
+  site: string;               // Zulip site URL (e.g., https://example.zulipchat.com)
   channel: string;            // Single channel/stream name to monitor
   pollingInterval?: number;   // Default: 30000ms (30 seconds)
   batchSize?: number;         // Messages per fetch (default: 100)
@@ -50,7 +50,7 @@ Per-tenant configuration in `config/{instance}/instance.json`:
   "community": {
     "zulip": {
       "enabled": true,
-      "site": "https://near.zulipchat.com",
+      "site": "https://example.zulipchat.com",
       "channel": "community-support"
     }
   }
@@ -61,13 +61,13 @@ Per-tenant configuration in `config/{instance}/instance.json`:
 
 **Per-Tenant Pattern:**
 ```bash
-# NEAR instance
-NEAR_ZULIP_BOT_EMAIL=near-bot@zulipchat.com
-NEAR_ZULIP_API_KEY=abc123xyz
+# Project A instance
+PROJECTA_ZULIP_BOT_EMAIL=projecta-bot@zulipchat.com
+PROJECTA_ZULIP_API_KEY=abc123xyz
 
-# Conflux instance
-CONFLUX_ZULIP_BOT_EMAIL=conflux-bot@zulipchat.com
-CONFLUX_ZULIP_API_KEY=def456uvw
+# Project B instance
+PROJECTB_ZULIP_BOT_EMAIL=projectb-bot@zulipchat.com
+PROJECTB_ZULIP_API_KEY=def456uvw
 
 # Generic fallback
 ZULIP_BOT_EMAIL=generic-bot@zulipchat.com
@@ -83,7 +83,7 @@ ZULIP_API_KEY=ghi789rst
 ```prisma
 // Stream configuration (one per tenant Zulip channel)
 model StreamConfig {
-  streamId: "near-zulip-community-support"
+  streamId: "projecta-zulip-community-support"
   adapterType: "zulip"
   config: { email, apiKey, site, channel, ... }
   enabled: true
@@ -92,7 +92,7 @@ model StreamConfig {
 
 // Watermark (one per stream)
 model ImportWatermark {
-  streamId: "near-zulip-community-support"
+  streamId: "projecta-zulip-community-support"
   streamType: "zulip"
   resourceId: null  // Not used for single-channel adapter
   lastImportedTime: DateTime
@@ -101,7 +101,7 @@ model ImportWatermark {
 
 // Messages stored in unified format
 model UnifiedMessage {
-  streamId: "near-zulip-community-support"
+  streamId: "projecta-zulip-community-support"
   messageId: "12345678"  // Zulip message ID
   timestamp: DateTime
   author: "John Doe"
@@ -464,7 +464,7 @@ private injectEnvVars(adapterConfig: any, adapterType: string, instanceId: strin
 **Option 1: Manual Database Setup (Recommended for initial deployment)**
 
 ```sql
--- For NEAR instance (using neardocs database)
+-- For Project A instance (using projectadocs database)
 INSERT INTO stream_configs (
   stream_id,
   adapter_type,
@@ -474,10 +474,10 @@ INSERT INTO stream_configs (
   created_at,
   updated_at
 ) VALUES (
-  'near-zulip-community-support',
+  'projecta-zulip-community-support',
   'zulip',
   '{
-    "site": "https://near.zulipchat.com",
+    "site": "https://projecta.zulipchat.com",
     "channel": "community-support",
     "pollingInterval": 30000,
     "batchSize": 100,
@@ -495,10 +495,10 @@ INSERT INTO stream_configs (
 ```typescript
 // POST /api/admin/streams
 {
-  "instanceId": "near",
+  "instanceId": "projecta",
   "adapterType": "zulip",
   "config": {
-    "site": "https://near.zulipchat.com",
+    "site": "https://projecta.zulipchat.com",
     "channel": "community-support",
     "pollingInterval": 30000,
     "batchSize": 100
@@ -518,13 +518,13 @@ INSERT INTO stream_configs (
 ```bash
 # ===== Zulip Stream Adapter =====
 
-# NEAR instance Zulip credentials
-NEAR_ZULIP_BOT_EMAIL=near-bot@zulipchat.com
-NEAR_ZULIP_API_KEY=your-near-zulip-api-key
+# Project A instance Zulip credentials
+PROJECTA_ZULIP_BOT_EMAIL=projecta-bot@zulipchat.com
+PROJECTA_ZULIP_API_KEY=your-projecta-zulip-api-key
 
-# Conflux instance Zulip credentials
-CONFLUX_ZULIP_BOT_EMAIL=conflux-bot@zulipchat.com
-CONFLUX_ZULIP_API_KEY=your-conflux-zulip-api-key
+# Project B instance Zulip credentials
+PROJECTB_ZULIP_BOT_EMAIL=projectb-bot@zulipchat.com
+PROJECTB_ZULIP_API_KEY=your-projectb-zulip-api-key
 
 # Generic Zulip credentials (fallback)
 ZULIP_BOT_EMAIL=generic-bot@zulipchat.com
@@ -616,22 +616,22 @@ describe('ZulipBotAdapter Integration', () => {
 1. **Single stream fetch:**
    ```bash
    # Set env vars
-   export NEAR_ZULIP_BOT_EMAIL=bot@zulipchat.com
-   export NEAR_ZULIP_API_KEY=abc123
+   export PROJECTA_ZULIP_BOT_EMAIL=bot@zulipchat.com
+   export PROJECTA_ZULIP_API_KEY=abc123
 
    # Run import
-   curl -X POST http://localhost:3762/api/admin/streams/near-zulip-community-support/import
+   curl -X POST http://localhost:3762/api/admin/streams/projecta-zulip-community-support/import
    ```
 
 2. **Concurrent streams:**
    ```bash
-   # Start both Zulip and Telegram for NEAR
+   # Start both Zulip and Telegram for Project A
    curl -X POST http://localhost:3762/api/admin/streams/run-all
    ```
 
 3. **Multi-tenant:**
    ```bash
-   # Verify NEAR and Conflux Zulip streams run independently
+   # Verify Project A and Project B Zulip streams run independently
    ```
 
 ---
@@ -643,7 +643,7 @@ describe('ZulipBotAdapter Integration', () => {
 **Phase 1: Implementation (Week 1)**
 - Implement ZulipBotAdapter
 - Add StreamManager integration
-- Test with NEAR instance
+- Test with Project A instance
 
 **Phase 2: Validation (Week 2)**
 - Run new adapter alongside legacy scraper
@@ -714,7 +714,7 @@ rm tests/zulipchat-scraper.test.ts  # if exists
 - [ ] StreamManager creates and manages Zulip streams
 - [ ] Environment variable injection works (instance-specific and generic)
 - [ ] Concurrent operation with Telegram adapter works
-- [ ] Multi-tenant Zulip streams work independently (NEAR + Conflux)
+- [ ] Multi-tenant Zulip streams work independently (Project A + Project B)
 - [ ] Unit tests achieve >80% coverage
 - [ ] Integration tests pass
 - [ ] Legacy scraper code removed

@@ -3,11 +3,11 @@
 # Test script for Docker build and run
 set -e
 
-echo "🧪 Testing Docker build for NearDocsAI..."
+echo "🧪 Testing Docker build for DocsAI..."
 
 # Build the image
 echo "📦 Building Docker image..."
-docker build -t neardocsai-test .
+docker build -t docsai-test .
 
 if [ $? -ne 0 ]; then
     echo "❌ Docker build failed"
@@ -22,13 +22,13 @@ echo "   Starting container on port 3000 (local test)..."
 
 # Run the container with minimal environment variables for testing
 docker run -d \
-  --name neardocsai-test \
+  --name docsai-test \
   -p 3000:8080 \
   -e NODE_ENV=production \
   -e PORT=8080 \
   -e DATABASE_URL=postgresql://test:test@localhost:5432/test \
   -e ADMIN_TOKEN=test-token \
-  neardocsai-test
+  docsai-test
 
 if [ $? -ne 0 ]; then
     echo "❌ Container failed to start"
@@ -47,7 +47,7 @@ if [ "$response" = "200" ]; then
 else
     echo "❌ Health check failed (HTTP $response)"
     echo "📋 Container logs:"
-    docker logs neardocsai-test
+    docker logs docsai-test
 fi
 
 # Test main page
@@ -62,15 +62,15 @@ fi
 
 echo ""
 echo "📋 Container information:"
-docker ps --filter name=neardocsai-test
+docker ps --filter name=docsai-test
 
 echo ""
 echo "🧹 Cleaning up..."
-docker stop neardocsai-test
-docker rm neardocsai-test
+docker stop docsai-test
+docker rm docsai-test
 
 echo ""
 echo "🎉 Docker test complete!"
 echo ""
 echo "💡 To run the container manually:"
-echo "   docker run -p 3000:8080 --env-file .env neardocsai-test"
+echo "   docker run -p 3000:8080 --env-file .env docsai-test"

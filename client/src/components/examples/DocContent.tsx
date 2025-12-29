@@ -5,7 +5,7 @@ export default function DocContentExample() {
     {
       id: "intro",
       title: "Getting Started",
-      content: "This guide will help you set up a NEAR validator node.",
+      content: "This guide will help you set up a validator node.",
       level: 1,
     },
     {

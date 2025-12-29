@@ -13,7 +13,7 @@ import { PrismaClient } from '@prisma/client';
 export interface ZulipBotConfig {
   email: string;              // Bot email for Zulip authentication
   apiKey: string;             // API key from Zulip settings
-  site: string;               // Zulip site URL (e.g., https://near.zulipchat.com)
+  site: string;               // Zulip site URL (e.g., https://example.zulipchat.com)
   channel: string;            // Single channel/stream name to monitor
   pollingInterval?: number;   // Default: 30000ms (30 seconds)
   batchSize?: number;         // Messages per fetch (default: 100)

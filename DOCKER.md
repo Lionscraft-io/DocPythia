@@ -1,6 +1,6 @@
-# Docker Setup for NearDocsAI
+# Docker Setup for DocsAI
 
-This document explains how to build and deploy the NearDocsAI application using Docker for AWS App Runner.
+This document explains how to build and deploy the DocsAI application using Docker for AWS App Runner.
 
 ## Files
 
@@ -26,12 +26,12 @@ This document explains how to build and deploy the NearDocsAI application using 
 2. **Manual build and run:**
    ```bash
    # Build
-   docker build -t neardocsai .
+   docker build -t docsai .
 
    # Run with environment file
    cp .env.example .env
    # Edit .env with your values
-   docker run -p 3000:8080 --env-file .env neardocsai
+   docker run -p 3000:8080 --env-file .env docsai
    ```
 
 3. **Test endpoints:**

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Simple deployment script for NearDocsAI
+# Simple deployment script for DocsAI
 # Builds and pushes to ECR, App Runner will auto-update
 
 set -e
@@ -32,7 +32,7 @@ export AWS_PROFILE
 # Optional image tag (defaults to latest)
 IMAGE_TAG="${2:-latest}"
 
-echo "🚀 Starting NearDocsAI deployment..."
+echo "🚀 Starting DocsAI deployment..."
 echo "📌 Using AWS Profile: $AWS_PROFILE"
 echo "🏷️  Image Tag: $IMAGE_TAG"
 

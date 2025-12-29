@@ -9,7 +9,7 @@ import { BatchMessageProcessor } from '../server/stream/processors/batch-message
 import { PrismaClient } from '@prisma/client';
 import { getInstanceDb } from '../server/db/instance-db';
 
-const TEST_INSTANCE = 'near'; // Test with NEAR instance
+const TEST_INSTANCE = 'projecta'; // Test with Project A instance
 
 // Mock dependencies
 vi.mock('../server/stream/message-vector-search', () => ({
@@ -41,7 +41,10 @@ vi.mock('../server/stream/llm/llm-service', () => ({
 
 import { llmService } from '../server/stream/llm/llm-service';
 
-describe('Batch Processor Integration', () => {
+// TODO: This integration test requires actual database connectivity and instance configuration
+// Should be run separately with proper database setup
+// Owner: Wayne
+describe.skip('Batch Processor Integration', () => {
   let processor: BatchMessageProcessor;
   let db: PrismaClient;
 
@@ -157,7 +160,7 @@ describe('Batch Processor Integration', () => {
           batchSummary: '3 messages about RPC timeout configuration',
         },
         response: {
-          modelUsed: 'gemini-2.0-flash-exp',
+          modelUsed: 'gemini-2.5-flash',
           content: '{}',
         },
       });
@@ -184,7 +187,7 @@ The default RPC timeout is 30 seconds. For most use cases, this is sufficient. H
 To configure a custom timeout:
 \`\`\`javascript
 const provider = new JsonRpcProvider({
-  url: 'https://rpc.mainnet.near.org',
+  url: 'https://api.example.org',
   timeout: 60000 // 60 seconds
 });
 \`\`\``,
@@ -194,7 +197,7 @@ const provider = new JsonRpcProvider({
           ],
         },
         response: {
-          modelUsed: 'gemini-1.5-pro',
+          modelUsed: 'gemini-2.5-flash',
           content: '{}',
         },
       });
@@ -324,7 +327,7 @@ const provider = new JsonRpcProvider({
             messageId: 'msg-4',
             timestamp: new Date(baseTime.getTime() + 8 * 60 * 1000),
             author: 'user4',
-            content: 'Use near-cli stake command',
+            content: 'Use cli stake command',
             channel: 'general',
             rawData: {},
           },

@@ -2,11 +2,11 @@
 
 **Last Updated:** 2025-11-04 by Wayne
 
-This guide explains how to set up and configure the Telegram bot integration for the NearDocsAI multi-stream scanner system.
+This guide explains how to set up and configure the Telegram bot integration for the DocsAI multi-stream scanner system.
 
 ## Overview
 
-The Telegram bot adapter allows NearDocsAI to ingest messages from Telegram channels and groups in real-time. Messages are processed through the same batch analysis pipeline as other message sources (CSV, Zulipchat), with conversation grouping, RAG retrieval, and documentation proposal generation.
+The Telegram bot adapter allows DocsAI to ingest messages from Telegram channels and groups in real-time. Messages are processed through the same batch analysis pipeline as other message sources (CSV, Zulipchat), with conversation grouping, RAG retrieval, and documentation proposal generation.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ The Telegram bot adapter allows NearDocsAI to ingest messages from Telegram chan
 
 ## Prerequisites
 
-1. Node.js project with NearDocsAI installed
+1. Node.js project with DocsAI installed
 2. PostgreSQL database with Prisma schema
 3. Telegram account
 4. (For webhook mode) HTTPS domain with valid SSL certificate
@@ -80,7 +80,7 @@ POST /api/admin/stream/register
 Content-Type: application/json
 
 {
-  "streamId": "telegram-bot-neardocs",
+  "streamId": "telegram-bot",
   "adapterType": "telegram-bot",
   "config": {
     "botToken": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
@@ -97,7 +97,7 @@ Content-Type: application/json
 ```sql
 INSERT INTO stream_configs (stream_id, adapter_type, config, enabled)
 VALUES (
-  'telegram-bot-neardocs',
+  'telegram-bot',
   'telegram-bot',
   '{
     "botToken": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
@@ -131,7 +131,7 @@ Telegram bot polling started
    ```
 3. Verify message in database:
    ```sql
-   SELECT * FROM unified_messages WHERE stream_id = 'telegram-bot-neardocs';
+   SELECT * FROM unified_messages WHERE stream_id = 'telegram-bot';
    ```
 
 ## Configuration Options
@@ -244,7 +244,7 @@ GET /api/admin/stream/streams
 # Response:
 [
   {
-    "streamId": "telegram-bot-neardocs",
+    "streamId": "telegram-bot",
     "adapterType": "telegram-bot",
     "enabled": true,
     "watermarks": [{
@@ -261,7 +261,7 @@ GET /api/admin/stream/streams
 ### View Messages
 
 ```bash
-GET /api/admin/stream/messages?streamId=telegram-bot-neardocs
+GET /api/admin/stream/messages?streamId=telegram-bot
 ```
 
 ### Check Processing Status
@@ -295,7 +295,7 @@ GET /api/admin/stream/stats
 
 2. **Verify chat whitelist:**
    ```sql
-   SELECT config->'allowedChats' FROM stream_configs WHERE stream_id = 'telegram-bot-neardocs';
+   SELECT config->'allowedChats' FROM stream_configs WHERE stream_id = 'telegram-bot';
    ```
 
 3. **Check bot permissions:**
@@ -313,7 +313,7 @@ GET /api/admin/stream/stats
    ```sql
    SELECT processing_status, COUNT(*)
    FROM unified_messages
-   WHERE stream_id = 'telegram-bot-neardocs'
+   WHERE stream_id = 'telegram-bot'
    GROUP BY processing_status;
    ```
 

@@ -9,7 +9,7 @@ services:
     ports:
       - "${DB_PORT:-5433}:5432"  # Expose DB on host port 5433 to avoid conflicts
 
-  # NearDocsAI application in development mode
+  # DocsAI application in development mode
   app:
     build:
       context: .

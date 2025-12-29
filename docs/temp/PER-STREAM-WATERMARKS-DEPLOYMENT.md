@@ -73,10 +73,10 @@ This will:
 
 ### Step 2: Update Configuration Files
 
-**config/near/instance.json:**
+**config/projecta/instance.json:**
 ```json
 {
-  "streamId": "near-zulip-community-support",
+  "streamId": "projecta-zulip-community-support",
   "config": {
     "batchSize": 1000,           // Changed from 100
     "ignoreOldMessages": false    // Changed from true
@@ -96,7 +96,7 @@ CONTEXT_WINDOW_HOURS=168
 # Add Zulip credentials
 ZULIP_BOT_EMAIL=julian@lionscraft.io
 ZULIP_API_KEY=FZKYQEcNRpGh5z5ApQVZ0WWrxUJ23Pdo
-ZULIP_SITE=https://near.zulipchat.com
+ZULIP_SITE=https://example.zulipchat.com
 ```
 
 ### Step 3: Reset Stream Watermarks (Optional)
@@ -107,7 +107,7 @@ If you want to reprocess existing messages:
 npx tsx scripts/permanent/reset-processing-watermark.ts
 
 # Or reset specific stream
-npx tsx scripts/permanent/reset-processing-watermark.ts near-zulip-community-support
+npx tsx scripts/permanent/reset-processing-watermark.ts projecta-zulip-community-support
 ```
 
 ### Step 4: Deploy Code Changes
@@ -140,11 +140,11 @@ SELECT * FROM processing_watermark ORDER BY stream_id;
 3. Expected logs:
 ```
 [BatchProcessor] Found 2 streams with pending messages
-[BatchProcessor] ========== PROCESSING STREAM: near-zulip-community-support ==========
-[BatchProcessor] Stream near-zulip-community-support watermark: 2024-01-01T00:00:00.000Z
+[BatchProcessor] ========== PROCESSING STREAM: projecta-zulip-community-support ==========
+[BatchProcessor] Stream projecta-zulip-community-support watermark: 2024-01-01T00:00:00.000Z
 ...
-[BatchProcessor] ========== PROCESSING STREAM: near-telegram-validators ==========
-[BatchProcessor] Stream near-telegram-validators watermark: 2025-10-29T12:50:00.000Z
+[BatchProcessor] ========== PROCESSING STREAM: projecta-telegram ==========
+[BatchProcessor] Stream projecta-telegram watermark: 2025-10-29T12:50:00.000Z
 ```
 
 ## Verification Queries
@@ -178,7 +178,7 @@ SELECT
   metadata->>'topic' as topic,
   COUNT(*) as message_count
 FROM unified_messages
-WHERE stream_id = 'near-zulip-community-support'
+WHERE stream_id = 'projecta-zulip-community-support'
 GROUP BY metadata->>'topic'
 ORDER BY message_count DESC
 LIMIT 20;

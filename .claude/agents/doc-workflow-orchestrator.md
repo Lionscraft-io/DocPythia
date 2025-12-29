@@ -72,7 +72,7 @@ However, you maintain orchestration and ensure all documents are properly linked
 7. **Dont add .md or other documentation files outside /docs**
 
 ### Project Context Awareness
-The project is a NEAR protocol documentation tracking and analysis platform with:
+The project is a documentation tracking and analysis platform with:
 - **Tech Stack:** Express backend, React frontend with Wouter, PostgreSQL via Drizzle ORM, Gemini/OpenAI for analysis
 - **Structure:** Monorepo with server/ and client/ directories
 - **Workflow:** Documentation scraping (ZulipChat/Telegram) → AI analysis → Update approval → Version tracking

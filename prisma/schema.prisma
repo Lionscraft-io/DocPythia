@@ -1,4 +1,4 @@
-// Prisma schema for NearDocsAI
+// Prisma schema for DocsAI
 // Migration from Drizzle ORM - Wayne (2025-10-29)
 
 generator client {

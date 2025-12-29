@@ -34,7 +34,7 @@ Your CSV file must have the following columns:
 ```csv
 timestamp,content,author,channel
 2025-10-30 10:00:00,How do I set up a validator node?,alice,validator-support
-2025-10-30 10:15:00,The staking requirements have changed to 50000 NEAR.,admin,announcements
+2025-10-30 10:15:00,The staking requirements have changed to 50000 tokens.,admin,announcements
 2025-10-30 10:30:00,Documentation for RPC endpoints is outdated.,bob,documentation
 ```
 
@@ -100,7 +100,7 @@ ADMIN_TOKEN=your_admin_token_here
 **Solution:** Check server logs for errors:
 ```bash
 # Check recent logs
-tail -f /var/log/neardocs.log
+tail -f /var/log/docsai.log
 
 # Or check processing reports
 ls -la /tmp/csv-test/error/

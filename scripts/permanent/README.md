@@ -16,7 +16,7 @@ All scripts should be documented with usage instructions.
 
 ### kill-port.sh
 
-Kills all running NearDocsAI application processes.
+Kills all running DocsAI application processes.
 
 **Usage:**
 ```bash

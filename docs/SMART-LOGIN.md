@@ -2,7 +2,7 @@
 
 ## Overview
 
-The smart login system automatically detects which instance (NEAR, Conflux, etc.) your password belongs to and redirects you to the correct admin panel.
+The smart login system automatically detects which instance (e.g., projecta, projectb) your password belongs to and redirects you to the correct admin panel.
 
 ## How It Works
 
@@ -11,16 +11,16 @@ The smart login system automatically detects which instance (NEAR, Conflux, etc.
 1. **Visit any of these URLs:**
    - `http://localhost:3762/` (redirects to `/login`)
    - `http://localhost:3762/login`
-   - `http://localhost:3762/near/admin/login`
-   - `http://localhost:3762/conflux/admin/login`
+   - `http://localhost:3762/projecta/admin/login`
+   - `http://localhost:3762/projectb/admin/login`
 
 2. **Enter password once**
    - No need to remember which instance you're logging into
    - System tries password against all instances
 
 3. **Auto-redirect to correct panel**
-   - NEAR password → `/near/admin`
-   - Conflux password → `/conflux/admin`
+   - Project A password → `/projecta/admin`
+   - Project B password → `/projectb/admin`
 
 ### Flow Diagram
 
@@ -29,9 +29,9 @@ User enters password
        ↓
 POST /api/auth/login
        ↓
-Try NEAR config → passwordHash matches? → YES → Return { instanceId: "near" }
+Try Project A config → passwordHash matches? → YES → Return { instanceId: "projecta" }
        ↓ NO
-Try Conflux config → passwordHash matches? → YES → Return { instanceId: "conflux" }
+Try Project B config → passwordHash matches? → YES → Return { instanceId: "projectb" }
        ↓ NO
 Return { error: "Invalid password" }
        ↓
@@ -58,8 +58,8 @@ If failure: Show error message
 ```json
 {
   "success": true,
-  "instanceId": "near",
-  "redirectUrl": "/near/admin"
+  "instanceId": "projecta",
+  "redirectUrl": "/projecta/admin"
 }
 ```
 
@@ -87,7 +87,7 @@ sessionStorage.setItem("admin_password", password);
 sessionStorage.setItem("admin_instance", data.instanceId);
 
 // 3. Redirect to instance admin
-window.location.href = data.redirectUrl; // e.g., /near/admin
+window.location.href = data.redirectUrl; // e.g., /projecta/admin
 ```
 
 ### Security Features
@@ -174,31 +174,31 @@ Returns: { instances: string[] }
 
 ## Examples
 
-### Example 1: NEAR Login
+### Example 1: Project A Login
 ```
 User enters: SH340TE28pBIGsoEwC50iQ==
 Backend checks:
-  - NEAR config: ✅ Match!
-  - Returns: { instanceId: "near" }
-Frontend redirects: /near/admin
+  - Project A config: ✅ Match!
+  - Returns: { instanceId: "projecta" }
+Frontend redirects: /projecta/admin
 ```
 
-### Example 2: Conflux Login
+### Example 2: Project B Login
 ```
 User enters: EuSG/dNj0UtfoJNFxiix3g==
 Backend checks:
-  - NEAR config: ❌ No match
-  - Conflux config: ✅ Match!
-  - Returns: { instanceId: "conflux" }
-Frontend redirects: /conflux/admin
+  - Project A config: ❌ No match
+  - Project B config: ✅ Match!
+  - Returns: { instanceId: "projectb" }
+Frontend redirects: /projectb/admin
 ```
 
 ### Example 3: Invalid Password
 ```
 User enters: wrongpassword
 Backend checks:
-  - NEAR config: ❌ No match
-  - Conflux config: ❌ No match
+  - Project A config: ❌ No match
+  - Project B config: ❌ No match
   - Returns: { error: "Invalid password" }
 Frontend shows: Error toast
 ```
@@ -220,13 +220,13 @@ npm run dev
 
 # Visit http://localhost:3762/login
 
-# Try NEAR password
+# Try Project A password
 SH340TE28pBIGsoEwC50iQ==
-# Should redirect to /near/admin
+# Should redirect to /projecta/admin
 
-# Try Conflux password
+# Try Project B password
 EuSG/dNj0UtfoJNFxiix3g==
-# Should redirect to /conflux/admin
+# Should redirect to /projectb/admin
 
 # Try wrong password
 wrongpassword
@@ -241,7 +241,7 @@ curl -X POST http://localhost:3762/api/auth/login \
   -d '{"password":"SH340TE28pBIGsoEwC50iQ=="}'
 
 # Expected response:
-# {"success":true,"instanceId":"near","redirectUrl":"/near/admin"}
+# {"success":true,"instanceId":"projecta","redirectUrl":"/projecta/admin"}
 ```
 
 ## Migration from Old Auth
@@ -252,7 +252,7 @@ curl -X POST http://localhost:3762/api/auth/login \
 sessionStorage.setItem("admin_token", "token123");
 
 // Had to remember which instance to access
-window.location.href = "/near/admin"; // Hardcoded
+window.location.href = "/projecta/admin"; // Hardcoded
 ```
 
 ### After (Smart Login)

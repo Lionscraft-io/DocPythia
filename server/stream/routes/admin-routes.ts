@@ -1301,7 +1301,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       }).parse(req.body);
 
       const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
-      const batchService = new ChangesetBatchService(prisma);
+      const batchService = new ChangesetBatchService(db);
 
       const batch = await batchService.createDraftBatch(proposalIds);
 
@@ -1335,7 +1335,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       }).parse(req.body);
 
       const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
-      const batchService = new ChangesetBatchService(prisma);
+      const batchService = new ChangesetBatchService(db);
 
       const result = await batchService.generatePR(batchId, options);
 
@@ -1352,29 +1352,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
     }
   });
 
-  /**
-   * GET /api/admin/stream/batches
-   * List all changeset batches
-   */
-  app.get('/api/admin/stream/batches', adminAuth, async (req: Request, res: Response) => {
-    try {
-      const db = getDb(req);
-
-      const { status } = z.object({
-        status: z.enum(['draft', 'submitted', 'merged', 'closed']).optional()
-      }).parse(req.query);
-
-      const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
-      const batchService = new ChangesetBatchService(prisma);
-
-      const batches = await batchService.listBatches(status);
-
-      res.json({ batches });
-    } catch (error: any) {
-      console.error('Error listing batches:', error);
-      res.status(500).json({ error: error.message || 'Failed to list batches' });
-    }
-  });
+  // Note: GET /api/admin/stream/batches is handled by batchesHandler at line 613
 
   /**
    * GET /api/admin/stream/batches/:id
@@ -1387,7 +1365,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const batchId = parseInt(req.params.id);
 
       const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
-      const batchService = new ChangesetBatchService(prisma);
+      const batchService = new ChangesetBatchService(db);
 
       const batch = await batchService.getBatch(batchId);
 
@@ -1413,7 +1391,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const batchId = parseInt(req.params.id);
 
       const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
-      const batchService = new ChangesetBatchService(prisma);
+      const batchService = new ChangesetBatchService(db);
 
       await batchService.deleteDraftBatch(batchId);
 

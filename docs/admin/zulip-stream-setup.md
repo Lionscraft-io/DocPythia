@@ -10,7 +10,7 @@
 
 This guide explains how to set up Zulip stream adapters to automatically ingest messages from Zulip channels for documentation analysis. The system supports:
 
-- **Multi-tenant configuration** - Different Zulip orgs per instance (NEAR, Conflux, etc.)
+- **Multi-tenant configuration** - Different Zulip orgs per instance (projecta, projectb, etc.)
 - **Pull-based polling** - Fetches messages every 30 seconds (configurable)
 - **Watermark tracking** - Resumes from last message on restart
 - **Concurrent streams** - Run Zulip alongside Telegram, CSV, etc.
@@ -36,7 +36,7 @@ This guide explains how to set up Zulip stream adapters to automatically ingest 
 
 ### 1.1 Navigate to Bot Settings
 
-1. Log in to your Zulip organization (e.g., `https://near.zulipchat.com`)
+1. Log in to your Zulip organization (e.g., `https://yourorg.zulipchat.com`)
 2. Click your profile icon → **Personal settings**
 3. Navigate to **Bots** section
 4. Click **Add a new bot**
@@ -44,9 +44,9 @@ This guide explains how to set up Zulip stream adapters to automatically ingest 
 ### 1.2 Create Generic Bot
 
 - **Bot type:** Generic bot
-- **Full name:** `NearDocs Bot` (or your project name)
-- **Bot username:** `neardocs-bot` (or your choice)
-- **Bot email:** Automatically generated (e.g., `neardocs-bot@zulipchat.com`)
+- **Full name:** `DocsBot` (or your project name)
+- **Bot username:** `docsbot` (or your choice)
+- **Bot email:** Automatically generated (e.g., `docsbot@zulipchat.com`)
 
 ### 1.3 Copy Credentials
 
@@ -81,17 +81,17 @@ For most use cases, default bot permissions are sufficient. If needed:
 
 For multi-tenant deployments, use instance-specific variables:
 
-**NEAR Instance:**
+**Project A Instance:**
 ```bash
 # .env or cloud environment
-NEAR_ZULIP_BOT_EMAIL=neardocs-bot@near.zulipchat.com
-NEAR_ZULIP_API_KEY=abc123xyz456def789ghi
+PROJECTA_ZULIP_BOT_EMAIL=docsbot@projecta.zulipchat.com
+PROJECTA_ZULIP_API_KEY=abc123xyz456def789ghi
 ```
 
-**Conflux Instance:**
+**Project B Instance:**
 ```bash
-CONFLUX_ZULIP_BOT_EMAIL=confluxdocs-bot@conflux.zulipchat.com
-CONFLUX_ZULIP_API_KEY=xyz789def456abc123ghi
+PROJECTB_ZULIP_BOT_EMAIL=docsbot@projectb.zulipchat.com
+PROJECTB_ZULIP_API_KEY=xyz789def456abc123ghi
 ```
 
 **Pattern:** `{INSTANCE_UPPERCASE}_ZULIP_BOT_EMAIL` and `{INSTANCE_UPPERCASE}_ZULIP_API_KEY`
@@ -125,7 +125,7 @@ ZULIP_IGNORE_OLD_MESSAGES=true
 
 ### 3.1 Edit Instance Config File
 
-For **NEAR** instance, edit `config/near/instance.json`:
+For **Project A** instance, edit `config/projecta/instance.json`:
 
 ```json
 {
@@ -133,12 +133,12 @@ For **NEAR** instance, edit `config/near/instance.json`:
   "branding": { ... },
   "streams": [
     {
-      "streamId": "near-zulip-community-support",
+      "streamId": "projecta-zulip-community-support",
       "adapterType": "zulip",
       "enabled": true,
       "schedule": "*/30 * * * *",
       "config": {
-        "site": "https://near.zulipchat.com",
+        "site": "https://projecta.zulipchat.com",
         "channel": "community-support",
         "pollingInterval": 30000,
         "batchSize": 100,
@@ -150,7 +150,7 @@ For **NEAR** instance, edit `config/near/instance.json`:
 }
 ```
 
-For **Conflux** instance, edit `config/conflux/instance.json` similarly.
+For **Project B** instance, edit `config/projectb/instance.json` similarly.
 
 **Configuration Fields:**
 
@@ -172,10 +172,10 @@ For **Conflux** instance, edit `config/conflux/instance.json` similarly.
 
 ```bash
 # Validate JSON syntax
-cat config/near/instance.json | jq .
+cat config/projecta/instance.json | jq .
 
 # Check streams array
-cat config/near/instance.json | jq '.streams'
+cat config/projecta/instance.json | jq '.streams'
 ```
 
 ---
@@ -191,12 +191,12 @@ The StreamManager will automatically:
 **Check logs for:**
 ```
 StreamManager initialized with X streams across Y instances
-Registering stream: near-zulip-community-support (zulip) for instance: near
-Using Zulip email from NEAR_ZULIP_BOT_EMAIL (env)
-Using Zulip API key from NEAR_ZULIP_API_KEY (env)
-Zulip connection successful. Bot: neardocs-bot@near.zulipchat.com
+Registering stream: projecta-zulip-community-support (zulip) for instance: projecta
+Using Zulip email from PROJECTA_ZULIP_BOT_EMAIL (env)
+Using Zulip API key from PROJECTA_ZULIP_API_KEY (env)
+Zulip connection successful. Bot: docsbot@projecta.zulipchat.com
 ZulipBotAdapter initialized for channel: community-support
-Stream near-zulip-community-support registered successfully for instance near
+Stream projecta-zulip-community-support registered successfully for instance projecta
 ```
 
 ---
@@ -208,9 +208,9 @@ Stream near-zulip-community-support registered successfully for instance near
 Look for:
 ```
 StreamManager initialized with 1 streams across 1 instances
-Registering stream: near-zulip-community-support (zulip) for instance: near
-Using Zulip email from NEAR_ZULIP_BOT_EMAIL (env)
-Zulip connection successful. Bot: neardocs-bot@near.zulipchat.com
+Registering stream: projecta-zulip-community-support (zulip) for instance: projecta
+Using Zulip email from PROJECTA_ZULIP_BOT_EMAIL (env)
+Zulip connection successful. Bot: docsbot@projecta.zulipchat.com
 ZulipBotAdapter initialized for channel: community-support
 ```
 
@@ -225,7 +225,7 @@ SELECT
   LEFT(content, 50) as preview,
   processing_status
 FROM unified_messages
-WHERE stream_id = 'near-zulip-community-support'
+WHERE stream_id = 'projecta-zulip-community-support'
 ORDER BY timestamp DESC
 LIMIT 10;
 ```
@@ -239,14 +239,14 @@ SELECT
   last_imported_id,
   updated_at
 FROM import_watermarks
-WHERE stream_id = 'near-zulip-community-support';
+WHERE stream_id = 'projecta-zulip-community-support';
 ```
 
 ### 5.4 Manual Trigger (via API)
 
 ```bash
 # Trigger manual import
-curl -X POST http://localhost:3762/api/admin/streams/near-zulip-community-support/import \
+curl -X POST http://localhost:3762/api/admin/streams/projecta-zulip-community-support/import \
   -H "Authorization: Bearer your-admin-token"
 ```
 
@@ -266,7 +266,7 @@ curl -X POST http://localhost:3762/api/admin/streams/near-zulip-community-suppor
 2. Check bot is subscribed to the channel
 3. Test connection manually:
    ```bash
-   curl -u "bot-email:api-key" https://near.zulipchat.com/api/v1/users/me
+   curl -u "bot-email:api-key" https://yourorg.zulipchat.com/api/v1/users/me
    ```
 
 ### Issue: "No messages being imported"
@@ -307,7 +307,7 @@ curl -X POST http://localhost:3762/api/admin/streams/near-zulip-community-suppor
 1. Check `enabled: true` in `config/{instance}/instance.json`
 2. Validate JSON syntax:
    ```bash
-   cat config/near/instance.json | jq .
+   cat config/projecta/instance.json | jq .
    ```
 3. Check environment variables are set
 4. Restart application
@@ -322,22 +322,22 @@ To monitor multiple Zulip channels, add multiple stream objects to the `streams`
 {
   "streams": [
     {
-      "streamId": "near-zulip-community-support",
+      "streamId": "projecta-zulip-community-support",
       "adapterType": "zulip",
       "enabled": true,
       "schedule": "*/30 * * * *",
       "config": {
-        "site": "https://near.zulipchat.com",
+        "site": "https://projecta.zulipchat.com",
         "channel": "community-support"
       }
     },
     {
-      "streamId": "near-zulip-validators",
+      "streamId": "projecta-zulip-validators",
       "adapterType": "zulip",
       "enabled": true,
       "schedule": "*/30 * * * *",
       "config": {
-        "site": "https://near.zulipchat.com",
+        "site": "https://projecta.zulipchat.com",
         "channel": "validators"
       }
     }
@@ -372,7 +372,7 @@ Edit `config/{instance}/instance.json`:
 {
   "streams": [
     {
-      "streamId": "near-zulip-community-support",
+      "streamId": "projecta-zulip-community-support",
       "schedule": "*/15 * * * *",  // Every 15 minutes
       // Or: "0 * * * *"  // Hourly
       // Or: null  // Disable scheduling (manual only)
@@ -392,7 +392,7 @@ In `config/{instance}/instance.json`:
 {
   "streams": [
     {
-      "streamId": "near-zulip-community-support",
+      "streamId": "projecta-zulip-community-support",
       "config": {
         "ignoreOldMessages": false,  // Fetch historical messages
         "batchSize": 1000,            // Larger batches for faster import
@@ -415,12 +415,12 @@ If you need to re-import messages:
 ```sql
 -- Reset to start from latest messages
 DELETE FROM import_watermarks
-WHERE stream_id = 'near-zulip-community-support';
+WHERE stream_id = 'projecta-zulip-community-support';
 
 -- Or reset to specific message ID
 UPDATE import_watermarks
 SET last_imported_id = '12345678', last_imported_time = NOW()
-WHERE stream_id = 'near-zulip-community-support';
+WHERE stream_id = 'projecta-zulip-community-support';
 ```
 
 Then restart the application.
@@ -477,7 +477,7 @@ A: Set `"enabled": false` in `config/{instance}/instance.json` and redeploy:
 {
   "streams": [
     {
-      "streamId": "near-zulip-community-support",
+      "streamId": "projecta-zulip-community-support",
       "enabled": false,  // Temporarily disabled
       ...
     }

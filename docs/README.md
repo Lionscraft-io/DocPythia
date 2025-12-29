@@ -1,6 +1,6 @@
 # Documentation
 
-Approved documentation for the NearDocsAI project.
+Approved documentation for the DocsAI project.
 
 ## Contents
 

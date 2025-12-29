@@ -61,7 +61,7 @@ async function setupWatermarkAndTelegram() {
       console.error('❌ TELEGRAM_BOT_TOKEN not found in .env');
       console.log('   Skipping Telegram setup. Add the token and run this script again.');
     } else {
-      const streamId = 'telegram-bot-neardocs';
+      const streamId = 'telegram-bot';
 
       const streamConfig = await prisma.streamConfig.upsert({
         where: { streamId },

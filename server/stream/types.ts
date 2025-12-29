@@ -126,9 +126,9 @@ export interface DocProposal {
 // ========== LLM Service Types ==========
 
 export enum LLMModel {
-  FLASH = 'gemini-2.0-flash-exp',
-  PRO = 'gemini-1.5-pro',
-  PRO_2 = 'gemini-exp-1206'
+  FLASH = 'gemini-2.5-flash',
+  PRO = 'gemini-2.5-pro',
+  PRO_2 = 'gemini-2.5-pro'  // Consolidated to 2.5-pro (gemini-exp-1206 deprecated)
 }
 
 export interface LLMRequest {

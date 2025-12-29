@@ -6,14 +6,15 @@ export interface InstanceConfig {
   branding: BrandingConfig;
   documentation: DocumentationConfig;
   database: DatabaseConfig;
-  community: CommunityConfig;
+  community?: CommunityConfig;  // Legacy - now optional (use streams array instead)
   widget: WidgetConfig;
   features: FeatureFlags;
   admin: AdminConfig;
+  streams?: any[];  // Stream configurations
 }
 
 export interface DatabaseConfig {
-  name: string; // Database name (e.g., "neardocs", "confluxdocs")
+  name: string; // Database name for this instance
   host?: string; // Override from env if needed
   port?: number;
   user?: string;
@@ -105,4 +106,5 @@ export interface ConfigSource {
   file: boolean;
   env: boolean;
   defaults: boolean;
+  s3?: boolean;
 }

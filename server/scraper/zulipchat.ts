@@ -334,10 +334,15 @@ export class ZulipchatScraper {
 export function createZulipchatScraperFromEnv(): ZulipchatScraper | null {
   const email = process.env.ZULIP_BOT_EMAIL;
   const apiKey = process.env.ZULIP_API_KEY;
-  const site = process.env.ZULIP_SITE || "https://near.zulipchat.com";
+  const site = process.env.ZULIP_SITE;
 
   if (!email || !apiKey) {
     console.warn("Zulipchat credentials not found in environment variables");
+    return null;
+  }
+
+  if (!site) {
+    console.warn("ZULIP_SITE environment variable not set");
     return null;
   }
 

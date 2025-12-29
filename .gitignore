@@ -6,3 +6,10 @@ vite.config.ts.*
 *.tar.gz/client/src/output.css
 cache/
 ADMIN_PASSWORDS.md
+
+# Instance-specific configs (loaded from S3 in production)
+# Only example files should be committed
+config/*/
+config/instance.json
+!config/*.example.json
+!config/doc-index-README.md
