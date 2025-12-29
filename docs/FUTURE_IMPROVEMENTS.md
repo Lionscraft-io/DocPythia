@@ -82,24 +82,38 @@ Implement consistent error handling pattern across all API endpoints with proper
 
 ## Architecture
 
-### P1: LLM Provider Abstraction
+### ~~P1: LLM Provider Abstraction~~ COMPLETED
 
-**Current state:** Tight coupling to Google Gemini API
+**Status:** Base abstraction completed (December 2025)
 
-Create an abstraction layer for LLM providers to support:
-- Google Gemini (current)
-- OpenAI GPT-4
-- Anthropic Claude
-- Local models (Ollama, llama.cpp)
+Created abstraction layer for LLM providers at `server/llm/providers/`:
 
-**Proposed interface:**
+**Implemented interfaces:**
 ```typescript
-interface LLMProvider {
-  generateText(prompt: string, options?: GenerateOptions): Promise<string>;
-  generateStructured<T>(prompt: string, schema: ZodSchema<T>): Promise<T>;
-  embed(text: string): Promise<number[]>;
+interface ILLMProvider {
+  generateText(prompt: string, options?: GenerateOptions): Promise<GenerationResult>;
+  generateWithHistory(prompt: string, history: ConversationMessage[], options?: GenerateOptions): Promise<GenerationResult>;
+  generateStructured<T>(prompt: string, schema: ZodSchema<T>, options?: GenerateOptions): Promise<T>;
+}
+
+interface IEmbeddingProvider {
+  embedText(text: string): Promise<number[]>;
+  embedBatch(texts: string[]): Promise<number[][]>;
 }
 ```
+
+**Implemented providers:**
+- GeminiLLMProvider
+- GeminiEmbeddingProvider
+
+**Ready for extension:**
+- OpenAI (placeholder)
+- Anthropic (placeholder)
+- Ollama (placeholder)
+
+**Configuration:**
+- `LLM_PROVIDER` env var selects provider (gemini, openai, anthropic, ollama)
+- Provider factory with singleton support
 
 ### P2: Message Queue Integration
 
@@ -394,7 +408,7 @@ Add OpenTelemetry support for:
 4. Session storage improvement (P1)
 
 ### Phase 2
-1. LLM provider abstraction (P1)
+1. ~~LLM provider abstraction (P1)~~ DONE
 2. Test coverage to 80% (P1)
 3. Rate limiting (P2)
 4. Caching improvements (P2)
