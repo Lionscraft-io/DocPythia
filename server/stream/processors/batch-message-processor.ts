@@ -18,7 +18,10 @@ import { llmService } from '../llm/llm-service.js';
 import { MessageVectorSearch } from '../message-vector-search.js';
 import { PROMPT_TEMPLATES, fillTemplate } from '../llm/prompt-templates.js';
 import { InstanceConfigLoader } from '../../config/instance-loader.js';
+import { createLogger } from '../../utils/logger.js';
 import { z } from 'zod';
+
+const logger = createLogger('BatchProcessor');
 
 // ========== Batch Classification Schema ==========
 
@@ -117,7 +120,7 @@ export class BatchMessageProcessor {
     this.db = db;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.messageVectorSearch = new MessageVectorSearch(instanceId, db);
-    console.log(`[${instanceId}] BatchMessageProcessor initialized`);
+    logger.info(`[${instanceId}] BatchMessageProcessor initialized`);
   }
 
   /**
@@ -134,13 +137,13 @@ export class BatchMessageProcessor {
   async processBatch(): Promise<number> {
     // Check if already processing
     if (BatchMessageProcessor.isProcessing) {
-      console.log('[BatchProcessor] Already processing, skipping...');
+      logger.warn('Already processing, skipping...');
       return 0;
     }
 
     // Set processing flag
     BatchMessageProcessor.isProcessing = true;
-    console.log('[BatchProcessor] Starting batch processing...');
+    logger.info('Starting batch processing...');
 
     try {
       let totalMessagesProcessedAcrossAllBatches = 0;
@@ -154,15 +157,15 @@ export class BatchMessageProcessor {
       });
 
       if (allStreams.length === 0) {
-        console.log(`[BatchProcessor] No pending messages found across any streams.`);
+        logger.debug('No pending messages found across any streams.');
         return 0;
       }
 
-      console.log(`[BatchProcessor] Found ${allStreams.length} streams with pending messages`);
+      logger.info(`Found ${allStreams.length} streams with pending messages`);
 
       // Process each stream independently
       for (const { streamId } of allStreams) {
-        console.log(`\n[BatchProcessor] ========== PROCESSING STREAM: ${streamId} ==========`);
+        logger.info(`Processing stream: ${streamId}`);
 
         // Process batches for this stream until no more pending messages
         while (true) {
@@ -170,7 +173,7 @@ export class BatchMessageProcessor {
 
           // 1. Get processing watermark for this stream
           const watermark = await this.getProcessingWatermark(streamId);
-          console.log(`[BatchProcessor] Stream ${streamId} watermark: ${watermark.toISOString()}`);
+          logger.debug(`Stream ${streamId} watermark: ${watermark.toISOString()}`);
 
           // 2. Find the earliest unprocessed message for this stream after its watermark
           const earliestUnprocessed = await this.db.unifiedMessage.findFirst({
@@ -184,11 +187,11 @@ export class BatchMessageProcessor {
           });
 
           if (!earliestUnprocessed) {
-            console.log(`[BatchProcessor] Stream ${streamId}: No more unprocessed messages.`);
+            logger.debug(`Stream ${streamId}: No more unprocessed messages.`);
             break;
           }
 
-          console.log(`[BatchProcessor] Stream ${streamId}: Earliest unprocessed at ${earliestUnprocessed.timestamp.toISOString()}`);
+          logger.debug(`Stream ${streamId}: Earliest unprocessed at ${earliestUnprocessed.timestamp.toISOString()}`);
 
           // 3. Calculate batch window for this stream
           const batchStart = earliestUnprocessed.timestamp;
@@ -196,7 +199,7 @@ export class BatchMessageProcessor {
           const now = new Date();
           const batchEnd = idealBatchEnd < now ? idealBatchEnd : now;
 
-          console.log(`[BatchProcessor] Stream ${streamId} batch window: ${batchStart.toISOString()} to ${batchEnd.toISOString()}`);
+          logger.debug(`Stream ${streamId} batch window: ${batchStart.toISOString()} to ${batchEnd.toISOString()}`);
 
           // Check if there are any messages in this window for this stream
           const messageCount = await this.db.unifiedMessage.count({
@@ -208,12 +211,12 @@ export class BatchMessageProcessor {
           });
 
           if (messageCount === 0) {
-            console.log(`[BatchProcessor] Stream ${streamId}: No pending messages in batch window, moving watermark forward`);
+            logger.debug(`Stream ${streamId}: No pending messages in batch window, moving watermark forward`);
             await this.updateProcessingWatermark(streamId, batchEnd);
             continue;
           }
 
-          console.log(`[BatchProcessor] Stream ${streamId}: Found ${messageCount} pending messages`);
+          logger.info(`Stream ${streamId}: Found ${messageCount} pending messages`);
 
           // Use timestamps instead of ISO strings to keep batch_id under 50 chars
           const batchId = `${streamId.substring(0, 10)}_${batchStart.getTime()}`;
@@ -221,7 +224,7 @@ export class BatchMessageProcessor {
           // Fetch context messages for this stream batch
           const contextStart = new Date(batchStart.getTime() - this.config.contextWindowHours * 60 * 60 * 1000);
           const contextMessages = await this.fetchContextMessages(contextStart, batchStart, streamId);
-          console.log(`[BatchProcessor] Stream ${streamId}: Fetched ${contextMessages.length} context messages`);
+          logger.debug(`Stream ${streamId}: Fetched ${contextMessages.length} context messages`);
 
           // Process messages in chunks until this batch window is exhausted
           let totalMessagesProcessed = 0;
@@ -232,11 +235,11 @@ export class BatchMessageProcessor {
 
           while (true) {
             iteration++;
-            console.log(`[BatchProcessor] Stream ${streamId} - Iteration ${iteration}: Fetching next chunk...`);
+            logger.debug(`Stream ${streamId} - Iteration ${iteration}: Fetching next chunk...`);
 
             // Fetch next chunk of messages for batch (up to maxBatchSize) from this stream
             const messages = await this.fetchMessagesForBatch(batchStart, batchEnd, streamId);
-            console.log(`[BatchProcessor] Stream ${streamId} - Iteration ${iteration}: Fetched ${messages.length} messages`);
+            logger.debug(`Stream ${streamId} - Iteration ${iteration}: Fetched ${messages.length} messages`);
 
       if (messages.length === 0) {
         // No more messages in this batch window
@@ -247,7 +250,7 @@ export class BatchMessageProcessor {
       const classification = await this.classifyBatch(messages, contextMessages, batchId);
       const valuableThreads = classification.threads.filter(t => t.category !== 'no-doc-value');
       const noValueThreads = classification.threads.filter(t => t.category === 'no-doc-value');
-      console.log(`[BatchProcessor] Iteration ${iteration}: Classified ${classification.threads.length} threads (${valuableThreads.length} valuable, ${noValueThreads.length} no-value)`);
+      logger.info(`Iteration ${iteration}: Classified ${classification.threads.length} threads (${valuableThreads.length} valuable, ${noValueThreads.length} no-value)`);
 
       // 6. Convert ALL threads to conversation groups (including no-value threads for proper tracking)
       const valuableConversations = await this.convertThreadsToConversations(
@@ -261,7 +264,7 @@ export class BatchMessageProcessor {
         batchId
       );
       const allConversations = [...valuableConversations, ...noValueConversations];
-      console.log(`[BatchProcessor] Iteration ${iteration}: Created ${valuableConversations.length} valuable and ${noValueConversations.length} no-value conversation groups`);
+      logger.info(`Iteration ${iteration}: Created ${valuableConversations.length} valuable and ${noValueConversations.length} no-value conversation groups`);
 
       // 7. Store classification results for ALL threads (valuable + no-value)
       await this.storeClassificationResults(classification.threads, batchId, allConversations, messages);
@@ -280,8 +283,8 @@ export class BatchMessageProcessor {
           // Mark this conversation's messages as successfully processed
           conversation.messages.forEach(msg => successfullyProcessedMessageIds.add(msg.messageId));
         } catch (error) {
-          console.error(`[BatchProcessor] Error processing conversation ${conversation.id}:`, error);
-          console.error(`[BatchProcessor] Conversation will remain unprocessed and retry on next batch run`);
+          logger.error(`Error processing conversation ${conversation.id}:`, error);
+          logger.warn(`Conversation will remain unprocessed and retry on next batch run`);
           // Do NOT mark messages as completed - they will retry
           // Continue processing other conversations
         }
@@ -296,8 +299,8 @@ export class BatchMessageProcessor {
           // Mark this conversation's messages as successfully processed
           conversation.messages.forEach(msg => successfullyProcessedMessageIds.add(msg.messageId));
         } catch (error) {
-          console.error(`[BatchProcessor] Error processing no-value conversation ${conversation.id}:`, error);
-          console.error(`[BatchProcessor] Conversation will remain unprocessed and retry on next batch run`);
+          logger.error(`Error processing no-value conversation ${conversation.id}:`, error);
+          logger.warn(`Conversation will remain unprocessed and retry on next batch run`);
           // Do NOT mark messages as completed - they will retry
           // Continue processing other conversations
         }
@@ -309,7 +312,7 @@ export class BatchMessageProcessor {
           where: { id: { in: Array.from(successfullyProcessedMessageIds) } },
           data: { processingStatus: 'COMPLETED' },
         });
-        console.log(`[BatchProcessor] Marked ${successfullyProcessedMessageIds.size} messages as COMPLETED`);
+        logger.info(`Marked ${successfullyProcessedMessageIds.size} messages as COMPLETED`);
       }
 
       // 10. Clean up classification data for failed messages so they can be re-classified on retry
@@ -322,37 +325,37 @@ export class BatchMessageProcessor {
           where: { messageId: { in: failedMessageIds } },
         });
         anyMessagesFailed = true;
-        console.warn(`[BatchProcessor] ${failedMessageIds.length} messages remain unprocessed due to errors and will retry (classifications cleaned up)`);
+        logger.warn(`${failedMessageIds.length} messages remain unprocessed due to errors and will retry (classifications cleaned up)`);
       }
 
         totalMessagesProcessed += successfullyProcessedMessageIds.size;
         totalProposalsGenerated += iterationProposals;
-            console.log(`[BatchProcessor] Stream ${streamId} - Iteration ${iteration} complete: ${successfullyProcessedMessageIds.size}/${messages.length} messages successfully processed, ${allConversations.length} conversations (${valuableConversations.length} valuable, ${noValueConversations.length} no-value), ${iterationProposals} proposals`);
+            logger.info(`Stream ${streamId} - Iteration ${iteration} complete: ${successfullyProcessedMessageIds.size}/${messages.length} messages successfully processed, ${allConversations.length} conversations (${valuableConversations.length} valuable, ${noValueConversations.length} no-value), ${iterationProposals} proposals`);
           }
 
           // Update stream watermark only if ALL messages in this batch succeeded
           if (!anyMessagesFailed) {
             await this.updateProcessingWatermark(streamId, batchEnd);
-            console.log(`[BatchProcessor] Stream ${streamId} batch complete: ${totalMessagesProcessed} messages, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark updated to ${batchEnd.toISOString()}`);
+            logger.info(`Stream ${streamId} batch complete: ${totalMessagesProcessed} messages, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark updated to ${batchEnd.toISOString()}`);
           } else {
-            console.warn(`[BatchProcessor] Stream ${streamId} batch complete with failures: ${totalMessagesProcessed} messages succeeded, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark NOT updated - failed messages will retry on next run.`);
+            logger.warn(`Stream ${streamId} batch complete with failures: ${totalMessagesProcessed} messages succeeded, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark NOT updated - failed messages will retry on next run.`);
           }
 
           // Accumulate totals across all batches
           totalMessagesProcessedAcrossAllBatches += totalMessagesProcessed;
         }
 
-        console.log(`[BatchProcessor] Stream ${streamId} processing complete`);
+        logger.info(`Stream ${streamId} processing complete`);
       }
 
       // All batches processed
-      console.log(`[BatchProcessor] ========== ALL BATCHES COMPLETE ==========`);
-      console.log(`[BatchProcessor] Total across all batches: ${totalMessagesProcessedAcrossAllBatches} messages`);
+      logger.info('All batches complete');
+      logger.info(`Total across all batches: ${totalMessagesProcessedAcrossAllBatches} messages`);
       return totalMessagesProcessedAcrossAllBatches;
     } finally {
       // Always clear processing flag
       BatchMessageProcessor.isProcessing = false;
-      console.log('[BatchProcessor] Processing flag cleared');
+      logger.debug('Processing flag cleared');
     }
   }
 
@@ -545,7 +548,7 @@ export class BatchMessageProcessor {
       messagesToAnalyze
     });
 
-    console.log(`[BatchProcessor] Classifying batch with ${messages.length} messages and ${contextMessages.length} context messages`);
+    logger.info(`Classifying batch with ${messages.length} messages and ${contextMessages.length} context messages`);
 
     const { data } = await llmService.requestJSON(
       {
@@ -598,7 +601,7 @@ export class BatchMessageProcessor {
       for (const messageId of thread.messages) {
         // Skip message IDs that aren't in the current batch (e.g., context messages)
         if (!validMessageIds.has(messageId)) {
-          console.log(`Message ${messageId} not found in batch, skipping`);
+          logger.debug(`Message ${messageId} not found in batch, skipping`);
           continue;
         }
         classifiedMessageIds.add(messageId);
@@ -636,7 +639,7 @@ export class BatchMessageProcessor {
     // This should rarely happen now that we instruct the LLM to classify EVERY message
     const missedMessages = allMessages.filter(msg => !classifiedMessageIds.has(msg.id));
     if (missedMessages.length > 0) {
-      console.warn(`[BatchProcessor] LLM missed ${missedMessages.length} messages - creating fallback classifications`);
+      logger.warn(`LLM missed ${missedMessages.length} messages - creating fallback classifications`);
       for (const message of missedMessages) {
         // Use upsert to handle retries where classification may already exist
         await this.db.messageClassification.upsert({
@@ -664,7 +667,7 @@ export class BatchMessageProcessor {
       }
     }
 
-    console.log(`[BatchProcessor] Stored classifications for ${classifiedMessageIds.size} messages in conversations and ${missedMessages.length} fallback classifications`);
+    logger.info(`Stored classifications for ${classifiedMessageIds.size} messages in conversations and ${missedMessages.length} fallback classifications`);
   }
 
   /**
@@ -692,7 +695,7 @@ export class BatchMessageProcessor {
       const messageDetails = thread.messages.map(messageId => {
         const msg = allMessages.find(m => m.id === messageId);
         if (!msg) {
-          console.warn(`Message ${messageId} not found in batch, skipping`);
+          logger.warn(`Message ${messageId} not found in batch, skipping`);
           return null;
         }
         return {
@@ -708,7 +711,7 @@ export class BatchMessageProcessor {
       }).filter(m => m !== null);
 
       if (messageDetails.length === 0) {
-        console.warn(`Thread has no valid messages, skipping`);
+        logger.warn(`Thread has no valid messages, skipping`);
         continue;
       }
 
@@ -748,7 +751,7 @@ export class BatchMessageProcessor {
    * Process a conversation group (RAG + Changeset Proposals)
    */
   private async processConversation(conversation: ConversationGroup, batchId: string): Promise<number> {
-    console.log(`[BatchProcessor] Processing conversation ${conversation.id} (${conversation.messageCount} messages)`);
+    logger.info(`Processing conversation ${conversation.id} (${conversation.messageCount} messages)`);
 
     // 1. Perform RAG retrieval once for the entire conversation
     const ragDocs = await this.performConversationRAG(conversation);
@@ -815,7 +818,7 @@ export class BatchMessageProcessor {
 
     // Note: Messages are marked as COMPLETED earlier in processBatch() after classification
     const rejectionMsg = proposalsRejected ? ` (Rejected: ${rejectionReason})` : '';
-    console.log(`[BatchProcessor] Conversation ${conversation.id} complete. Generated ${proposalCount} proposals${rejectionMsg}`);
+    logger.info(`Conversation ${conversation.id} complete. Generated ${proposalCount} proposals${rejectionMsg}`);
     return proposalCount;
   }
 
@@ -845,7 +848,7 @@ export class BatchMessageProcessor {
       },
     });
 
-    console.log(`[BatchProcessor] No-value conversation ${conversation.id} marked as discarded: ${conversation.messages[0]?.docValueReason}`);
+    logger.debug(`No-value conversation ${conversation.id} marked as discarded: ${conversation.messages[0]?.docValueReason}`);
   }
 
   /**
@@ -876,7 +879,7 @@ export class BatchMessageProcessor {
       ? semanticQueries.join(' ')
       : allContent.substring(0, 500); // Limit to avoid overly long queries
 
-    console.log(`[BatchProcessor] RAG search for conversation: "${searchQuery.substring(0, 100)}..."`);
+    logger.debug(`RAG search for conversation: "${searchQuery.substring(0, 100)}..."`);
 
     const results = await this.messageVectorSearch.searchSimilarDocs(
       searchQuery,
@@ -925,7 +928,7 @@ export class BatchMessageProcessor {
     const dedupedDocs = Array.from(uniqueByBasePath.values())
       .slice(0, this.config.ragTopK); // Limit to original topK after deduplication
 
-    console.log(`[BatchProcessor] Retrieved ${results.length} docs, deduplicated to ${dedupedDocs.length} unique docs (removed ${results.length - dedupedDocs.length} translations)`);
+    logger.debug(`Retrieved ${results.length} docs, deduplicated to ${dedupedDocs.length} unique docs (removed ${results.length - dedupedDocs.length} translations)`);
     return dedupedDocs;
   }
 
@@ -968,7 +971,7 @@ Content: ${msg.content}`;
       ragContext: ragContext || '(No relevant docs found)'
     });
 
-    console.log(`[BatchProcessor] Generating changeset for conversation ${conversation.id}`);
+    logger.info(`Generating changeset for conversation ${conversation.id}`);
 
     const responseSchema = z.object({
       proposals: z.array(ProposalGenerationSchema).max(10, 'Maximum 10 proposals per conversation'),
@@ -988,7 +991,7 @@ Content: ${msg.content}`;
       undefined // No single messageId for conversation
     );
 
-    console.log(`[BatchProcessor] Conversation ${conversation.id}: LLM proposed ${data.proposals.length} changes`);
+    logger.info(`Conversation ${conversation.id}: LLM proposed ${data.proposals.length} changes`);
 
     // Return both proposals and rejection info
     return {

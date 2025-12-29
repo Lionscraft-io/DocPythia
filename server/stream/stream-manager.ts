@@ -14,7 +14,10 @@ import { TelegramBotAdapter } from './adapters/telegram-bot-adapter.js';
 import { ZulipBotAdapter } from './adapters/zulip-bot-adapter.js';
 import { InstanceConfigLoader } from '../config/instance-loader.js';
 import { getInstanceDb } from '../db/instance-db.js';
+import { createLogger } from '../utils/logger.js';
 import type { StreamMessage } from './types.js';
+
+const logger = createLogger('StreamManager');
 
 // Create prisma client for stream management operations
 const prisma = new PrismaClient();
@@ -54,7 +57,7 @@ export class StreamManager {
       errorRetryDelay: config?.errorRetryDelay || parseInt(process.env.STREAM_ERROR_RETRY_DELAY || '60000'),
     };
 
-    console.log('StreamManager initialized with config:', this.config);
+    logger.info('StreamManager initialized with config:', this.config);
   }
 
   /**
@@ -62,12 +65,12 @@ export class StreamManager {
    * Loads streams from instance config files
    */
   async initialize(): Promise<void> {
-    console.log('Initializing StreamManager...');
+    logger.info('Initializing StreamManager...');
 
     try {
       // Get all available instances
       const availableInstances = InstanceConfigLoader.getAvailableInstances();
-      console.log(`Loading streams from ${availableInstances.length} instances:`, availableInstances);
+      logger.info(`Loading streams from ${availableInstances.length} instances:`, availableInstances);
 
       let totalStreams = 0;
 
@@ -83,7 +86,7 @@ export class StreamManager {
           // Filter to enabled streams only
           const enabledStreams = streamConfigs.filter((s: any) => s.enabled === true);
 
-          console.log(`Found ${enabledStreams.length} active streams for instance "${instanceId}" (${streamConfigs.length} total)`);
+          logger.info(`Found ${enabledStreams.length} active streams for instance "${instanceId}" (${streamConfigs.length} total)`);
 
           // Register adapters for each enabled stream
           for (const streamConfig of enabledStreams) {
@@ -94,17 +97,17 @@ export class StreamManager {
               await this.registerStream(streamConfig, instanceId, instanceDb);
               totalStreams++;
             } catch (error) {
-              console.error(`Failed to register stream ${streamConfig.streamId} for instance ${instanceId}:`, error);
+              logger.error(`Failed to register stream ${streamConfig.streamId} for instance ${instanceId}:`, error);
             }
           }
         } catch (error) {
-          console.error(`Failed to load streams for instance "${instanceId}":`, error);
+          logger.error(`Failed to load streams for instance "${instanceId}":`, error);
         }
       }
 
-      console.log(`StreamManager initialized with ${totalStreams} streams across ${availableInstances.length} instances`);
+      logger.info(`StreamManager initialized with ${totalStreams} streams across ${availableInstances.length} instances`);
     } catch (error) {
-      console.error('Failed to initialize StreamManager:', error);
+      logger.error('Failed to initialize StreamManager:', error);
       throw error;
     }
   }
@@ -118,8 +121,8 @@ export class StreamManager {
   async registerStream(streamConfig: any, instanceId: string, instanceDb: PrismaClient): Promise<void> {
     const { streamId, adapterType, config: adapterConfig, schedule } = streamConfig;
 
-    console.log(`Registering stream: ${streamId} (${adapterType}) for instance: ${instanceId}`);
-    console.log(`Adapter config:`, JSON.stringify(adapterConfig, null, 2));
+    logger.info(`Registering stream: ${streamId} (${adapterType}) for instance: ${instanceId}`);
+    logger.debug(`Adapter config:`, JSON.stringify(adapterConfig, null, 2));
 
     // Enhance adapter config with instance-specific environment variables
     const enhancedConfig = this.injectEnvVars(adapterConfig, adapterType, instanceId);
@@ -148,7 +151,7 @@ export class StreamManager {
       this.scheduleStream(streamId, schedule);
     }
 
-    console.log(`Stream ${streamId} registered successfully for instance ${instanceId}`);
+    logger.info(`Stream ${streamId} registered successfully for instance ${instanceId}`);
   }
 
   /**
@@ -171,14 +174,14 @@ export class StreamManager {
 
         if (process.env[instanceTokenKey]) {
           config.botToken = process.env[instanceTokenKey];
-          console.log(`Using Telegram bot token from ${instanceTokenKey} (env)`);
+          logger.debug(`Using Telegram bot token from ${instanceTokenKey} (env)`);
         } else if (process.env[genericTokenKey] && !config.botToken) {
           config.botToken = process.env[genericTokenKey];
-          console.log(`Using Telegram bot token from ${genericTokenKey} (env)`);
+          logger.debug(`Using Telegram bot token from ${genericTokenKey} (env)`);
         } else if (config.botToken) {
-          console.log(`Using Telegram bot token from database config`);
+          logger.debug(`Using Telegram bot token from database config`);
         } else {
-          console.warn(`No Telegram bot token found for instance ${instanceId}`);
+          logger.warn(`No Telegram bot token found for instance ${instanceId}`);
         }
 
         // Inject other Telegram-specific env vars
@@ -215,26 +218,26 @@ export class StreamManager {
 
         if (process.env[instanceEmailKey]) {
           config.email = process.env[instanceEmailKey];
-          console.log(`Using Zulip email from ${instanceEmailKey} (env)`);
+          logger.debug(`Using Zulip email from ${instanceEmailKey} (env)`);
         } else if (process.env.ZULIP_BOT_EMAIL && !config.email) {
           config.email = process.env.ZULIP_BOT_EMAIL;
-          console.log(`Using Zulip email from ZULIP_BOT_EMAIL (env)`);
+          logger.debug(`Using Zulip email from ZULIP_BOT_EMAIL (env)`);
         } else if (config.email) {
-          console.log(`Using Zulip email from database config`);
+          logger.debug(`Using Zulip email from database config`);
         } else {
-          console.warn(`No Zulip email found for instance ${instanceId}`);
+          logger.warn(`No Zulip email found for instance ${instanceId}`);
         }
 
         if (process.env[instanceApiKeyKey]) {
           config.apiKey = process.env[instanceApiKeyKey];
-          console.log(`Using Zulip API key from ${instanceApiKeyKey} (env)`);
+          logger.debug(`Using Zulip API key from ${instanceApiKeyKey} (env)`);
         } else if (process.env.ZULIP_API_KEY && !config.apiKey) {
           config.apiKey = process.env.ZULIP_API_KEY;
-          console.log(`Using Zulip API key from ZULIP_API_KEY (env)`);
+          logger.debug(`Using Zulip API key from ZULIP_API_KEY (env)`);
         } else if (config.apiKey) {
-          console.log(`Using Zulip API key from database config`);
+          logger.debug(`Using Zulip API key from database config`);
         } else {
-          console.warn(`No Zulip API key found for instance ${instanceId}`);
+          logger.warn(`No Zulip API key found for instance ${instanceId}`);
         }
 
         // Optional: override config values from env
@@ -257,10 +260,10 @@ export class StreamManager {
         const discordTokenKey = `${instanceUpper}_DISCORD_BOT_TOKEN`;
         if (process.env[discordTokenKey]) {
           config.botToken = process.env[discordTokenKey];
-          console.log(`Using Discord bot token from ${discordTokenKey} (env)`);
+          logger.debug(`Using Discord bot token from ${discordTokenKey} (env)`);
         } else if (process.env.DISCORD_BOT_TOKEN && !config.botToken) {
           config.botToken = process.env.DISCORD_BOT_TOKEN;
-          console.log(`Using Discord bot token from DISCORD_BOT_TOKEN (env)`);
+          logger.debug(`Using Discord bot token from DISCORD_BOT_TOKEN (env)`);
         }
         break;
     }
@@ -303,7 +306,7 @@ export class StreamManager {
    * Schedule a stream to run on a cron schedule
    */
   private scheduleStream(streamId: string, cronSchedule: string): void {
-    console.log(`Scheduling stream ${streamId} with schedule: ${cronSchedule}`);
+    logger.info(`Scheduling stream ${streamId} with schedule: ${cronSchedule}`);
 
     try {
       const job = cron.schedule(
@@ -318,9 +321,9 @@ export class StreamManager {
       );
 
       this.jobs.set(streamId, job);
-      console.log(`Stream ${streamId} scheduled successfully`);
+      logger.info(`Stream ${streamId} scheduled successfully`);
     } catch (error) {
-      console.error(`Failed to schedule stream ${streamId}:`, error);
+      logger.error(`Failed to schedule stream ${streamId}:`, error);
       throw error;
     }
   }
@@ -334,11 +337,11 @@ export class StreamManager {
       throw new Error(`Stream ${streamId} not found`);
     }
 
-    console.log(`\n=== Importing from stream: ${streamId} ===`);
+    logger.info(`Importing from stream: ${streamId}`);
 
     // Get current watermark
     const watermark = await adapter.getWatermark();
-    console.log(`Current watermark:`, watermark);
+    logger.debug(`Current watermark:`, watermark);
 
     // Fetch new messages (this already saves them to the database)
     const messages = await adapter.fetchMessages(
@@ -347,11 +350,11 @@ export class StreamManager {
     );
 
     if (messages.length === 0) {
-      console.log(`No new messages for stream ${streamId}`);
+      logger.debug(`No new messages for stream ${streamId}`);
       return 0;
     }
 
-    console.log(`Imported ${messages.length} new messages from ${streamId} (not yet processed)`);
+    logger.info(`Imported ${messages.length} new messages from ${streamId} (not yet processed)`);
 
     // Update watermark after successful import
     if (messages.length > 0) {
@@ -372,30 +375,30 @@ export class StreamManager {
   async runStream(streamId: string, batchSize?: number): Promise<void> {
     // Check concurrency limit
     if (this.runningStreams.size >= this.config.maxConcurrentStreams) {
-      console.warn(`Max concurrent streams reached (${this.config.maxConcurrentStreams}). Skipping ${streamId}`);
+      logger.warn(`Max concurrent streams reached (${this.config.maxConcurrentStreams}). Skipping ${streamId}`);
       return;
     }
 
     // Check if stream is already running
     if (this.runningStreams.has(streamId)) {
-      console.warn(`Stream ${streamId} is already running. Skipping.`);
+      logger.warn(`Stream ${streamId} is already running. Skipping.`);
       return;
     }
 
     const adapter = this.adapters.get(streamId);
     if (!adapter) {
-      console.error(`Stream ${streamId} not found`);
+      logger.error(`Stream ${streamId} not found`);
       return;
     }
 
     this.runningStreams.add(streamId);
 
     try {
-      console.log(`\n=== Running stream: ${streamId} ===`);
+      logger.info(`Running stream: ${streamId}`);
 
       // Get current watermark
       const watermark = await adapter.getWatermark();
-      console.log(`Current watermark:`, watermark);
+      logger.debug(`Current watermark:`, watermark);
 
       // Fetch new messages
       const messages = await adapter.fetchMessages(
@@ -404,17 +407,15 @@ export class StreamManager {
       );
 
       if (messages.length === 0) {
-        console.log(`No new messages for stream ${streamId}`);
+        logger.debug(`No new messages for stream ${streamId}`);
         return;
       }
 
-      console.log(`Fetched ${messages.length} new messages from ${streamId}`);
+      logger.info(`Fetched ${messages.length} new messages from ${streamId}`);
 
       // Messages are now stored in database as PENDING
       // They will be processed in 24-hour batches by the batch processor
-      console.log(`\n=== Stream ${streamId} import complete ===`);
-      console.log(`Messages imported: ${messages.length}`);
-      console.log(`Status: PENDING (will be processed in next batch run)\n`);
+      logger.info(`Stream ${streamId} import complete - ${messages.length} messages imported (PENDING status)`);
 
       // Update watermark after successful processing
       if (messages.length > 0) {
@@ -427,7 +428,7 @@ export class StreamManager {
       }
 
     } catch (error: any) {
-      console.error(`Error running stream ${streamId}:`, error);
+      logger.error(`Error running stream ${streamId}:`, error);
 
       // Retry logic
       await this.handleStreamError(streamId, error);
@@ -440,8 +441,8 @@ export class StreamManager {
    * Handle stream errors with retry logic
    */
   private async handleStreamError(streamId: string, error: Error): Promise<void> {
-    console.error(`Stream ${streamId} encountered error:`, error.message);
-    console.log(`Error will be logged but stream will continue on next trigger`);
+    logger.error(`Stream ${streamId} encountered error:`, error.message);
+    logger.warn(`Error will be logged but stream will continue on next trigger`);
 
     // Disable stream after error for manual intervention
     await prisma.streamConfig.update({
@@ -458,14 +459,14 @@ export class StreamManager {
       },
     });
 
-    console.log(`Stream ${streamId} disabled. Re-enable manually after fixing the issue.`);
+    logger.warn(`Stream ${streamId} disabled. Re-enable manually after fixing the issue.`);
   }
 
   /**
    * Run all registered streams once
    */
   async runAllStreams(): Promise<void> {
-    console.log(`Running all ${this.adapters.size} streams...`);
+    logger.info(`Running all ${this.adapters.size} streams...`);
 
     const streamIds = Array.from(this.adapters.keys());
 
@@ -473,7 +474,7 @@ export class StreamManager {
       await this.runStream(streamId);
     }
 
-    console.log('All streams completed');
+    logger.info('All streams completed');
   }
 
   /**
@@ -544,7 +545,7 @@ export class StreamManager {
     if (job) {
       job.stop();
       this.jobs.delete(streamId);
-      console.log(`Stream ${streamId} stopped`);
+      logger.info(`Stream ${streamId} stopped`);
     }
   }
 
@@ -558,7 +559,7 @@ export class StreamManager {
     if (adapter) {
       await adapter.cleanup();
       this.adapters.delete(streamId);
-      console.log(`Stream ${streamId} unregistered`);
+      logger.info(`Stream ${streamId} unregistered`);
     }
   }
 
@@ -566,25 +567,25 @@ export class StreamManager {
    * Shutdown the stream manager
    */
   async shutdown(): Promise<void> {
-    console.log('Shutting down StreamManager...');
+    logger.info('Shutting down StreamManager...');
 
     // Stop all jobs
     for (const [streamId, job] of this.jobs.entries()) {
       job.stop();
-      console.log(`Stopped job for ${streamId}`);
+      logger.debug(`Stopped job for ${streamId}`);
     }
 
     // Cleanup all adapters
     for (const [streamId, adapter] of this.adapters.entries()) {
       await adapter.cleanup();
-      console.log(`Cleaned up adapter for ${streamId}`);
+      logger.debug(`Cleaned up adapter for ${streamId}`);
     }
 
     this.jobs.clear();
     this.adapters.clear();
     this.runningStreams.clear();
 
-    console.log('StreamManager shutdown complete');
+    logger.info('StreamManager shutdown complete');
   }
 
   /**

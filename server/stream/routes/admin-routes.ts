@@ -13,11 +13,14 @@ import { z } from 'zod';
 import { BatchMessageProcessor } from '../processors/batch-message-processor.js';
 import { instanceMiddleware } from '../../middleware/instance.js';
 import { getInstanceDb } from '../../db/instance-db.js';
+import { createLogger } from '../../utils/logger.js';
 import pg from 'pg';
 import multer from 'multer';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 const { Pool } = pg;
+
+const logger = createLogger('AdminStreamRoutes');
 
 // Helper to get instance ID from request
 function getInstanceId(req: Request): string {
@@ -145,7 +148,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         is_processing: BatchMessageProcessor.getProcessingStatus(),
       });
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      logger.error('Error fetching stats:', error);
       res.status(500).json({ error: 'Failed to fetch stats' });
     }
   };
@@ -252,7 +255,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         },
       });
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      logger.error('Error fetching messages:', error);
       res.status(500).json({ error: 'Failed to fetch messages' });
     }
   });
@@ -282,7 +285,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
       res.json(message);
     } catch (error) {
-      console.error('Error fetching message:', error);
+      logger.error('Error fetching message:', error);
       res.status(500).json({ error: 'Failed to fetch message' });
     }
   });
@@ -308,7 +311,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         imported,
       });
     } catch (error) {
-      console.error('Error importing messages:', error);
+      logger.error('Error importing messages:', error);
       res.status(500).json({ error: 'Failed to import messages' });
     }
   });
@@ -322,7 +325,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const instanceId = getInstanceId(req);
       const db = getDb(req);
 
-      console.log(`[${instanceId}] Starting batch processing...`);
+      logger.info(`[${instanceId}] Starting batch processing...`);
 
       // Create instance-specific batch processor
       const processor = new BatchMessageProcessor(instanceId, db);
@@ -333,7 +336,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         messagesProcessed,
       });
     } catch (error) {
-      console.error('Error processing batch:', error);
+      logger.error('Error processing batch:', error);
       res.status(500).json({ error: 'Failed to process batch' });
     }
   });
@@ -386,7 +389,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         },
       });
     } catch (error) {
-      console.error('Error fetching proposals:', error);
+      logger.error('Error fetching proposals:', error);
       res.status(500).json({ error: 'Failed to fetch proposals' });
     }
   });
@@ -419,7 +422,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         proposal: updated,
       });
     } catch (error) {
-      console.error('Error approving proposal:', error);
+      logger.error('Error approving proposal:', error);
       res.status(500).json({ error: 'Failed to approve proposal' });
     }
   });
@@ -452,7 +455,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         proposal: updated,
       });
     } catch (error) {
-      console.error('Error updating proposal:', error);
+      logger.error('Error updating proposal:', error);
       res.status(500).json({ error: 'Failed to update proposal' });
     }
   });
@@ -466,7 +469,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const db = getDb(req);
 
       const proposalId = parseInt(req.params.id);
-      console.log('[Status Update] Raw request body:', JSON.stringify(req.body));
+      logger.debug('Raw request body:', JSON.stringify(req.body));
 
       const { status, reviewedBy } = z.object({
         status: z.enum(['approved', 'ignored', 'pending']),
@@ -478,7 +481,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         where: { id: proposalId },
         select: { status: true, conversationId: true },
       });
-      console.log(`[Status Update] Proposal ${proposalId} - Current status: ${beforeUpdate?.status}, Requested status: ${status}, Type: ${typeof status}`);
+      logger.debug(`Proposal ${proposalId} - Current status: ${beforeUpdate?.status}, Requested status: ${status}`);
 
       const updateData = {
         status: status,
@@ -487,7 +490,6 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         adminReviewedBy: status !== 'pending' ? reviewedBy : null,
         discardReason: status === 'ignored' ? 'Admin discarded change' : null,
       };
-      console.log('[Status Update] Update data:', JSON.stringify(updateData, null, 2));
 
       // Update the proposal
       const updated = await db.docProposal.update({
@@ -495,7 +497,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         data: updateData,
       });
 
-      console.log(`[Status Update] Proposal ${proposalId} - Database returned status: ${updated.status}`);
+      logger.debug(`Proposal ${proposalId} - Database returned status: ${updated.status}`);
 
       // Calculate conversation status
       const allProposals = await db.docProposal.findMany({
@@ -519,7 +521,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         conversationStatus,
       });
     } catch (error) {
-      console.error('Error changing proposal status:', error);
+      logger.error('Error changing proposal status:', error);
       res.status(500).json({ error: 'Failed to change proposal status' });
     }
   });
@@ -604,7 +606,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         },
       });
     } catch (error) {
-      console.error('Error fetching changeset batches:', error);
+      logger.error('Error fetching changeset batches:', error);
       res.status(500).json({ error: 'Failed to fetch changeset batches' });
     }
   };
@@ -634,7 +636,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
       res.json(streams);
     } catch (error) {
-      console.error('Error fetching streams:', error);
+      logger.error('Error fetching streams:', error);
       res.status(500).json({ error: 'Failed to fetch streams' });
     }
   });
@@ -672,7 +674,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             enabled: data.enabled,
           },
         });
-        console.log(`Updated stream config for ${data.streamId}`);
+        logger.info(`Updated stream config for ${data.streamId}`);
       } else {
         // Create new stream
         stream = await db.streamConfig.create({
@@ -683,7 +685,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             enabled: data.enabled,
           },
         });
-        console.log(`Created stream config for ${data.streamId}`);
+        logger.info(`Created stream config for ${data.streamId}`);
       }
 
       // Import and reinitialize stream manager to pick up new config
@@ -696,7 +698,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         stream,
       });
     } catch (error: any) {
-      console.error('Error registering stream:', error);
+      logger.error('Error registering stream:', error);
       if (error.name === 'ZodError') {
         res.status(400).json({ error: 'Invalid request data', details: error.errors });
       } else {
@@ -760,10 +762,10 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
       await fs.rename(req.file.path, targetPath);
 
-      console.log(`[${instanceId}] CSV file uploaded: ${targetPath}`);
+      logger.info(`[${instanceId}] CSV file uploaded: ${targetPath}`);
 
       // Auto-process the CSV file immediately (App Runner /tmp is ephemeral)
-      console.log(`[${instanceId}] Auto-processing CSV file: ${streamId}`);
+      logger.info(`[${instanceId}] Auto-processing CSV file: ${streamId}`);
 
       try {
         const { streamManager } = await import('../stream-manager.js');
@@ -778,7 +780,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           imported,
         });
       } catch (processError: any) {
-        console.error(`[${instanceId}] Error processing CSV:`, processError);
+        logger.error(`[${instanceId}] Error processing CSV:`, processError);
         // File uploaded but processing failed - return partial success
         res.json({
           success: true,
@@ -790,7 +792,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         });
       }
     } catch (error: any) {
-      console.error('Error uploading CSV:', error);
+      logger.error('Error uploading CSV:', error);
       // Clean up uploaded file on error
       if (req.file?.path) {
         try {
@@ -825,7 +827,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       });
 
       const messageIds = messagesToClear.map(m => m.id);
-      console.log(`Found ${messageIds.length} messages to clear`);
+      logger.info(`Found ${messageIds.length} messages to clear`);
 
       if (messageIds.length === 0) {
         return res.json({
@@ -849,7 +851,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           .map(c => c.conversationId)
           .filter((id): id is string => id !== null);
 
-        console.log(`  └─ Found ${conversationIdList.length} unique conversations`);
+        logger.debug(`Found ${conversationIdList.length} unique conversations`);
 
         // Delete proposals by conversationId
         const proposalsDeleted = await tx.docProposal.deleteMany({
@@ -857,7 +859,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             conversationId: { in: conversationIdList },
           },
         });
-        console.log(`  └─ Deleted ${proposalsDeleted.count} proposals`);
+        logger.debug(`Deleted ${proposalsDeleted.count} proposals`);
 
         // Delete conversation RAG context
         const ragDeleted = await tx.conversationRagContext.deleteMany({
@@ -865,7 +867,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             conversationId: { in: conversationIdList },
           },
         });
-        console.log(`  └─ Deleted ${ragDeleted.count} conversation RAG contexts`);
+        logger.debug(`Deleted ${ragDeleted.count} conversation RAG contexts`);
 
         // Delete classifications
         const classificationsDeleted = await tx.messageClassification.deleteMany({
@@ -873,7 +875,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             messageId: { in: messageIds },
           },
         });
-        console.log(`  └─ Deleted ${classificationsDeleted.count} classifications`);
+        logger.debug(`Deleted ${classificationsDeleted.count} classifications`);
 
         // Reset messages back to PENDING
         const messagesUpdated = await tx.unifiedMessage.updateMany({
@@ -884,7 +886,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             lastError: null,
           },
         });
-        console.log(`  └─ Reset ${messagesUpdated.count} messages to PENDING`);
+        logger.debug(`Reset ${messagesUpdated.count} messages to PENDING`);
 
         // Reset processing watermark to allow reprocessing from the beginning
         // Find the earliest message timestamp
@@ -905,7 +907,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             lastProcessedBatch: null,
           },
         });
-        console.log(`  └─ Reset processing watermark to ${resetWatermark.toISOString()}`);
+        logger.debug(`Reset processing watermark to ${resetWatermark.toISOString()}`);
       });
 
       res.json({
@@ -913,7 +915,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         count: messageIds.length,
       });
     } catch (error) {
-      console.error('Error clearing processed messages:', error);
+      logger.error('Error clearing processed messages:', error);
       res.status(500).json({ error: 'Failed to clear processed messages' });
     }
   });
@@ -939,7 +941,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const hideEmptyProposals = req.query.hideEmptyProposals !== 'false'; // Default to true
       const offset = (page - 1) * limit;
 
-      console.log(`[Conversations] Query params - category: ${category}, hasProposals: ${req.query.hasProposals}, status: ${statusFilter}, hideEmptyProposals: ${hideEmptyProposals}`);
+      logger.debug(`Query params - category: ${category}, hasProposals: ${req.query.hasProposals}, status: ${statusFilter}, hideEmptyProposals: ${hideEmptyProposals}`);
 
       // Build where clause for filtering
       const where: any = {
@@ -1039,10 +1041,10 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             conversationsByStatus.discarded.add(conv.conversationId);
           }
 
-          console.log(`[Conversations Filter] Added ${autoRejectedConversations.length} auto-rejected conversations to discarded`);
+          logger.debug(`Added ${autoRejectedConversations.length} auto-rejected conversations to discarded`);
         }
 
-        console.log(`[Conversations Filter] Status filter: ${statusFilter}, found ${conversationsByStatus[statusFilter].size} conversations`);
+        logger.debug(`Status filter: ${statusFilter}, found ${conversationsByStatus[statusFilter].size} conversations`);
         allConversations = allConversations.filter(c =>
           c.conversationId && conversationsByStatus[statusFilter].has(c.conversationId)
         );
@@ -1243,7 +1245,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         },
       });
     } catch (error) {
-      console.error('Error fetching conversations:', error);
+      logger.error('Error fetching conversations:', error);
       res.status(500).json({ error: 'Failed to fetch conversations' });
     }
   };
@@ -1281,7 +1283,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
       res.status(200).json({ ok: true });
     } catch (error) {
-      console.error('Telegram webhook error:', error);
+      logger.error('Telegram webhook error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -1310,7 +1312,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         batch
       });
     } catch (error: any) {
-      console.error('Error creating draft batch:', error);
+      logger.error('Error creating draft batch:', error);
       res.status(500).json({ error: error.message || 'Failed to create draft batch' });
     }
   });
@@ -1347,7 +1349,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         failedProposals: result.failedProposals
       });
     } catch (error: any) {
-      console.error('Error generating PR:', error);
+      logger.error('Error generating PR:', error);
       res.status(500).json({ error: error.message || 'Failed to generate pull request' });
     }
   });
@@ -1375,7 +1377,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
       res.json({ batch });
     } catch (error: any) {
-      console.error('Error fetching batch:', error);
+      logger.error('Error fetching batch:', error);
       res.status(500).json({ error: error.message || 'Failed to fetch batch' });
     }
   });
@@ -1397,10 +1399,10 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
       res.json({ message: 'Draft batch deleted successfully' });
     } catch (error: any) {
-      console.error('Error deleting batch:', error);
+      logger.error('Error deleting batch:', error);
       res.status(500).json({ error: error.message || 'Failed to delete batch' });
     }
   });
 
-  console.log('Multi-stream scanner admin routes registered');
+  logger.info('Multi-stream scanner admin routes registered');
 }

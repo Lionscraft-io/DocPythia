@@ -4,6 +4,9 @@ import type { ScrapedMessage, DocumentationSection } from "../storage";
 import { getConfig } from "../config/loader";
 import { llmCache } from "../llm/llm-cache.js";
 import { PROMPT_TEMPLATES, fillTemplate } from "../stream/llm/prompt-templates.js";
+import { createLogger } from "../utils/logger.js";
+
+const logger = createLogger('GeminiAnalyzer');
 
 // Model configuration - uses same env vars as batch processor for consistency
 const ANALYSIS_MODEL = process.env.LLM_CLASSIFICATION_MODEL || 'gemini-2.5-flash';
@@ -31,7 +34,7 @@ export class MessageAnalyzer {
 
   async loadDocumentation() {
     this.documentationSections = await storage.getDocumentationSections();
-    console.log(`Loaded ${this.documentationSections.length} documentation sections for analysis`);
+    logger.info(`Loaded ${this.documentationSections.length} documentation sections for analysis`);
   }
 
   async analyzeMessage(message: ScrapedMessage): Promise<AnalysisResult> {
@@ -59,10 +62,10 @@ export class MessageAnalyzer {
       if (cached) {
         try {
           const result = JSON.parse(cached.response) as AnalysisResult;
-          console.log('Using cached analysis result');
+          logger.debug('Using cached analysis result');
           return result;
         } catch (error) {
-          console.warn('Failed to parse cached analysis, will regenerate');
+          logger.warn('Failed to parse cached analysis, will regenerate');
         }
       }
 
@@ -106,7 +109,7 @@ export class MessageAnalyzer {
 
       return result;
     } catch (error: any) {
-      console.error("Error analyzing message:", error.message);
+      logger.error("Error analyzing message:", error.message);
       throw new Error(`Failed to analyze message: ${error.message}`);
     }
   }
@@ -118,20 +121,20 @@ export class MessageAnalyzer {
   }> {
     const messages = await storage.getUnanalyzedMessages();
     const toAnalyze = messages.slice(0, limit);
-    
-    console.log(`Analyzing ${toAnalyze.length} messages...`);
-    
+
+    logger.info(`Analyzing ${toAnalyze.length} messages...`);
+
     let relevantCount = 0;
     let updatesCreated = 0;
 
     for (const message of toAnalyze) {
       try {
-        console.log(`\nAnalyzing message ${message.messageId}...`);
+        logger.debug(`Analyzing message ${message.messageId}...`);
         const result = await this.analyzeMessage(message);
-        
-        console.log(`  Relevant: ${result.relevant}`);
+
+        logger.debug(`Relevant: ${result.relevant}`);
         if (result.reasoning) {
-          console.log(`  Reasoning: ${result.reasoning}`);
+          logger.debug(`Reasoning: ${result.reasoning}`);
         }
 
         if (result.relevant && result.updateType && result.summary) {
@@ -141,14 +144,14 @@ export class MessageAnalyzer {
           if (result.updateType === "add") {
             // Adding a new section - requires proposed title and content
             if (!result.proposedSectionTitle || !result.suggestedContent) {
-              console.log(`  ⚠ Warning: "add" operation missing title or content. Skipping.`);
+              logger.warn(`"add" operation missing title or content. Skipping.`);
             } else {
               // Generate a section ID from the proposed title
               const proposedSectionId = result.proposedSectionTitle
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, '-')
                 .replace(/^-+|-+$/g, '');
-              
+
               const pendingUpdate = await storage.createPendingUpdate({
                 sectionId: proposedSectionId,
                 type: "add",
@@ -159,19 +162,19 @@ export class MessageAnalyzer {
                 diffAfter: result.suggestedContent,
                 reviewedBy: null,
               });
-              
+
               updatesCreated++;
-              console.log(`  ✓ Created "add" update for new section: ${proposedSectionId}`);
+              logger.info(`Created "add" update for new section: ${proposedSectionId}`);
             }
           } else if (result.updateType === "delete") {
             // Deleting an existing section
             if (!result.sectionId) {
-              console.log(`  ⚠ Warning: "delete" operation missing sectionId. Skipping.`);
+              logger.warn(`"delete" operation missing sectionId. Skipping.`);
             } else {
               const section = this.documentationSections.find(s => s.sectionId === result.sectionId);
-              
+
               if (!section) {
-                console.log(`  ⚠ Warning: Cannot delete non-existent section "${result.sectionId}". Skipping.`);
+                logger.warn(`Cannot delete non-existent section "${result.sectionId}". Skipping.`);
               } else {
                 const pendingUpdate = await storage.createPendingUpdate({
                   sectionId: result.sectionId,
@@ -183,23 +186,23 @@ export class MessageAnalyzer {
                   diffAfter: null,
                   reviewedBy: null,
                 });
-                
+
                 updatesCreated++;
-                console.log(`  ✓ Created "delete" update for section: ${result.sectionId}`);
+                logger.info(`Created "delete" update for section: ${result.sectionId}`);
               }
             }
           } else {
             // Updating existing section (minor or major)
             if (!result.sectionId) {
-              console.log(`  ⚠ Warning: Update operation missing sectionId. Skipping.`);
+              logger.warn(`Update operation missing sectionId. Skipping.`);
             } else {
               const section = this.documentationSections.find(s => s.sectionId === result.sectionId);
-              
+
               if (!section) {
-                console.log(`  ⚠ Warning: AI returned unknown sectionId "${result.sectionId}". Converting to major update for manual review.`);
+                logger.warn(`AI returned unknown sectionId "${result.sectionId}". Converting to major update for manual review.`);
                 result.updateType = "major";
               }
-              
+
               const pendingUpdate = await storage.createPendingUpdate({
                 sectionId: section ? result.sectionId : this.documentationSections[0]?.sectionId || "introduction",
                 type: result.updateType,
@@ -210,31 +213,31 @@ export class MessageAnalyzer {
                 diffAfter: result.suggestedContent || null,
                 reviewedBy: result.updateType === "minor" && section ? "AI Auto-Approval" : null,
               });
-              
+
               updatesCreated++;
-              console.log(`  ✓ Created ${result.updateType} update for section ${section?.sectionId || "introduction"}`);
-              
+              logger.info(`Created ${result.updateType} update for section ${section?.sectionId || "introduction"}`);
+
               // Auto-apply minor updates only if section was valid
               if (result.updateType === "minor" && result.suggestedContent && section) {
                 await storage.updateDocumentationSection(result.sectionId, result.suggestedContent);
-                
+
                 // Create audit history entry for auto-applied update
                 await storage.createUpdateHistory({
                   updateId: pendingUpdate.id,
                   action: "auto_applied",
                   performedBy: "AI Auto-Approval",
                 });
-                
-                console.log(`  ✓ Auto-applied minor update with audit log`);
+
+                logger.info(`Auto-applied minor update with audit log`);
               }
             }
           }
         }
-        
+
         // Mark as analyzed
         await storage.markMessageAsAnalyzed(message.id);
       } catch (error: any) {
-        console.error(`  Error analyzing message ${message.messageId}:`, error.message);
+        logger.error(`Error analyzing message ${message.messageId}:`, error.message);
         // Continue with next message
       }
     }
@@ -255,7 +258,7 @@ export class MessageAnalyzer {
       // Check cache first
       const cached = llmCache.get(prompt, 'general');
       if (cached) {
-        console.log('Using cached documentation answer');
+        logger.debug('Using cached documentation answer');
         return cached.response;
       }
 
@@ -287,7 +290,7 @@ export class MessageAnalyzer {
 
       return answer;
     } catch (error: any) {
-      console.error("Error generating documentation answer:", error.message);
+      logger.error("Error generating documentation answer:", error.message);
       throw new Error(`Failed to generate answer: ${error.message}`);
     }
   }
@@ -297,7 +300,7 @@ export function createAnalyzerFromEnv(): MessageAnalyzer | null {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    console.warn("Gemini API key not found in environment variables");
+    logger.warn("Gemini API key not found in environment variables");
     return null;
   }
 

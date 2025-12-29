@@ -12,9 +12,12 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { cacheStorage } from '../storage/cache-storage';
+import { createLogger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const logger = createLogger('LLMCache');
 
 export type CachePurpose = 'index' | 'embeddings' | 'analysis' | 'changegeneration' | 'review' | 'general';
 
@@ -61,9 +64,9 @@ export class LLMCache implements ILLMCache {
       if (this.backend === 'local') {
         this.ensureDirectories();
       }
-      console.log(`LLM Cache initialized: backend=${this.backend}, enabled=${this.enabled}`);
+      logger.info(`Initialized: backend=${this.backend}, enabled=${this.enabled}`);
     } else {
-      console.log('LLM Cache is disabled');
+      logger.info('Disabled');
     }
   }
 
@@ -169,10 +172,10 @@ export class LLMCache implements ILLMCache {
       const fileContent = fs.readFileSync(filePath, 'utf-8');
       const cached = JSON.parse(fileContent) as CachedLLMRequest;
 
-      console.log(`LLM Cache HIT: ${purpose}/${cached.hash.substring(0, 8)}`);
+      logger.debug(`HIT: ${purpose}/${cached.hash.substring(0, 8)}`);
       return cached;
     } catch (error) {
-      console.error('Error reading LLM cache:', error);
+      logger.error('Error reading cache:', error);
       return null;
     }
   }
@@ -188,12 +191,12 @@ export class LLMCache implements ILLMCache {
         const hash = this.hashPrompt(prompt);
         const entry = await cacheStorage.get<CachedLLMRequest>(`llm/${purpose}`, hash);
         if (entry) {
-          console.log(`LLM Cache HIT (S3): ${purpose}/${hash.substring(0, 8)}`);
+          logger.debug(`HIT (S3): ${purpose}/${hash.substring(0, 8)}`);
           return entry.data;
         }
         return null;
       } catch (error) {
-        console.error('Error reading LLM cache from S3:', error);
+        logger.error('Error reading cache from S3:', error);
         return null;
       }
     }
@@ -231,7 +234,7 @@ export class LLMCache implements ILLMCache {
     if (this.backend === 's3') {
       // Fire and forget for S3 to maintain sync interface
       this.setAsync(prompt, response, purpose, metadata).catch(err => {
-        console.error('Error writing LLM cache to S3:', err);
+        logger.error('Error writing cache to S3:', err);
       });
       return;
     }
@@ -239,9 +242,9 @@ export class LLMCache implements ILLMCache {
     try {
       const filePath = this.getCacheFilePath(prompt, purpose);
       fs.writeFileSync(filePath, JSON.stringify(cacheEntry, null, 2), 'utf-8');
-      console.log(`LLM Cache SAVED: ${purpose}/${hash.substring(0, 8)}`);
+      logger.debug(`SAVED: ${purpose}/${hash.substring(0, 8)}`);
     } catch (error) {
-      console.error('Error writing LLM cache:', error);
+      logger.error('Error writing cache:', error);
     }
   }
 
@@ -279,9 +282,9 @@ export class LLMCache implements ILLMCache {
           tokensUsed: metadata?.tokensUsed,
           messageId: metadata?.messageId,
         });
-        console.log(`LLM Cache SAVED (S3): ${purpose}/${hash.substring(0, 8)}`);
+        logger.debug(`SAVED (S3): ${purpose}/${hash.substring(0, 8)}`);
       } catch (error) {
-        console.error('Error writing LLM cache to S3:', error);
+        logger.error('Error writing cache to S3:', error);
       }
       return;
     }
@@ -311,7 +314,7 @@ export class LLMCache implements ILLMCache {
           const fileContent = fs.readFileSync(filePath, 'utf-8');
           cached.push(JSON.parse(fileContent));
         } catch (error) {
-          console.error(`Error reading cache file ${file}:`, error);
+          logger.error(`Error reading cache file ${file}:`, error);
         }
       }
 
@@ -320,7 +323,7 @@ export class LLMCache implements ILLMCache {
 
       return cached;
     } catch (error) {
-      console.error('Error listing cache by purpose:', error);
+      logger.error('Error listing cache by purpose:', error);
       return [];
     }
   }
@@ -338,7 +341,7 @@ export class LLMCache implements ILLMCache {
         cached.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         return cached;
       } catch (error) {
-        console.error('Error listing cache from S3:', error);
+        logger.error('Error listing cache from S3:', error);
         return [];
       }
     }
@@ -454,7 +457,7 @@ export class LLMCache implements ILLMCache {
           byPurpose[purpose] = stats.count;
           totalSizeBytes += stats.totalSize;
         } catch (error) {
-          console.error(`Error getting stats for ${purpose}:`, error);
+          logger.error(`Error getting stats for ${purpose}:`, error);
         }
       }
 
@@ -492,14 +495,14 @@ export class LLMCache implements ILLMCache {
           fs.unlinkSync(path.join(purposeDir, file));
           deletedCount++;
         } catch (error) {
-          console.error(`Error deleting cache file ${file}:`, error);
+          logger.error(`Error deleting cache file ${file}:`, error);
         }
       }
 
-      console.log(`Cleared ${deletedCount} cached requests from ${purpose}`);
+      logger.info(`Cleared ${deletedCount} cached requests from ${purpose}`);
       return deletedCount;
     } catch (error) {
-      console.error('Error clearing cache purpose:', error);
+      logger.error('Error clearing cache purpose:', error);
       return 0;
     }
   }
@@ -513,10 +516,10 @@ export class LLMCache implements ILLMCache {
     if (this.backend === 's3') {
       try {
         const deleted = await cacheStorage.clearCategory(`llm/${purpose}`);
-        console.log(`Cleared ${deleted} cached requests from ${purpose} (S3)`);
+        logger.info(`Cleared ${deleted} cached requests from ${purpose} (S3)`);
         return deleted;
       } catch (error) {
-        console.error('Error clearing cache from S3:', error);
+        logger.error('Error clearing cache from S3:', error);
         return 0;
       }
     }
@@ -536,7 +539,7 @@ export class LLMCache implements ILLMCache {
       totalDeleted += this.clearPurpose(purpose);
     }
 
-    console.log(`Cleared total of ${totalDeleted} cached requests`);
+    logger.info(`Cleared total of ${totalDeleted} cached requests`);
     return totalDeleted;
   }
 
@@ -552,7 +555,7 @@ export class LLMCache implements ILLMCache {
       totalDeleted += await this.clearPurposeAsync(purpose);
     }
 
-    console.log(`Cleared total of ${totalDeleted} cached requests`);
+    logger.info(`Cleared total of ${totalDeleted} cached requests`);
     return totalDeleted;
   }
 
@@ -588,7 +591,7 @@ export class LLMCache implements ILLMCache {
             results.push(cached);
           }
         } catch (error) {
-          console.error(`Error processing cache file ${file}:`, error);
+          logger.error(`Error processing cache file ${file}:`, error);
         }
       }
     }
@@ -624,7 +627,7 @@ export class LLMCache implements ILLMCache {
             results.push({ purpose, request: cached });
           }
         } catch (error) {
-          console.error(`Error processing cache file ${file}:`, error);
+          logger.error(`Error processing cache file ${file}:`, error);
         }
       }
     }
@@ -721,12 +724,12 @@ export class LLMCache implements ILLMCache {
             deletedCount++;
           }
         } catch (error) {
-          console.error(`Error processing cache file ${file}:`, error);
+          logger.error(`Error processing cache file ${file}:`, error);
         }
       }
     }
 
-    console.log(`Deleted ${deletedCount} cached requests older than ${days} days`);
+    logger.info(`Deleted ${deletedCount} cached requests older than ${days} days`);
     return deletedCount;
   }
 
@@ -745,11 +748,11 @@ export class LLMCache implements ILLMCache {
           const deleted = await cacheStorage.clearOlderThan(`llm/${purpose}`, maxAgeMs);
           totalDeleted += deleted;
         } catch (error) {
-          console.error(`Error clearing old cache for ${purpose}:`, error);
+          logger.error(`Error clearing old cache for ${purpose}:`, error);
         }
       }
 
-      console.log(`Deleted ${totalDeleted} cached requests older than ${days} days (S3)`);
+      logger.info(`Deleted ${totalDeleted} cached requests older than ${days} days (S3)`);
       return totalDeleted;
     }
 
