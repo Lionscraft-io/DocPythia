@@ -19,8 +19,8 @@ RUN npx prisma generate
 # Set production environment for build
 ENV NODE_ENV=production
 
-# Add build argument for domain (defaults to App Runner domain)
-ARG WIDGET_DOMAIN=https://euk5cmmqyr.eu-central-1.awsapprunner.com
+# Build argument for widget domain (set via environment or build args)
+ARG WIDGET_DOMAIN=http://localhost:3762
 ENV VITE_WIDGET_DOMAIN=$WIDGET_DOMAIN
 
 # Build the application (use production vite config, then esbuild with config)
@@ -82,7 +82,7 @@ EXPOSE 8080
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=8080
-ENV WIDGET_DOMAIN=https://euk5cmmqyr.eu-central-1.awsapprunner.com
+# WIDGET_DOMAIN should be set via environment variable at runtime
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

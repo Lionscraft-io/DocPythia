@@ -83,7 +83,8 @@
       "Bash(do echo \"$f#*tests/frontend/\")",
       "Bash(ls:*)",
       "Bash(sort:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

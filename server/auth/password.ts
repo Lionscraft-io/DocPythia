@@ -1,29 +1,75 @@
 /**
  * Password Authentication Utilities
- * Simple SHA256-based password hashing for admin authentication
- * Author: Wayne (2025-11-13)
+ * Secure bcrypt-based password hashing for admin authentication
  */
 
+import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 
+// Cost factor for bcrypt (10-12 recommended for production)
+const SALT_ROUNDS = 12;
+
 /**
- * Hash a password using SHA256
+ * Hash a password using bcrypt
+ * @param password - The plaintext password to hash
+ * @returns Promise resolving to the hashed password
  */
-export function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, SALT_ROUNDS);
 }
 
 /**
- * Verify a password against a hash
+ * Verify a password against a bcrypt hash
+ * @param password - The plaintext password to verify
+ * @param hash - The bcrypt hash to compare against
+ * @returns Promise resolving to true if password matches
  */
-export function verifyPassword(password: string, hash: string): boolean {
-  const inputHash = hashPassword(password);
-  return inputHash === hash;
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  // Support legacy SHA256 hashes during migration period
+  if (hash.length === 64 && /^[a-f0-9]+$/.test(hash)) {
+    const sha256Hash = crypto.createHash('sha256').update(password).digest('hex');
+    return sha256Hash === hash;
+  }
+
+  return bcrypt.compare(password, hash);
+}
+
+/**
+ * Synchronous password hashing (for backwards compatibility)
+ * @deprecated Use async hashPassword() instead
+ */
+export function hashPasswordSync(password: string): string {
+  return bcrypt.hashSync(password, SALT_ROUNDS);
+}
+
+/**
+ * Synchronous password verification (for backwards compatibility)
+ * @deprecated Use async verifyPassword() instead
+ */
+export function verifyPasswordSync(password: string, hash: string): boolean {
+  // Support legacy SHA256 hashes during migration period
+  if (hash.length === 64 && /^[a-f0-9]+$/.test(hash)) {
+    const sha256Hash = crypto.createHash('sha256').update(password).digest('hex');
+    return sha256Hash === hash;
+  }
+
+  return bcrypt.compareSync(password, hash);
 }
 
 /**
  * Generate a secure random password
+ * @param length - Length of the password (default: 24)
+ * @returns A cryptographically secure random password
  */
 export function generatePassword(length: number = 24): string {
   return crypto.randomBytes(Math.ceil(length * 3 / 4)).toString('base64').slice(0, length);
+}
+
+/**
+ * Check if a hash is using the legacy SHA256 format
+ * @param hash - The hash to check
+ * @returns true if hash is legacy SHA256 format
+ */
+export function isLegacyHash(hash: string): boolean {
+  return hash.length === 64 && /^[a-f0-9]+$/.test(hash);
 }
