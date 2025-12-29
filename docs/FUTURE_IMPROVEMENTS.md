@@ -166,19 +166,24 @@ Add security headers via middleware:
 
 ## Documentation
 
-### P1: API Documentation (Swagger/OpenAPI)
+### ~~P1: API Documentation (Swagger/OpenAPI)~~ COMPLETED
 
-Add OpenAPI/Swagger documentation:
+**Status:** Completed (December 2025)
 
-```bash
-npm install swagger-jsdoc swagger-ui-express
-```
+OpenAPI/Swagger documentation added:
+- Swagger UI at `/api/docs-ui`
+- OpenAPI JSON spec at `/api/openapi.json`
+- JSDoc annotations for all endpoints
+- Comprehensive schema definitions
 
-**Tasks:**
-- Document all endpoints with JSDoc comments
-- Generate OpenAPI spec
-- Add Swagger UI at `/api/docs`
-- Generate TypeScript client SDK
+**Documented:**
+- Health and diagnostics endpoints
+- Authentication endpoints
+- Documentation CRUD and sync
+- Pending updates management
+- Message scraping and analysis
+- Widget endpoints
+- LLM cache management
 
 ### P2: Architecture Decision Records (ADRs)
 
@@ -385,7 +390,7 @@ Add OpenTelemetry support for:
 ### Phase 1 (Next Release)
 1. ~~Logging migration (P1)~~ DONE
 2. ~~Routes modularization (P1)~~ DONE
-3. API documentation (P1)
+3. ~~API documentation (P1)~~ DONE
 4. Session storage improvement (P1)
 
 ### Phase 2
