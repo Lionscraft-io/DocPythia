@@ -6,11 +6,11 @@ export interface InstanceConfig {
   branding: BrandingConfig;
   documentation: DocumentationConfig;
   database: DatabaseConfig;
-  community?: CommunityConfig;  // Legacy - now optional (use streams array instead)
+  community?: CommunityConfig; // Legacy - now optional (use streams array instead)
   widget: WidgetConfig;
   features: FeatureFlags;
   admin: AdminConfig;
-  streams?: any[];  // Stream configurations
+  streams?: any[]; // Stream configurations
 }
 
 export interface DatabaseConfig {

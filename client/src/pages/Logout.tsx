@@ -1,6 +1,6 @@
-import { useEffect } from "react";
-import { useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from 'react';
+import { useLocation } from 'wouter';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function Logout() {
   const [, setLocation] = useLocation();
@@ -10,18 +10,18 @@ export default function Logout() {
     const performLogout = async () => {
       try {
         // Call logout endpoint to clear server-side session cookies
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "include",
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'include',
         });
       } catch (error) {
-        console.error("Logout error:", error);
+        console.error('Logout error:', error);
       }
 
       // Clear all session storage (legacy cleanup)
-      sessionStorage.removeItem("admin_password");
-      sessionStorage.removeItem("admin_instance");
-      sessionStorage.removeItem("admin_token");
+      sessionStorage.removeItem('admin_password');
+      sessionStorage.removeItem('admin_instance');
+      sessionStorage.removeItem('admin_token');
       sessionStorage.clear();
 
       // Clear all cached queries
@@ -29,7 +29,7 @@ export default function Logout() {
 
       // Redirect to login page
       setTimeout(() => {
-        setLocation("/login");
+        setLocation('/login');
       }, 100);
     };
 

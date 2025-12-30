@@ -88,7 +88,9 @@ export function createEmbeddingProvider(config?: Partial<LLMProviderConfig>): IE
       throw new Error('OpenAI embedding provider not yet implemented. Contributions welcome!');
 
     case 'anthropic':
-      throw new Error('Anthropic does not provide an embedding API. Use a different provider for embeddings.');
+      throw new Error(
+        'Anthropic does not provide an embedding API. Use a different provider for embeddings.'
+      );
 
     case 'ollama':
       throw new Error('Ollama embedding provider not yet implemented. Contributions welcome!');

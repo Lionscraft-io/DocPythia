@@ -19,7 +19,13 @@ const __dirname = path.dirname(__filename);
 
 const logger = createLogger('LLMCache');
 
-export type CachePurpose = 'index' | 'embeddings' | 'analysis' | 'changegeneration' | 'review' | 'general';
+export type CachePurpose =
+  | 'index'
+  | 'embeddings'
+  | 'analysis'
+  | 'changegeneration'
+  | 'review'
+  | 'general';
 
 export interface CachedLLMRequest {
   hash: string;
@@ -52,7 +58,14 @@ export class LLMCache implements ILLMCache {
   private cacheRootDir: string;
   private enabled: boolean;
   private backend: CacheBackendType;
-  private readonly purposes: CachePurpose[] = ['index', 'embeddings', 'analysis', 'changegeneration', 'review', 'general'];
+  private readonly purposes: CachePurpose[] = [
+    'index',
+    'embeddings',
+    'analysis',
+    'changegeneration',
+    'review',
+    'general',
+  ];
 
   constructor() {
     // Cache directory at project root: /cache/llm/
@@ -233,7 +246,7 @@ export class LLMCache implements ILLMCache {
 
     if (this.backend === 's3') {
       // Fire and forget for S3 to maintain sync interface
-      this.setAsync(prompt, response, purpose, metadata).catch(err => {
+      this.setAsync(prompt, response, purpose, metadata).catch((err) => {
         logger.error('Error writing cache to S3:', err);
       });
       return;
@@ -305,7 +318,7 @@ export class LLMCache implements ILLMCache {
         return [];
       }
 
-      const files = fs.readdirSync(purposeDir).filter(f => f.endsWith('.json'));
+      const files = fs.readdirSync(purposeDir).filter((f) => f.endsWith('.json'));
       const cached: CachedLLMRequest[] = [];
 
       for (const file of files) {
@@ -337,7 +350,7 @@ export class LLMCache implements ILLMCache {
     if (this.backend === 's3') {
       try {
         const entries = await cacheStorage.listEntries<CachedLLMRequest>(`llm/${purpose}`);
-        const cached = entries.map(e => e.data);
+        const cached = entries.map((e) => e.data);
         cached.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         return cached;
       } catch (error) {
@@ -401,7 +414,7 @@ export class LLMCache implements ILLMCache {
       const purposeDir = path.join(this.cacheRootDir, purpose);
 
       if (fs.existsSync(purposeDir)) {
-        const files = fs.readdirSync(purposeDir).filter(f => f.endsWith('.json'));
+        const files = fs.readdirSync(purposeDir).filter((f) => f.endsWith('.json'));
         byPurpose[purpose] = files.length;
 
         // Calculate total size
@@ -487,7 +500,7 @@ export class LLMCache implements ILLMCache {
         return 0;
       }
 
-      const files = fs.readdirSync(purposeDir).filter(f => f.endsWith('.json'));
+      const files = fs.readdirSync(purposeDir).filter((f) => f.endsWith('.json'));
       let deletedCount = 0;
 
       for (const file of files) {
@@ -576,7 +589,7 @@ export class LLMCache implements ILLMCache {
         continue;
       }
 
-      const files = fs.readdirSync(purposeDir).filter(f => f.endsWith('.json'));
+      const files = fs.readdirSync(purposeDir).filter((f) => f.endsWith('.json'));
 
       for (const file of files) {
         try {
@@ -615,7 +628,7 @@ export class LLMCache implements ILLMCache {
         continue;
       }
 
-      const files = fs.readdirSync(purposeDir).filter(f => f.endsWith('.json'));
+      const files = fs.readdirSync(purposeDir).filter((f) => f.endsWith('.json'));
 
       for (const file of files) {
         try {
@@ -632,14 +645,19 @@ export class LLMCache implements ILLMCache {
       }
     }
 
-    results.sort((a, b) => new Date(a.request.timestamp).getTime() - new Date(b.request.timestamp).getTime());
+    results.sort(
+      (a, b) => new Date(a.request.timestamp).getTime() - new Date(b.request.timestamp).getTime()
+    );
     return results;
   }
 
   /**
    * Search cache and include all related entries for matching messages
    */
-  searchWithRelated(searchText: string, purpose?: CachePurpose): {
+  searchWithRelated(
+    searchText: string,
+    purpose?: CachePurpose
+  ): {
     messageId: number | null;
     entries: { purpose: CachePurpose; request: CachedLLMRequest }[];
   }[] {
@@ -677,15 +695,18 @@ export class LLMCache implements ILLMCache {
 
     for (const [msgId, hashes] of messageGroups) {
       const entries = Array.from(hashes)
-        .map(hash => allEntries.get(hash)!)
-        .sort((a, b) => new Date(a.request.timestamp).getTime() - new Date(b.request.timestamp).getTime());
+        .map((hash) => allEntries.get(hash)!)
+        .sort(
+          (a, b) =>
+            new Date(a.request.timestamp).getTime() - new Date(b.request.timestamp).getTime()
+        );
 
       results.push({ messageId: msgId, entries });
     }
 
     results.sort((a, b) => {
-      const aTime = Math.max(...a.entries.map(e => new Date(e.request.timestamp).getTime()));
-      const bTime = Math.max(...b.entries.map(e => new Date(e.request.timestamp).getTime()));
+      const aTime = Math.max(...a.entries.map((e) => new Date(e.request.timestamp).getTime()));
+      const bTime = Math.max(...b.entries.map((e) => new Date(e.request.timestamp).getTime()));
       return bTime - aTime;
     });
 
@@ -710,7 +731,7 @@ export class LLMCache implements ILLMCache {
         continue;
       }
 
-      const files = fs.readdirSync(purposeDir).filter(f => f.endsWith('.json'));
+      const files = fs.readdirSync(purposeDir).filter((f) => f.endsWith('.json'));
 
       for (const file of files) {
         try {

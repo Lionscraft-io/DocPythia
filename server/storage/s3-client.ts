@@ -219,13 +219,17 @@ class S3Storage {
     });
 
     const response = await this.client.send(command);
-    return response.Contents?.map(obj => obj.Key || '').filter(Boolean) || [];
+    return response.Contents?.map((obj) => obj.Key || '').filter(Boolean) || [];
   }
 
   /**
    * Upload a large file using multipart upload
    */
-  async uploadLarge(key: string, content: Buffer | string, options?: S3StorageOptions): Promise<void> {
+  async uploadLarge(
+    key: string,
+    content: Buffer | string,
+    options?: S3StorageOptions
+  ): Promise<void> {
     if (!this.client) {
       throw new Error('S3 client not initialized');
     }

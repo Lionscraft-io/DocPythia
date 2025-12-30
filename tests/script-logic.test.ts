@@ -174,18 +174,13 @@ describe('Script Logic Module', () => {
 
       expect(result.success).toBe(true);
       expect(result.totalMessages).toBe(1500);
-      expect(mockScraper.performFullScrape).toHaveBeenCalledWith(
-        'community-support',
-        1000
-      );
+      expect(mockScraper.performFullScrape).toHaveBeenCalledWith('community-support', 1000);
     });
 
     it('should handle scrape errors gracefully', async () => {
       mockCreateZulipchatScraperFromEnv.mockReturnValue(mockScraper);
       mockScraper.testConnection.mockResolvedValue(true);
-      mockScraper.performFullScrape.mockRejectedValue(
-        new Error('Network timeout')
-      );
+      mockScraper.performFullScrape.mockRejectedValue(new Error('Network timeout'));
 
       const result = await runFullScrape({ channelName: 'test', batchSize: 100 });
 

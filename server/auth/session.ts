@@ -13,10 +13,11 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('Session');
 
 // Session configuration
-const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_TOKEN || crypto.randomBytes(32).toString('hex');
+const JWT_SECRET =
+  process.env.JWT_SECRET || process.env.ADMIN_TOKEN || crypto.randomBytes(32).toString('hex');
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || crypto.randomBytes(32).toString('hex');
-const ACCESS_TOKEN_EXPIRY = '15m';  // Short-lived access token
-const REFRESH_TOKEN_EXPIRY = '7d';  // Longer-lived refresh token
+const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access token
+const REFRESH_TOKEN_EXPIRY = '7d'; // Longer-lived refresh token
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 
 // Cookie names
@@ -106,11 +107,7 @@ function getCookieOptions(isProduction: boolean) {
 /**
  * Set session cookies on response
  */
-export function setSessionCookies(
-  res: Response,
-  session: SessionPayload,
-  csrfToken: string
-): void {
+export function setSessionCookies(res: Response, session: SessionPayload, csrfToken: string): void {
   const isProduction = process.env.NODE_ENV === 'production';
   const cookieOptions = getCookieOptions(isProduction);
 
@@ -182,10 +179,7 @@ export function verifyCsrfToken(req: Request): boolean {
 
   // Use timing-safe comparison to prevent timing attacks
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(cookieToken),
-      Buffer.from(headerToken)
-    );
+    return crypto.timingSafeEqual(Buffer.from(cookieToken), Buffer.from(headerToken));
   } catch {
     return false;
   }

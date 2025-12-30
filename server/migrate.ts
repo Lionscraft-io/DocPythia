@@ -16,7 +16,8 @@ export async function initializeDatabase() {
     console.log(`📦 Found ${availableInstances.length} instances:`, availableInstances);
 
     const migrationsPath = path.join(process.cwd(), 'prisma', 'migrations');
-    const hasMigrations = fs.existsSync(migrationsPath) && fs.readdirSync(migrationsPath).length > 0;
+    const hasMigrations =
+      fs.existsSync(migrationsPath) && fs.readdirSync(migrationsPath).length > 0;
 
     // Migrate each instance database
     for (const instanceId of availableInstances) {
@@ -42,7 +43,7 @@ export async function initializeDatabase() {
           execSync('npx prisma migrate deploy', {
             stdio: 'inherit',
             cwd: process.cwd(),
-            env: { ...process.env, DATABASE_URL: instanceDbUrl }
+            env: { ...process.env, DATABASE_URL: instanceDbUrl },
           });
           console.log(`✅ Migrations completed for ${instanceId}`);
         } else {
@@ -56,7 +57,10 @@ export async function initializeDatabase() {
         console.log(`✅ Database initialized for instance: ${instanceId}`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`❌ Failed to initialize database for instance "${instanceId}":`, errorMessage);
+        console.error(
+          `❌ Failed to initialize database for instance "${instanceId}":`,
+          errorMessage
+        );
 
         // Try fallback for this instance
         try {
@@ -98,11 +102,16 @@ async function seedInitialDataIfNeeded(instanceId: string) {
       console.log(`⚠️  Auto-seeding not configured for ${instanceId}, skipping initial data seed`);
       console.log(`   Seed manually using: /api/trigger-job or seed script`);
     } else {
-      console.log(`✓ Found ${sectionCount} existing documentation sections for ${instanceId}, skipping import`);
+      console.log(
+        `✓ Found ${sectionCount} existing documentation sections for ${instanceId}, skipping import`
+      );
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`⚠️  Warning: Could not check/seed initial data for ${instanceId}:`, errorMessage);
+    console.error(
+      `⚠️  Warning: Could not check/seed initial data for ${instanceId}:`,
+      errorMessage
+    );
   }
 }
 
@@ -113,7 +122,7 @@ async function pushSchema(databaseUrl: string) {
     execSync('npx prisma db push --accept-data-loss', {
       stdio: 'inherit',
       cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: databaseUrl }
+      env: { ...process.env, DATABASE_URL: databaseUrl },
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

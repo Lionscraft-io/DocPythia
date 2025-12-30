@@ -36,18 +36,13 @@ export class SchemaConverter {
     }
 
     if (Array.isArray(schema)) {
-      return schema.map(item => SchemaConverter.cleanSchema(item));
+      return schema.map((item) => SchemaConverter.cleanSchema(item));
     }
 
     const cleaned: any = {};
 
     // Fields that Gemini doesn't support
-    const unsupportedFields = new Set([
-      'additionalProperties',
-      '$schema',
-      'definitions',
-      '$ref',
-    ]);
+    const unsupportedFields = new Set(['additionalProperties', '$schema', 'definitions', '$ref']);
 
     for (const [key, value] of Object.entries(schema)) {
       // Skip unsupported fields

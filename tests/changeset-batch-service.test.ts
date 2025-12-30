@@ -216,9 +216,7 @@ describe('ChangesetBatchService', () => {
         id: 1,
         batchId: 'batch-123',
         status: 'draft',
-        batchProposals: [
-          { id: 1, proposalId: 1, proposal: { id: 1, page: 'docs/intro.md' } },
-        ],
+        batchProposals: [{ id: 1, proposalId: 1, proposal: { id: 1, page: 'docs/intro.md' } }],
         failures: [],
       };
 
@@ -545,9 +543,7 @@ describe('ChangesetBatchService Edge Cases', () => {
 
   describe('listBatches edge cases', () => {
     it('should return batches with empty proposals array', async () => {
-      const mockBatches = [
-        { id: 1, status: 'draft', batchProposals: [], failures: [] },
-      ];
+      const mockBatches = [{ id: 1, status: 'draft', batchProposals: [], failures: [] }];
 
       mockPrismaClient.changesetBatch.findMany.mockResolvedValue(mockBatches);
 

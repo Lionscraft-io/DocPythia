@@ -4,8 +4,8 @@
  * Author: Wayne (2025-11-13)
  */
 
-import { verifyPasswordSync } from './password';
-import { InstanceConfigLoader } from '../config/instance-loader';
+import { verifyPassword } from './password.js';
+import { InstanceConfigLoader } from '../config/instance-loader.js';
 
 export interface AuthResult {
   success: boolean;
@@ -24,7 +24,7 @@ export async function authenticateAnyInstance(password: string): Promise<AuthRes
   if (availableInstances.length === 0) {
     return {
       success: false,
-      error: 'No instances configured'
+      error: 'No instances configured',
     };
   }
 
@@ -36,11 +36,11 @@ export async function authenticateAnyInstance(password: string): Promise<AuthRes
         ? InstanceConfigLoader.get(instanceId)
         : InstanceConfigLoader.load(instanceId);
 
-      // Check if password matches (using sync version for middleware compatibility)
-      if (verifyPasswordSync(password, config.admin.passwordHash)) {
+      // Check if password matches
+      if (await verifyPassword(password, config.admin.passwordHash)) {
         return {
           success: true,
-          instanceId
+          instanceId,
         };
       }
     } catch (error) {
@@ -52,20 +52,20 @@ export async function authenticateAnyInstance(password: string): Promise<AuthRes
   // No match found
   return {
     success: false,
-    error: 'Invalid password'
+    error: 'Invalid password',
   };
 }
 
 /**
  * Authenticate for specific instance
  */
-export function authenticateInstance(password: string, instanceId: string): boolean {
+export async function authenticateInstance(password: string, instanceId: string): Promise<boolean> {
   try {
     const config = InstanceConfigLoader.has(instanceId)
       ? InstanceConfigLoader.get(instanceId)
       : InstanceConfigLoader.load(instanceId);
 
-    return verifyPasswordSync(password, config.admin.passwordHash);
+    return await verifyPassword(password, config.admin.passwordHash);
   } catch (error) {
     console.error(`Authentication failed for instance "${instanceId}":`, error);
     return false;

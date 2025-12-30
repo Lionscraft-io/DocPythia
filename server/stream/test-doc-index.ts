@@ -19,7 +19,9 @@ async function main() {
 
     // Show category breakdown
     console.log('--- Categories ---');
-    const sortedCategories = Object.entries(index.categories).sort((a, b) => b[1].length - a[1].length);
+    const sortedCategories = Object.entries(index.categories).sort(
+      (a, b) => b[1].length - a[1].length
+    );
     for (const [category, paths] of sortedCategories.slice(0, 20)) {
       console.log(`${category}: ${paths.length} pages`);
     }
@@ -41,11 +43,10 @@ async function main() {
     console.log(compact.substring(0, 2000) + '\n... (truncated)');
 
     // Cache status
-    const cacheStatus = docIndexGenerator.getCacheStatus();
+    const cacheStatus = await docIndexGenerator.getCacheStatus();
     console.log('\n=== CACHE STATUS ===');
     console.log(`Cached: ${cacheStatus.cached}`);
     console.log(`Expires At: ${cacheStatus.expiresAt?.toISOString() || 'N/A'}`);
-
   } catch (error) {
     console.error('Error generating index:', error);
     process.exit(1);

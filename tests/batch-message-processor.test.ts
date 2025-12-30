@@ -118,10 +118,7 @@ vi.mock('../server/vector-store.js', () => {
 
 // Import after mocks are set up
 import { BatchMessageProcessor } from '../server/stream/processors/batch-message-processor.js';
-import {
-  createMockMessage,
-  createMockWatermark,
-} from './mocks/prisma.mock.js';
+import { createMockMessage, createMockWatermark } from './mocks/prisma.mock.js';
 import {
   mockBatchClassificationResponse,
   mockProposalResponse,
@@ -149,14 +146,16 @@ const resetAllMocks = () => {
 
 const setupDefaultMocks = () => {
   // Setup LLM service default behavior
-  mockLLMService.requestJSON.mockImplementation(async (request: any, schema: any, purpose: string) => {
-    if (purpose === 'analysis') {
-      return createMockLLMResponse(mockBatchClassificationResponse);
-    } else if (purpose === 'changegeneration') {
-      return createMockLLMResponse(mockProposalResponse);
+  mockLLMService.requestJSON.mockImplementation(
+    async (request: any, schema: any, purpose: string) => {
+      if (purpose === 'analysis') {
+        return createMockLLMResponse(mockBatchClassificationResponse);
+      } else if (purpose === 'changegeneration') {
+        return createMockLLMResponse(mockProposalResponse);
+      }
+      return createMockLLMResponse({});
     }
-    return createMockLLMResponse({});
-  });
+  );
 
   // Setup vector search default behavior
   mockVectorSearch.searchSimilarDocs.mockResolvedValue([
@@ -179,15 +178,11 @@ describe('BatchMessageProcessor', () => {
     resetAllMocks();
     setupDefaultMocks();
 
-    processor = new BatchMessageProcessor(
-      'test-instance',
-      mockPrismaClient as any,
-      {
-        batchWindowHours: 24,
-        contextWindowHours: 24,
-        maxBatchSize: 500,
-      }
-    );
+    processor = new BatchMessageProcessor('test-instance', mockPrismaClient as any, {
+      batchWindowHours: 24,
+      contextWindowHours: 24,
+      maxBatchSize: 500,
+    });
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2025-11-01T00:00:00Z'));
@@ -216,10 +211,7 @@ describe('BatchMessageProcessor', () => {
       // Setup: Two streams with pending messages
       mockPrismaClient.unifiedMessage.findMany
         // First call: Get distinct streams
-        .mockResolvedValueOnce([
-          { streamId: 'stream-1' },
-          { streamId: 'stream-2' },
-        ]);
+        .mockResolvedValueOnce([{ streamId: 'stream-1' }, { streamId: 'stream-2' }]);
 
       // Stream 1: No watermark exists, earliest message at watermark
       mockPrismaClient.processingWatermark.findUnique.mockResolvedValue(null);
@@ -414,28 +406,30 @@ describe('BatchMessageProcessor', () => {
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(2);
 
       // Override default mock to include both message IDs
-      mockLLMService.requestJSON.mockImplementation(async (request: any, schema: any, purpose: string) => {
-        if (purpose === 'analysis') {
-          return createMockLLMResponse({
-            threads: [
-              {
-                category: 'troubleshooting',
-                messages: [1, 2], // Both message IDs
-                summary: 'User discussions',
-                docValueReason: 'Valuable discussions',
-                ragSearchCriteria: {
-                  keywords: ['troubleshooting'],
-                  semanticQuery: 'troubleshooting',
+      mockLLMService.requestJSON.mockImplementation(
+        async (request: any, schema: any, purpose: string) => {
+          if (purpose === 'analysis') {
+            return createMockLLMResponse({
+              threads: [
+                {
+                  category: 'troubleshooting',
+                  messages: [1, 2], // Both message IDs
+                  summary: 'User discussions',
+                  docValueReason: 'Valuable discussions',
+                  ragSearchCriteria: {
+                    keywords: ['troubleshooting'],
+                    semanticQuery: 'troubleshooting',
+                  },
                 },
-              },
-            ],
-            batchSummary: 'Found 2 messages',
-          });
-        } else if (purpose === 'changegeneration') {
-          return createMockLLMResponse(mockProposalResponse);
+              ],
+              batchSummary: 'Found 2 messages',
+            });
+          } else if (purpose === 'changegeneration') {
+            return createMockLLMResponse(mockProposalResponse);
+          }
+          return createMockLLMResponse({});
         }
-        return createMockLLMResponse({});
-      });
+      );
 
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
@@ -511,9 +505,7 @@ describe('BatchMessageProcessor', () => {
     });
 
     it('should perform RAG retrieval for valuable messages', async () => {
-      const messages = [
-        createMockMessage({ id: 1, streamId }),
-      ];
+      const messages = [createMockMessage({ id: 1, streamId })];
 
       // Flow: distinct -> context -> batch -> next batch empty
       mockPrismaClient.unifiedMessage.findMany
@@ -540,9 +532,7 @@ describe('BatchMessageProcessor', () => {
     });
 
     it('should generate proposals for conversations', async () => {
-      const messages = [
-        createMockMessage({ id: 1, streamId }),
-      ];
+      const messages = [createMockMessage({ id: 1, streamId })];
 
       // Flow: distinct -> context -> batch -> next batch empty
       mockPrismaClient.unifiedMessage.findMany
@@ -571,9 +561,7 @@ describe('BatchMessageProcessor', () => {
     });
 
     it('should store classification with conversation ID', async () => {
-      const messages = [
-        createMockMessage({ id: 1, streamId }),
-      ];
+      const messages = [createMockMessage({ id: 1, streamId })];
 
       // Flow: distinct -> context -> batch -> next batch empty
       mockPrismaClient.unifiedMessage.findMany
@@ -626,28 +614,30 @@ describe('BatchMessageProcessor', () => {
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(3);
 
       // Override default mock to include all 3 message IDs
-      mockLLMService.requestJSON.mockImplementation(async (request: any, schema: any, purpose: string) => {
-        if (purpose === 'analysis') {
-          return createMockLLMResponse({
-            threads: [
-              {
-                category: 'troubleshooting',
-                messages: [1, 2, 3], // All 3 message IDs
-                summary: 'User discussions about various issues',
-                docValueReason: 'Multiple valuable discussions',
-                ragSearchCriteria: {
-                  keywords: ['troubleshooting'],
-                  semanticQuery: 'troubleshooting issues',
+      mockLLMService.requestJSON.mockImplementation(
+        async (request: any, schema: any, purpose: string) => {
+          if (purpose === 'analysis') {
+            return createMockLLMResponse({
+              threads: [
+                {
+                  category: 'troubleshooting',
+                  messages: [1, 2, 3], // All 3 message IDs
+                  summary: 'User discussions about various issues',
+                  docValueReason: 'Multiple valuable discussions',
+                  ragSearchCriteria: {
+                    keywords: ['troubleshooting'],
+                    semanticQuery: 'troubleshooting issues',
+                  },
                 },
-              },
-            ],
-            batchSummary: 'Found 3 messages in 1 thread',
-          });
-        } else if (purpose === 'changegeneration') {
-          return createMockLLMResponse(mockProposalResponse);
+              ],
+              batchSummary: 'Found 3 messages in 1 thread',
+            });
+          } else if (purpose === 'changegeneration') {
+            return createMockLLMResponse(mockProposalResponse);
+          }
+          return createMockLLMResponse({});
         }
-        return createMockLLMResponse({});
-      });
+      );
 
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
@@ -673,9 +663,7 @@ describe('BatchMessageProcessor', () => {
     });
 
     it('should not update watermark when messages fail', async () => {
-      const messages = [
-        createMockMessage({ id: 1, streamId }),
-      ];
+      const messages = [createMockMessage({ id: 1, streamId })];
 
       mockPrismaClient.unifiedMessage.findMany
         .mockResolvedValueOnce([{ streamId }]) // 1. Distinct streams
@@ -706,9 +694,7 @@ describe('BatchMessageProcessor', () => {
     });
 
     it('should prevent concurrent processing', async () => {
-      const messages = [
-        createMockMessage({ id: 1, streamId }),
-      ];
+      const messages = [createMockMessage({ id: 1, streamId })];
 
       // Setup a long-running process
       mockPrismaClient.unifiedMessage.findMany
@@ -765,10 +751,7 @@ describe('BatchMessageProcessor', () => {
       process.env.BATCH_WINDOW_HOURS = '48';
       process.env.MAX_BATCH_SIZE = '1000';
 
-      const envProcessor = new BatchMessageProcessor(
-        'env-instance',
-        mockPrismaClient as any
-      );
+      const envProcessor = new BatchMessageProcessor('env-instance', mockPrismaClient as any);
 
       expect(envProcessor).toBeDefined();
     });

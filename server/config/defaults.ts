@@ -50,7 +50,7 @@ export const defaultConfig: InstanceConfig = {
   widget: {
     enabled: true,
     title: 'Documentation Assistant',
-    welcomeMessage: 'Hello! I\'m your documentation assistant. How can I help you today?',
+    welcomeMessage: "Hello! I'm your documentation assistant. How can I help you today?",
     suggestedQuestions: [
       'How do I get started?',
       'Where can I find the API documentation?',

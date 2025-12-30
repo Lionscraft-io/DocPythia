@@ -5,20 +5,32 @@ import { z } from 'zod';
 
 export const ProjectConfigSchema = z.object({
   name: z.string().min(1, 'Project name is required'),
-  shortName: z.string().min(1, 'Short name is required').regex(/^[a-z0-9-]+$/, 'Short name must be lowercase alphanumeric with hyphens'),
+  shortName: z
+    .string()
+    .min(1, 'Short name is required')
+    .regex(/^[a-z0-9-]+$/, 'Short name must be lowercase alphanumeric with hyphens'),
   description: z.string().min(1, 'Description is required'),
   domain: z.string().optional(),
   supportEmail: z.string().email().optional(),
 });
 
 export const BrandingConfigSchema = z.object({
-  logo: z.string().min(1, 'Logo path or URL is required'),  // Can be URL or relative path
-  favicon: z.string().optional(),  // Can be URL or relative path
+  logo: z.string().min(1, 'Logo path or URL is required'), // Can be URL or relative path
+  favicon: z.string().optional(), // Can be URL or relative path
   primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Primary color must be a valid hex color'),
-  secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  darkModePrimaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-  projectUrl: z.string().min(1, 'Project URL is required'),  // Can be full URL or path
+  secondaryColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  accentColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  darkModePrimaryColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+  projectUrl: z.string().min(1, 'Project URL is required'), // Can be full URL or path
 });
 
 export const DocumentationConfigSchema = z.object({
@@ -69,7 +81,10 @@ export const WidgetConfigSchema = z.object({
   suggestedQuestions: z.array(z.string()).min(1, 'At least one suggested question is required'),
   position: z.enum(['bottom-right', 'bottom-left', 'top-right', 'top-left']),
   theme: z.enum(['light', 'dark', 'auto']),
-  primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  primaryColor: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
 });
 
 export const FeatureFlagsSchema = z.object({

@@ -1,12 +1,12 @@
-import { Router, Request, Response } from "express";
-import { getConfig } from "../config/loader";
-import { createLogger } from "../utils/logger.js";
+import { Router, Request, Response } from 'express';
+import { getConfig } from '../config/loader';
+import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('ConfigRoutes');
 const router = Router();
 
 // Public configuration endpoint (instance-aware)
-router.get("/", async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     let config;
 
@@ -69,10 +69,10 @@ router.get("/", async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error("Error fetching config:", error);
+    logger.error('Error fetching config:', error);
     res.status(500).json({
-      error: "Failed to load configuration",
-      details: error instanceof Error ? error.message : String(error)
+      error: 'Failed to load configuration',
+      details: error instanceof Error ? error.message : String(error),
     });
   }
 });

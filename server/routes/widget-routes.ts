@@ -1,10 +1,10 @@
-import { Router, Request, Response } from "express";
-import { z } from "zod";
-import { createAnalyzerFromEnv } from "../analyzer/gemini-analyzer";
-import { geminiEmbedder } from "../embeddings/gemini-embedder.js";
-import { PgVectorStore } from "../vector-store.js";
-import { db as prisma } from "../db";
-import { createLogger } from "../utils/logger.js";
+import { Router, Request, Response } from 'express';
+import { z } from 'zod';
+import { createAnalyzerFromEnv } from '../analyzer/gemini-analyzer';
+import { geminiEmbedder } from '../embeddings/gemini-embedder.js';
+import { PgVectorStore } from '../vector-store.js';
+import { db as prisma } from '../db';
+import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('WidgetRoutes');
 
@@ -19,7 +19,7 @@ try {
 const router = Router();
 
 // Widget HTML endpoint
-router.get("/:expertId", (req: Request, res: Response) => {
+router.get('/:expertId', (req: Request, res: Response) => {
   const { expertId } = req.params;
   const { theme = 'light', embedded = 'false' } = req.query;
   const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
@@ -27,17 +27,23 @@ router.get("/:expertId", (req: Request, res: Response) => {
   // Configurable widget content
   const projectName = process.env.PROJECT_NAME || 'DocsAI';
   const widgetTitle = process.env.WIDGET_TITLE || `${projectName} Assistant`;
-  const welcomeMessage = process.env.WIDGET_WELCOME_MESSAGE || `Hello! I'm your ${projectName} documentation assistant. How can I help you today?`;
-  const placeholderText = process.env.WIDGET_PLACEHOLDER || `Ask me anything about ${projectName}...`;
+  const welcomeMessage =
+    process.env.WIDGET_WELCOME_MESSAGE ||
+    `Hello! I'm your ${projectName} documentation assistant. How can I help you today?`;
+  const placeholderText =
+    process.env.WIDGET_PLACEHOLDER || `Ask me anything about ${projectName}...`;
 
   // Suggested questions from env (comma-separated) or defaults
   const suggestedQuestionsEnv = process.env.WIDGET_SUGGESTED_QUESTIONS || '';
   const suggestedQuestions = suggestedQuestionsEnv
-    ? suggestedQuestionsEnv.split('|').map(q => q.trim()).filter(q => q)
+    ? suggestedQuestionsEnv
+        .split('|')
+        .map((q) => q.trim())
+        .filter((q) => q)
     : [
         'How do I get started?',
         'What are the system requirements?',
-        'How do I configure the service?'
+        'How do I configure the service?',
       ];
 
   const widgetHtml = `
@@ -181,10 +187,14 @@ router.get("/:expertId", (req: Request, res: Response) => {
                 </div>
 
                 <div class="suggested-questions">
-                    ${suggestedQuestions.map(q => `
+                    ${suggestedQuestions
+                      .map(
+                        (q) => `
                     <button class="suggestion-button" onclick="askQuestion('${q.replace(/'/g, "\\'")}')">
                         ${q}
-                    </button>`).join('')}
+                    </button>`
+                      )
+                      .join('')}
                 </div>
             </div>
 
@@ -268,15 +278,17 @@ router.get("/:expertId", (req: Request, res: Response) => {
 });
 
 // Widget ask endpoint (public)
-router.post("/ask", async (req: Request, res: Response) => {
+router.post('/ask', async (req: Request, res: Response) => {
   try {
-    const bodyValidation = z.object({
-      question: z.string().min(1),
-      sessionId: z.string().optional(),
-    }).safeParse(req.body);
+    const bodyValidation = z
+      .object({
+        question: z.string().min(1),
+        sessionId: z.string().optional(),
+      })
+      .safeParse(req.body);
 
     if (!bodyValidation.success) {
-      return res.status(400).json({ error: "Invalid request body", details: bodyValidation.error });
+      return res.status(400).json({ error: 'Invalid request body', details: bodyValidation.error });
     }
 
     const { question } = bodyValidation.data;
@@ -289,12 +301,13 @@ router.post("/ask", async (req: Request, res: Response) => {
 
     const context = {
       retrievedDocs: similarDocs,
-      formattedContext: similarDocs.length > 0
-        ? similarDocs.map((doc, idx) =>
-            `[${idx + 1}] ${doc.title} (${doc.filePath})\n${doc.content}`
-          ).join('\n\n---\n\n')
-        : '',
-      usedRetrieval: similarDocs.length > 0
+      formattedContext:
+        similarDocs.length > 0
+          ? similarDocs
+              .map((doc, idx) => `[${idx + 1}] ${doc.title} (${doc.filePath})\n${doc.content}`)
+              .join('\n\n---\n\n')
+          : '',
+      usedRetrieval: similarDocs.length > 0,
     };
 
     // Generate answer using Gemini with context
@@ -302,7 +315,7 @@ router.post("/ask", async (req: Request, res: Response) => {
 
     if (!analyzer) {
       return res.status(500).json({
-        error: "AI service not configured. Please set GEMINI_API_KEY environment variable."
+        error: 'AI service not configured. Please set GEMINI_API_KEY environment variable.',
       });
     }
 
@@ -326,20 +339,19 @@ router.post("/ask", async (req: Request, res: Response) => {
 
     res.json({
       answer,
-      sources: context.retrievedDocs.map(doc => ({
+      sources: context.retrievedDocs.map((doc) => ({
         title: doc.title,
         filePath: doc.filePath,
         url: buildDocUrl(doc.filePath),
-        relevance: doc.similarity
+        relevance: doc.similarity,
       })),
-      usedRAG: context.usedRetrieval
+      usedRAG: context.usedRetrieval,
     });
-
   } catch (error: any) {
     logger.error('Error processing widget question:', error);
     res.status(500).json({
-      error: "Failed to process question",
-      details: error.message
+      error: 'Failed to process question',
+      details: error.message,
     });
   }
 });

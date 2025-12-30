@@ -111,9 +111,9 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         _count: true,
       });
 
-      const processed = statusCounts.find(s => s.processingStatus === 'COMPLETED')?._count || 0;
-      const queued = statusCounts.find(s => s.processingStatus === 'PENDING')?._count || 0;
-      const failed = statusCounts.find(s => s.processingStatus === 'FAILED')?._count || 0;
+      const processed = statusCounts.find((s) => s.processingStatus === 'COMPLETED')?._count || 0;
+      const queued = statusCounts.find((s) => s.processingStatus === 'PENDING')?._count || 0;
+      const failed = statusCounts.find((s) => s.processingStatus === 'FAILED')?._count || 0;
 
       // Get messages with doc value
       const withDocValue = await db.messageClassification.count();
@@ -220,7 +220,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       });
 
       // Transform to match expected format
-      const data = messages.map(msg => ({
+      const data = messages.map((msg) => ({
         id: msg.id,
         stream_id: msg.streamId,
         author: msg.author,
@@ -274,8 +274,6 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         where: { id: messageId },
         include: {
           classification: true,
-          ragContext: true,
-          docProposal: true,
         },
       });
 
@@ -353,23 +351,6 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const offset = (page - 1) * limit;
 
       const proposals = await db.docProposal.findMany({
-        include: {
-          message: {
-            select: {
-              author: true,
-              timestamp: true,
-              content: true,
-              channel: true,
-              classification: {
-                select: {
-                  category: true,
-                  docValueReason: true,
-                  batchId: true,
-                },
-              },
-            },
-          },
-        },
         orderBy: {
           createdAt: 'desc',
         },
@@ -398,34 +379,40 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    * POST /api/admin/stream/proposals/:id/approve
    * Approve or reject a documentation proposal
    */
-  app.post('/api/admin/stream/proposals/:id/approve', adminAuth, async (req: Request, res: Response) => {
-    try {
-      const db = getDb(req);
+  app.post(
+    '/api/admin/stream/proposals/:id/approve',
+    adminAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const db = getDb(req);
 
-      const proposalId = parseInt(req.params.id);
-      const { approved, reviewedBy } = z.object({
-        approved: z.boolean(),
-        reviewedBy: z.string(),
-      }).parse(req.body);
+        const proposalId = parseInt(req.params.id);
+        const { approved, reviewedBy } = z
+          .object({
+            approved: z.boolean(),
+            reviewedBy: z.string(),
+          })
+          .parse(req.body);
 
-      const updated = await db.docProposal.update({
-        where: { id: proposalId },
-        data: {
-          adminApproved: approved,
-          adminReviewedAt: new Date(),
-          adminReviewedBy: reviewedBy,
-        },
-      });
+        const updated = await db.docProposal.update({
+          where: { id: proposalId },
+          data: {
+            adminApproved: approved,
+            adminReviewedAt: new Date(),
+            adminReviewedBy: reviewedBy,
+          },
+        });
 
-      res.json({
-        message: `Proposal ${approved ? 'approved' : 'rejected'} successfully`,
-        proposal: updated,
-      });
-    } catch (error) {
-      logger.error('Error approving proposal:', error);
-      res.status(500).json({ error: 'Failed to approve proposal' });
+        res.json({
+          message: `Proposal ${approved ? 'approved' : 'rejected'} successfully`,
+          proposal: updated,
+        });
+      } catch (error) {
+        logger.error('Error approving proposal:', error);
+        res.status(500).json({ error: 'Failed to approve proposal' });
+      }
     }
-  });
+  );
 
   /**
    * PATCH /api/admin/stream/proposals/:id
@@ -436,10 +423,12 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const db = getDb(req);
 
       const proposalId = parseInt(req.params.id);
-      const { suggestedText, editedBy } = z.object({
-        suggestedText: z.string().max(10000),
-        editedBy: z.string(),
-      }).parse(req.body);
+      const { suggestedText, editedBy } = z
+        .object({
+          suggestedText: z.string().max(10000),
+          editedBy: z.string(),
+        })
+        .parse(req.body);
 
       const updated = await db.docProposal.update({
         where: { id: proposalId },
@@ -464,67 +453,75 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    * POST /api/admin/stream/proposals/:id/status
    * Change proposal status (approve/ignore/reset)
    */
-  app.post('/api/admin/stream/proposals/:id/status', adminAuth, async (req: Request, res: Response) => {
-    try {
-      const db = getDb(req);
+  app.post(
+    '/api/admin/stream/proposals/:id/status',
+    adminAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const db = getDb(req);
 
-      const proposalId = parseInt(req.params.id);
-      logger.debug('Raw request body:', JSON.stringify(req.body));
+        const proposalId = parseInt(req.params.id);
+        logger.debug('Raw request body:', JSON.stringify(req.body));
 
-      const { status, reviewedBy } = z.object({
-        status: z.enum(['approved', 'ignored', 'pending']),
-        reviewedBy: z.string(),
-      }).parse(req.body);
+        const { status, reviewedBy } = z
+          .object({
+            status: z.enum(['approved', 'ignored', 'pending']),
+            reviewedBy: z.string(),
+          })
+          .parse(req.body);
 
-      // Get current status before update
-      const beforeUpdate = await db.docProposal.findUnique({
-        where: { id: proposalId },
-        select: { status: true, conversationId: true },
-      });
-      logger.debug(`Proposal ${proposalId} - Current status: ${beforeUpdate?.status}, Requested status: ${status}`);
+        // Get current status before update
+        const beforeUpdate = await db.docProposal.findUnique({
+          where: { id: proposalId },
+          select: { status: true, conversationId: true },
+        });
+        logger.debug(
+          `Proposal ${proposalId} - Current status: ${beforeUpdate?.status}, Requested status: ${status}`
+        );
 
-      const updateData = {
-        status: status,
-        adminApproved: status === 'approved',
-        adminReviewedAt: status !== 'pending' ? new Date() : null,
-        adminReviewedBy: status !== 'pending' ? reviewedBy : null,
-        discardReason: status === 'ignored' ? 'Admin discarded change' : null,
-      };
+        const updateData = {
+          status: status,
+          adminApproved: status === 'approved',
+          adminReviewedAt: status !== 'pending' ? new Date() : null,
+          adminReviewedBy: status !== 'pending' ? reviewedBy : null,
+          discardReason: status === 'ignored' ? 'Admin discarded change' : null,
+        };
 
-      // Update the proposal
-      const updated = await db.docProposal.update({
-        where: { id: proposalId },
-        data: updateData,
-      });
+        // Update the proposal
+        const updated = await db.docProposal.update({
+          where: { id: proposalId },
+          data: updateData,
+        });
 
-      logger.debug(`Proposal ${proposalId} - Database returned status: ${updated.status}`);
+        logger.debug(`Proposal ${proposalId} - Database returned status: ${updated.status}`);
 
-      // Calculate conversation status
-      const allProposals = await db.docProposal.findMany({
-        where: { conversationId: updated.conversationId },
-        select: { status: true },
-      });
+        // Calculate conversation status
+        const allProposals = await db.docProposal.findMany({
+          where: { conversationId: updated.conversationId },
+          select: { status: true },
+        });
 
-      const hasPending = allProposals.some(p => p.status === 'pending');
-      let conversationStatus: 'pending' | 'changeset' | 'discarded';
+        const hasPending = allProposals.some((p) => p.status === 'pending');
+        let conversationStatus: 'pending' | 'changeset' | 'discarded';
 
-      if (hasPending) {
-        conversationStatus = 'pending';
-      } else {
-        const hasApproved = allProposals.some(p => p.status === 'approved');
-        conversationStatus = hasApproved ? 'changeset' : 'discarded';
+        if (hasPending) {
+          conversationStatus = 'pending';
+        } else {
+          const hasApproved = allProposals.some((p) => p.status === 'approved');
+          conversationStatus = hasApproved ? 'changeset' : 'discarded';
+        }
+
+        res.json({
+          message: `Proposal status changed to ${status} successfully`,
+          proposal: updated,
+          conversationStatus,
+        });
+      } catch (error) {
+        logger.error('Error changing proposal status:', error);
+        res.status(500).json({ error: 'Failed to change proposal status' });
       }
-
-      res.json({
-        message: `Proposal status changed to ${status} successfully`,
-        proposal: updated,
-        conversationStatus,
-      });
-    } catch (error) {
-      logger.error('Error changing proposal status:', error);
-      res.status(500).json({ error: 'Failed to change proposal status' });
     }
-  });
+  );
 
   /**
    * GET /api/admin/stream/batches
@@ -578,7 +575,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const total = await db.changesetBatch.count({ where });
 
       res.json({
-        batches: batches.map(batch => ({
+        batches: batches.map((batch) => ({
           id: batch.id,
           batchId: batch.batchId,
           status: batch.status,
@@ -595,7 +592,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           submittedAt: batch.submittedAt,
           submittedBy: batch.submittedBy,
           createdAt: batch.createdAt,
-          proposals: batch.batchProposals.map(bp => bp.proposal),
+          proposals: batch.batchProposals.map((bp) => bp.proposal),
           failureCount: batch.failures.length,
         })),
         pagination: {
@@ -712,96 +709,101 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    * Upload a CSV file to the stream inbox for processing
    */
   const upload = multer({ dest: '/tmp/uploads/' });
-  app.post('/api/admin/stream/upload-csv', adminAuth, upload.single('file'), async (req: Request, res: Response) => {
-    try {
-      const db = getDb(req);
-      const instanceId = getInstanceId(req);
-
-      if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-      }
-
-      // Get streamId from request
-      const streamId = req.body.streamId;
-      if (!streamId) {
-        // Clean up uploaded file
-        await fs.unlink(req.file.path);
-        return res.status(400).json({ error: 'streamId is required' });
-      }
-
-      // Get stream config
-      const streamConfig = await db.streamConfig.findUnique({
-        where: { streamId },
-      });
-
-      if (!streamConfig) {
-        await fs.unlink(req.file.path);
-        return res.status(404).json({ error: `Stream ${streamId} not found` });
-      }
-
-      if (streamConfig.adapterType !== 'csv') {
-        await fs.unlink(req.file.path);
-        return res.status(400).json({ error: `Stream ${streamId} is not a CSV stream` });
-      }
-
-      // Get inbox directory from config
-      const config = streamConfig.config as any;
-      const inboxDir = config.inboxDir;
-
-      if (!inboxDir) {
-        await fs.unlink(req.file.path);
-        return res.status(500).json({ error: 'Stream config missing inboxDir' });
-      }
-
-      // Ensure inbox directory exists
-      await fs.mkdir(inboxDir, { recursive: true });
-
-      // Move file to inbox with original filename
-      const originalFilename = req.file.originalname;
-      const targetPath = path.join(inboxDir, originalFilename);
-
-      await fs.rename(req.file.path, targetPath);
-
-      logger.info(`[${instanceId}] CSV file uploaded: ${targetPath}`);
-
-      // Auto-process the CSV file immediately (App Runner /tmp is ephemeral)
-      logger.info(`[${instanceId}] Auto-processing CSV file: ${streamId}`);
-
+  app.post(
+    '/api/admin/stream/upload-csv',
+    adminAuth,
+    upload.single('file'),
+    async (req: Request, res: Response) => {
       try {
-        const { streamManager } = await import('../stream-manager.js');
-        const imported = await streamManager.importStream(streamId);
+        const db = getDb(req);
+        const instanceId = getInstanceId(req);
 
-        res.json({
-          success: true,
-          message: 'CSV file uploaded and processed successfully',
-          filename: originalFilename,
-          path: targetPath,
-          streamId,
-          imported,
-        });
-      } catch (processError: any) {
-        logger.error(`[${instanceId}] Error processing CSV:`, processError);
-        // File uploaded but processing failed - return partial success
-        res.json({
-          success: true,
-          message: 'CSV file uploaded but processing failed',
-          filename: originalFilename,
-          path: targetPath,
-          streamId,
-          error: processError.message,
-        });
-      }
-    } catch (error: any) {
-      logger.error('Error uploading CSV:', error);
-      // Clean up uploaded file on error
-      if (req.file?.path) {
-        try {
+        if (!req.file) {
+          return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        // Get streamId from request
+        const streamId = req.body.streamId;
+        if (!streamId) {
+          // Clean up uploaded file
           await fs.unlink(req.file.path);
-        } catch {}
+          return res.status(400).json({ error: 'streamId is required' });
+        }
+
+        // Get stream config
+        const streamConfig = await db.streamConfig.findUnique({
+          where: { streamId },
+        });
+
+        if (!streamConfig) {
+          await fs.unlink(req.file.path);
+          return res.status(404).json({ error: `Stream ${streamId} not found` });
+        }
+
+        if (streamConfig.adapterType !== 'csv') {
+          await fs.unlink(req.file.path);
+          return res.status(400).json({ error: `Stream ${streamId} is not a CSV stream` });
+        }
+
+        // Get inbox directory from config
+        const config = streamConfig.config as any;
+        const inboxDir = config.inboxDir;
+
+        if (!inboxDir) {
+          await fs.unlink(req.file.path);
+          return res.status(500).json({ error: 'Stream config missing inboxDir' });
+        }
+
+        // Ensure inbox directory exists
+        await fs.mkdir(inboxDir, { recursive: true });
+
+        // Move file to inbox with original filename
+        const originalFilename = req.file.originalname;
+        const targetPath = path.join(inboxDir, originalFilename);
+
+        await fs.rename(req.file.path, targetPath);
+
+        logger.info(`[${instanceId}] CSV file uploaded: ${targetPath}`);
+
+        // Auto-process the CSV file immediately (App Runner /tmp is ephemeral)
+        logger.info(`[${instanceId}] Auto-processing CSV file: ${streamId}`);
+
+        try {
+          const { streamManager } = await import('../stream-manager.js');
+          const imported = await streamManager.importStream(streamId);
+
+          res.json({
+            success: true,
+            message: 'CSV file uploaded and processed successfully',
+            filename: originalFilename,
+            path: targetPath,
+            streamId,
+            imported,
+          });
+        } catch (processError: any) {
+          logger.error(`[${instanceId}] Error processing CSV:`, processError);
+          // File uploaded but processing failed - return partial success
+          res.json({
+            success: true,
+            message: 'CSV file uploaded but processing failed',
+            filename: originalFilename,
+            path: targetPath,
+            streamId,
+            error: processError.message,
+          });
+        }
+      } catch (error: any) {
+        logger.error('Error uploading CSV:', error);
+        // Clean up uploaded file on error
+        if (req.file?.path) {
+          try {
+            await fs.unlink(req.file.path);
+          } catch {}
+        }
+        res.status(500).json({ error: 'Failed to upload CSV file', details: error.message });
       }
-      res.status(500).json({ error: 'Failed to upload CSV file', details: error.message });
     }
-  });
+  );
 
   /**
    * POST /api/admin/stream/clear-processed
@@ -811,9 +813,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
     try {
       const db = getDb(req);
 
-      const bodyValidation = z.object({
-        streamId: z.string().optional(),
-      }).safeParse(req.body);
+      const bodyValidation = z
+        .object({
+          streamId: z.string().optional(),
+        })
+        .safeParse(req.body);
 
       const streamId = bodyValidation.success ? bodyValidation.data.streamId : undefined;
 
@@ -826,7 +830,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         select: { id: true },
       });
 
-      const messageIds = messagesToClear.map(m => m.id);
+      const messageIds = messagesToClear.map((m) => m.id);
       logger.info(`Found ${messageIds.length} messages to clear`);
 
       if (messageIds.length === 0) {
@@ -848,7 +852,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           distinct: ['conversationId'],
         });
         const conversationIdList = conversationIds
-          .map(c => c.conversationId)
+          .map((c) => c.conversationId)
           .filter((id): id is string => id !== null);
 
         logger.debug(`Found ${conversationIdList.length} unique conversations`);
@@ -941,7 +945,9 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const hideEmptyProposals = req.query.hideEmptyProposals !== 'false'; // Default to true
       const offset = (page - 1) * limit;
 
-      logger.debug(`Query params - category: ${category}, hasProposals: ${req.query.hasProposals}, status: ${statusFilter}, hideEmptyProposals: ${hideEmptyProposals}`);
+      logger.debug(
+        `Query params - category: ${category}, hasProposals: ${req.query.hasProposals}, status: ${statusFilter}, hideEmptyProposals: ${hideEmptyProposals}`
+      );
 
       // Build where clause for filtering
       const where: any = {
@@ -975,7 +981,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           where: { status: 'submitted' },
           select: { id: true },
         });
-        const submittedBatchIdSet = new Set(submittedBatchIds.map(b => b.id));
+        const submittedBatchIdSet = new Set(submittedBatchIds.map((b) => b.id));
 
         // Get all proposals with their batch info
         const allProposalsWithBatch = await db.docProposal.findMany({
@@ -1041,12 +1047,16 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             conversationsByStatus.discarded.add(conv.conversationId);
           }
 
-          logger.debug(`Added ${autoRejectedConversations.length} auto-rejected conversations to discarded`);
+          logger.debug(
+            `Added ${autoRejectedConversations.length} auto-rejected conversations to discarded`
+          );
         }
 
-        logger.debug(`Status filter: ${statusFilter}, found ${conversationsByStatus[statusFilter].size} conversations`);
-        allConversations = allConversations.filter(c =>
-          c.conversationId && conversationsByStatus[statusFilter].has(c.conversationId)
+        logger.debug(
+          `Status filter: ${statusFilter}, found ${conversationsByStatus[statusFilter].size} conversations`
+        );
+        allConversations = allConversations.filter(
+          (c) => c.conversationId && conversationsByStatus[statusFilter].has(c.conversationId)
         );
       } else if (req.query.hasProposals !== undefined) {
         // Legacy filter - kept for backward compatibility
@@ -1054,12 +1064,16 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           select: { conversationId: true },
           distinct: ['conversationId'],
         });
-        const idsWithProposals = new Set(conversationsWithProposals.map(p => p.conversationId));
+        const idsWithProposals = new Set(conversationsWithProposals.map((p) => p.conversationId));
 
         if (hasProposals) {
-          allConversations = allConversations.filter(c => c.conversationId && idsWithProposals.has(c.conversationId));
+          allConversations = allConversations.filter(
+            (c) => c.conversationId && idsWithProposals.has(c.conversationId)
+          );
         } else {
-          allConversations = allConversations.filter(c => c.conversationId && !idsWithProposals.has(c.conversationId));
+          allConversations = allConversations.filter(
+            (c) => c.conversationId && !idsWithProposals.has(c.conversationId)
+          );
         }
       }
 
@@ -1072,25 +1086,36 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         const proposalCountsByConv = await db.docProposal.groupBy({
           by: ['conversationId'],
           where: {
-            conversationId: { in: allConversations.map(c => c.conversationId).filter((id): id is string => id !== null) },
-            status: statusFilter === 'changeset' ? 'approved' : statusFilter === 'pending' ? 'pending' : 'ignored',
+            conversationId: {
+              in: allConversations
+                .map((c) => c.conversationId)
+                .filter((id): id is string => id !== null),
+            },
+            status:
+              statusFilter === 'changeset'
+                ? 'approved'
+                : statusFilter === 'pending'
+                  ? 'pending'
+                  : 'ignored',
             OR: [
               { prBatchId: null },
               {
                 prBatch: {
-                  status: { not: 'submitted' }
-                }
-              }
-            ]
+                  status: { not: 'submitted' },
+                },
+              },
+            ],
           },
           _count: {
-            id: true
-          }
+            id: true,
+          },
         });
 
-        const convsWithMatchingProposals = new Set(proposalCountsByConv.map(p => p.conversationId));
-        conversationsToFetch = allConversations.filter(c =>
-          c.conversationId && convsWithMatchingProposals.has(c.conversationId)
+        const convsWithMatchingProposals = new Set(
+          proposalCountsByConv.map((p) => p.conversationId)
+        );
+        conversationsToFetch = allConversations.filter(
+          (c) => c.conversationId && convsWithMatchingProposals.has(c.conversationId)
         );
       }
 
@@ -1126,7 +1151,9 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           });
 
           // Count processed messages (COMPLETED status)
-          const processedCount = messages.filter(m => m.message.processingStatus === 'COMPLETED').length;
+          const processedCount = messages.filter(
+            (m) => m.message.processingStatus === 'COMPLETED'
+          ).length;
 
           // Get conversation-level category (from first message)
           const category = messages[0]?.category || 'unknown';
@@ -1145,10 +1172,10 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
                 { prBatchId: null }, // Not in any batch
                 {
                   prBatch: {
-                    status: { not: 'submitted' } // Or in a non-submitted batch
-                  }
-                }
-              ]
+                    status: { not: 'submitted' }, // Or in a non-submitted batch
+                  },
+                },
+              ],
             },
             include: {
               prBatch: {
@@ -1156,9 +1183,9 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
                   id: true,
                   status: true,
                   prNumber: true,
-                  prUrl: true
-                }
-              }
+                  prUrl: true,
+                },
+              },
             },
             orderBy: { createdAt: 'desc' },
           });
@@ -1170,7 +1197,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
             message_count: conv._count.messageId,
             processed_count: processedCount,
             created_at: conv._min.createdAt,
-            messages: messages.map(m => ({
+            messages: messages.map((m) => ({
               id: m.message.id,
               author: m.message.author,
               channel: m.message.channel,
@@ -1181,13 +1208,15 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
               doc_value_reason: m.docValueReason,
               rag_search_criteria: m.ragSearchCriteria,
             })),
-            rag_context: ragContext ? {
-              retrieved_docs: ragContext.retrievedDocs,
-              total_tokens: ragContext.totalTokens,
-              proposals_rejected: ragContext.proposalsRejected,
-              rejection_reason: ragContext.rejectionReason,
-            } : null,
-            proposals: proposals.map(p => ({
+            rag_context: ragContext
+              ? {
+                  retrieved_docs: ragContext.retrievedDocs,
+                  total_tokens: ragContext.totalTokens,
+                  proposals_rejected: ragContext.proposalsRejected,
+                  rejection_reason: ragContext.rejectionReason,
+                }
+              : null,
+            proposals: proposals.map((p) => ({
               id: p.id,
               page: p.page,
               update_type: p.updateType,
@@ -1212,16 +1241,19 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       );
 
       // Filter out null values
-      const validConversations = conversationData.filter(c => c !== null);
+      const validConversations = conversationData.filter((c) => c !== null);
 
       // Calculate total message counts across ALL messages in system, not just conversations
       const totalMessagesInSystem = await db.unifiedMessage.count();
-      const totalProcessedMessages = validConversations.reduce((sum, conv) => sum + (conv?.processed_count || 0), 0);
+      const totalProcessedMessages = validConversations.reduce(
+        (sum, conv) => sum + (conv?.processed_count || 0),
+        0
+      );
 
       // Get total message count across FILTERED conversations (not all conversations)
       // Extract all conversation IDs from the filtered list
       const filteredConversationIds = allConversations
-        .map(c => c.conversationId)
+        .map((c) => c.conversationId)
         .filter((id): id is string => id !== null);
 
       const totalMessagesInConversations = await db.messageClassification.count({
@@ -1252,7 +1284,12 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
   // Register both non-instance and instance-specific versions
   app.get('/api/admin/stream/conversations', adminAuth, conversationsHandler);
-  app.get('/:instance/api/admin/stream/conversations', instanceMiddleware, adminAuth, conversationsHandler);
+  app.get(
+    '/:instance/api/admin/stream/conversations',
+    instanceMiddleware,
+    adminAuth,
+    conversationsHandler
+  );
 
   /**
    * POST /api/admin/stream/telegram-webhook
@@ -1298,9 +1335,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
     try {
       const db = getDb(req);
 
-      const { proposalIds } = z.object({
-        proposalIds: z.array(z.number().int()).min(1)
-      }).parse(req.body);
+      const { proposalIds } = z
+        .object({
+          proposalIds: z.array(z.number().int()).min(1),
+        })
+        .parse(req.body);
 
       const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
       const batchService = new ChangesetBatchService(db);
@@ -1309,7 +1348,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
 
       res.status(201).json({
         message: 'Draft batch created successfully',
-        batch
+        batch,
       });
     } catch (error: any) {
       logger.error('Error creating draft batch:', error);
@@ -1321,38 +1360,44 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    * POST /api/admin/stream/batches/:id/generate-pr
    * Generate a pull request from a draft batch
    */
-  app.post('/api/admin/stream/batches/:id/generate-pr', adminAuth, async (req: Request, res: Response) => {
-    try {
-      const db = getDb(req);
+  app.post(
+    '/api/admin/stream/batches/:id/generate-pr',
+    adminAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const db = getDb(req);
 
-      const batchId = parseInt(req.params.id);
-      const options = z.object({
-        proposalIds: z.array(z.number().int()),
-        targetRepo: z.string(),
-        sourceRepo: z.string(),
-        baseBranch: z.string().optional(),
-        prTitle: z.string(),
-        prBody: z.string(),
-        submittedBy: z.string()
-      }).parse(req.body);
+        const batchId = parseInt(req.params.id);
+        const options = z
+          .object({
+            proposalIds: z.array(z.number().int()),
+            targetRepo: z.string(),
+            sourceRepo: z.string(),
+            baseBranch: z.string().optional(),
+            prTitle: z.string(),
+            prBody: z.string(),
+            submittedBy: z.string(),
+          })
+          .parse(req.body);
 
-      const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
-      const batchService = new ChangesetBatchService(db);
+        const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
+        const batchService = new ChangesetBatchService(db);
 
-      const result = await batchService.generatePR(batchId, options);
+        const result = await batchService.generatePR(batchId, options);
 
-      res.status(200).json({
-        message: 'Pull request created successfully',
-        batch: result.batch,
-        pr: result.pr,
-        appliedProposals: result.appliedProposals,
-        failedProposals: result.failedProposals
-      });
-    } catch (error: any) {
-      logger.error('Error generating PR:', error);
-      res.status(500).json({ error: error.message || 'Failed to generate pull request' });
+        res.status(200).json({
+          message: 'Pull request created successfully',
+          batch: result.batch,
+          pr: result.pr,
+          appliedProposals: result.appliedProposals,
+          failedProposals: result.failedProposals,
+        });
+      } catch (error: any) {
+        logger.error('Error generating PR:', error);
+        res.status(500).json({ error: error.message || 'Failed to generate pull request' });
+      }
     }
-  });
+  );
 
   // Note: GET /api/admin/stream/batches is handled by batchesHandler at line 613
 

@@ -39,7 +39,7 @@ API endpoints may be rate-limited in production. Check response headers for rate
     `,
     contact: {
       name: 'API Support',
-      url: config.project.url || 'https://github.com/your-org/docsai',
+      url: config.branding?.projectUrl || 'https://github.com/lionscraft/docsai',
     },
     license: {
       name: 'MIT',
@@ -288,10 +288,7 @@ API endpoints may be rate-limited in production. Check response headers for rate
 
 const options: swaggerJsdoc.Options = {
   definition: swaggerDefinition,
-  apis: [
-    './server/routes/*.ts',
-    './server/swagger/paths/*.ts',
-  ],
+  apis: ['./server/routes/*.ts', './server/swagger/paths/*.ts'],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

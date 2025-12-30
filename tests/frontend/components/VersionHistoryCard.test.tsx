@@ -107,7 +107,9 @@ describe('VersionHistoryCard', () => {
     // Click to show
     fireEvent.click(screen.getByTestId('button-toggle-diff-version-1'));
     expect(screen.getByTestId('text-diff-before')).toHaveTextContent('Previous content');
-    expect(screen.getByTestId('text-diff-after')).toHaveTextContent('Current content of the section');
+    expect(screen.getByTestId('text-diff-after')).toHaveTextContent(
+      'Current content of the section'
+    );
 
     // Click to hide
     fireEvent.click(screen.getByTestId('button-toggle-diff-version-1'));

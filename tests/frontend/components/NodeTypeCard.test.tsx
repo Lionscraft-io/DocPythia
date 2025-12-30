@@ -45,9 +45,7 @@ describe('NodeTypeCard', () => {
   });
 
   it('should apply custom icon color when provided', () => {
-    const { container } = render(
-      <NodeTypeCard {...defaultProps} iconColor="text-chart-1" />
-    );
+    const { container } = render(<NodeTypeCard {...defaultProps} iconColor="text-chart-1" />);
 
     const iconContainer = container.querySelector('.text-chart-1');
     expect(iconContainer).toBeInTheDocument();

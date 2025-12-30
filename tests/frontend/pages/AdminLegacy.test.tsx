@@ -18,8 +18,8 @@ const mockQueryDataHolder = vi.hoisted(() => ({
   current: {
     updates: [] as any[],
     isLoading: false,
-    error: null as any
-  }
+    error: null as any,
+  },
 }));
 
 // Mock wouter
@@ -96,7 +96,9 @@ describe('AdminLegacy Page', () => {
 
     it('should render description text', () => {
       render(<AdminLegacy />);
-      expect(screen.getByText('Review and manage AI-suggested documentation updates')).toBeInTheDocument();
+      expect(
+        screen.getByText('Review and manage AI-suggested documentation updates')
+      ).toBeInTheDocument();
     });
 
     it('should render stats cards', () => {

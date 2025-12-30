@@ -113,9 +113,7 @@ describe('Admin Routes', () => {
     app.use(express.json());
 
     // Import and register routes (need to re-import to get mocked dependencies)
-    const { registerAdminStreamRoutes } = await import(
-      '../server/stream/routes/admin-routes.js'
-    );
+    const { registerAdminStreamRoutes } = await import('../server/stream/routes/admin-routes.js');
 
     // Mock admin auth middleware that sets up the instance context
     const mockAdminAuth = (req: any, res: any, next: any) => {
@@ -145,9 +143,7 @@ describe('Admin Routes', () => {
         .mockResolvedValueOnce(30) // approved
         .mockResolvedValueOnce(60); // pending
 
-      mockPrismaClient.processingWatermark.findUnique.mockResolvedValue(
-        createMockWatermark()
-      );
+      mockPrismaClient.processingWatermark.findUnique.mockResolvedValue(createMockWatermark());
 
       const response = await request(app).get('/api/admin/stream/stats');
 
@@ -170,9 +166,7 @@ describe('Admin Routes', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      mockPrismaClient.unifiedMessage.count.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.unifiedMessage.count.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app).get('/api/admin/stream/stats');
 
@@ -241,9 +235,7 @@ describe('Admin Routes', () => {
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(10);
       mockPrismaClient.unifiedMessage.findMany.mockResolvedValue([]);
 
-      await request(app)
-        .get('/api/admin/stream/messages')
-        .query({ batchId: 'batch_123' });
+      await request(app).get('/api/admin/stream/messages').query({ batchId: 'batch_123' });
 
       expect(mockPrismaClient.unifiedMessage.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -345,12 +337,10 @@ describe('Admin Routes', () => {
 
       mockPrismaClient.docProposal.update.mockResolvedValue(updatedProposal);
 
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/approve')
-        .send({
-          approved: true,
-          reviewedBy: 'admin@example.com',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/approve').send({
+        approved: true,
+        reviewedBy: 'admin@example.com',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Proposal approved successfully');
@@ -373,23 +363,19 @@ describe('Admin Routes', () => {
 
       mockPrismaClient.docProposal.update.mockResolvedValue(updatedProposal);
 
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/approve')
-        .send({
-          approved: false,
-          reviewedBy: 'admin@example.com',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/approve').send({
+        approved: false,
+        reviewedBy: 'admin@example.com',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Proposal rejected successfully');
     });
 
     it('should validate request body', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/approve')
-        .send({
-          // Missing required fields
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/approve').send({
+        // Missing required fields
+      });
 
       expect(response.status).toBe(500); // Zod validation error
     });
@@ -415,7 +401,17 @@ describe('Admin Routes', () => {
           submittedAt: null,
           submittedBy: null,
           createdAt: new Date(),
-          batchProposals: [{ proposal: { id: 1, page: 'docs/intro.md', section: 'Intro', updateType: 'UPDATE', status: 'approved' } }],
+          batchProposals: [
+            {
+              proposal: {
+                id: 1,
+                page: 'docs/intro.md',
+                section: 'Intro',
+                updateType: 'UPDATE',
+                status: 'approved',
+              },
+            },
+          ],
           failures: [],
         },
         {
@@ -486,9 +482,7 @@ describe('Admin Routes', () => {
         });
       });
 
-      const response = await request(app).post(
-        '/api/admin/stream/clear-processed'
-      );
+      const response = await request(app).post('/api/admin/stream/clear-processed');
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -511,9 +505,7 @@ describe('Admin Routes', () => {
     it('should return 0 if no messages to clear', async () => {
       mockPrismaClient.unifiedMessage.findMany.mockResolvedValue([]);
 
-      const response = await request(app).post(
-        '/api/admin/stream/clear-processed'
-      );
+      const response = await request(app).post('/api/admin/stream/clear-processed');
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -560,12 +552,10 @@ describe('Admin Routes', () => {
 
       mockPrismaClient.docProposal.update.mockResolvedValue(updatedProposal);
 
-      const response = await request(app)
-        .patch('/api/admin/stream/proposals/1')
-        .send({
-          suggestedText: 'Updated text content',
-          editedBy: 'admin@example.com',
-        });
+      const response = await request(app).patch('/api/admin/stream/proposals/1').send({
+        suggestedText: 'Updated text content',
+        editedBy: 'admin@example.com',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Proposal text updated successfully');
@@ -580,24 +570,18 @@ describe('Admin Routes', () => {
     });
 
     it('should validate request body for text update', async () => {
-      const response = await request(app)
-        .patch('/api/admin/stream/proposals/1')
-        .send({});
+      const response = await request(app).patch('/api/admin/stream/proposals/1').send({});
 
       expect(response.status).toBe(500);
     });
 
     it('should handle database errors', async () => {
-      mockPrismaClient.docProposal.update.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.docProposal.update.mockRejectedValue(new Error('Database error'));
 
-      const response = await request(app)
-        .patch('/api/admin/stream/proposals/1')
-        .send({
-          suggestedText: 'Updated text',
-          editedBy: 'admin',
-        });
+      const response = await request(app).patch('/api/admin/stream/proposals/1').send({
+        suggestedText: 'Updated text',
+        editedBy: 'admin',
+      });
 
       expect(response.status).toBe(500);
       expect(response.body).toEqual({ error: 'Failed to update proposal' });
@@ -618,12 +602,10 @@ describe('Admin Routes', () => {
       mockPrismaClient.docProposal.findMany.mockResolvedValue([updatedProposal]);
       mockPrismaClient.docConversation.update.mockResolvedValue({});
 
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/status')
-        .send({
-          status: 'approved',
-          reviewedBy: 'admin@example.com',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/status').send({
+        status: 'approved',
+        reviewedBy: 'admin@example.com',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.proposal.status).toBe('approved');
@@ -642,12 +624,10 @@ describe('Admin Routes', () => {
       mockPrismaClient.docProposal.findMany.mockResolvedValue([]);
       mockPrismaClient.docConversation.update.mockResolvedValue({});
 
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/status')
-        .send({
-          status: 'ignored',
-          reviewedBy: 'admin@example.com',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/status').send({
+        status: 'ignored',
+        reviewedBy: 'admin@example.com',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.proposal.status).toBe('ignored');
@@ -667,24 +647,20 @@ describe('Admin Routes', () => {
       mockPrismaClient.docProposal.findMany.mockResolvedValue([updatedProposal]);
       mockPrismaClient.docConversation.update.mockResolvedValue({});
 
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/status')
-        .send({
-          status: 'pending',
-          reviewedBy: 'admin@example.com',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/status').send({
+        status: 'pending',
+        reviewedBy: 'admin@example.com',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.proposal.status).toBe('pending');
     });
 
     it('should validate status values', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/status')
-        .send({
-          status: 'invalid-status',
-          reviewedBy: 'admin@example.com',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/status').send({
+        status: 'invalid-status',
+        reviewedBy: 'admin@example.com',
+      });
 
       expect(response.status).toBe(500);
     });
@@ -692,12 +668,10 @@ describe('Admin Routes', () => {
 
   describe('POST /api/admin/stream/process', () => {
     it('should import messages from stream', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/process')
-        .send({
-          streamId: 'test-stream',
-          batchSize: 50,
-        });
+      const response = await request(app).post('/api/admin/stream/process').send({
+        streamId: 'test-stream',
+        batchSize: 50,
+      });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -707,20 +681,16 @@ describe('Admin Routes', () => {
     });
 
     it('should use default batch size', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/process')
-        .send({
-          streamId: 'test-stream',
-        });
+      const response = await request(app).post('/api/admin/stream/process').send({
+        streamId: 'test-stream',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Stream import complete');
     });
 
     it('should validate request body', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/process')
-        .send({});
+      const response = await request(app).post('/api/admin/stream/process').send({});
 
       expect(response.status).toBe(500);
     });
@@ -775,9 +745,7 @@ describe('Admin Routes', () => {
     });
 
     it('should handle database errors', async () => {
-      mockPrismaClient.unifiedMessage.count.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.unifiedMessage.count.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app).get('/api/admin/stream/messages');
 
@@ -788,9 +756,7 @@ describe('Admin Routes', () => {
 
   describe('GET /api/admin/stream/messages/:id - errors', () => {
     it('should handle database errors', async () => {
-      mockPrismaClient.unifiedMessage.findUnique.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.unifiedMessage.findUnique.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app).get('/api/admin/stream/messages/1');
 
@@ -810,9 +776,7 @@ describe('Admin Routes', () => {
 
   describe('GET /api/admin/stream/proposals - errors', () => {
     it('should handle database errors', async () => {
-      mockPrismaClient.docProposal.findMany.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.docProposal.findMany.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app).get('/api/admin/stream/proposals');
 
@@ -823,16 +787,12 @@ describe('Admin Routes', () => {
 
   describe('POST /api/admin/stream/proposals/:id/approve - errors', () => {
     it('should handle database errors', async () => {
-      mockPrismaClient.docProposal.update.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.docProposal.update.mockRejectedValue(new Error('Database error'));
 
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/approve')
-        .send({
-          approved: true,
-          reviewedBy: 'admin@example.com',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/approve').send({
+        approved: true,
+        reviewedBy: 'admin@example.com',
+      });
 
       expect(response.status).toBe(500);
       expect(response.body).toEqual({ error: 'Failed to approve proposal' });
@@ -841,9 +801,7 @@ describe('Admin Routes', () => {
 
   describe('GET /api/admin/stream/batches - errors', () => {
     it('should handle database errors', async () => {
-      mockPrismaClient.changesetBatch.findMany.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.changesetBatch.findMany.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app).get('/api/admin/stream/batches');
 
@@ -854,9 +812,7 @@ describe('Admin Routes', () => {
 
   describe('GET /api/admin/stream/streams - errors', () => {
     it('should handle database errors', async () => {
-      mockPrismaClient.streamConfig.findMany.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.streamConfig.findMany.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app).get('/api/admin/stream/streams');
 
@@ -867,13 +823,9 @@ describe('Admin Routes', () => {
 
   describe('POST /api/admin/stream/clear-processed - errors', () => {
     it('should handle database errors', async () => {
-      mockPrismaClient.unifiedMessage.findMany.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.unifiedMessage.findMany.mockRejectedValue(new Error('Database error'));
 
-      const response = await request(app).post(
-        '/api/admin/stream/clear-processed'
-      );
+      const response = await request(app).post('/api/admin/stream/clear-processed');
 
       expect(response.status).toBe(500);
       expect(response.body).toEqual({
@@ -889,9 +841,7 @@ describe('Admin Routes', () => {
       mockPrismaClient.docProposal.findMany.mockResolvedValue([]);
       mockPrismaClient.docConversation.findMany.mockResolvedValue([]);
 
-      const response = await request(app).get(
-        '/api/admin/stream/conversations'
-      );
+      const response = await request(app).get('/api/admin/stream/conversations');
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('data');
@@ -934,13 +884,9 @@ describe('Admin Routes', () => {
 
   describe('GET /api/admin/stream/conversations - errors', () => {
     it('should handle database errors', async () => {
-      mockPrismaClient.messageClassification.groupBy.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.messageClassification.groupBy.mockRejectedValue(new Error('Database error'));
 
-      const response = await request(app).get(
-        '/api/admin/stream/conversations'
-      );
+      const response = await request(app).get('/api/admin/stream/conversations');
 
       expect(response.status).toBe(500);
       expect(response.body).toEqual({ error: 'Failed to fetch conversations' });
@@ -949,37 +895,31 @@ describe('Admin Routes', () => {
 
   describe('POST /api/admin/stream/register', () => {
     it('should validate streamId is required', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/register')
-        .send({
-          adapterType: 'csv',
-          config: {},
-        });
+      const response = await request(app).post('/api/admin/stream/register').send({
+        adapterType: 'csv',
+        config: {},
+      });
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('error', 'Invalid request data');
     });
 
     it('should validate adapterType is required', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/register')
-        .send({
-          streamId: 'test-stream',
-          config: {},
-        });
+      const response = await request(app).post('/api/admin/stream/register').send({
+        streamId: 'test-stream',
+        config: {},
+      });
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('error', 'Invalid request data');
     });
 
     it('should validate adapterType enum values', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/register')
-        .send({
-          streamId: 'test-stream',
-          adapterType: 'invalid-type',
-          config: {},
-        });
+      const response = await request(app).post('/api/admin/stream/register').send({
+        streamId: 'test-stream',
+        adapterType: 'invalid-type',
+        config: {},
+      });
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('error', 'Invalid request data');
@@ -1040,17 +980,13 @@ describe('Admin Routes', () => {
 
   describe('POST /api/admin/stream/register - errors', () => {
     it('should handle database errors', async () => {
-      mockPrismaClient.streamConfig.findUnique.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.streamConfig.findUnique.mockRejectedValue(new Error('Database error'));
 
-      const response = await request(app)
-        .post('/api/admin/stream/register')
-        .send({
-          streamId: 'test-stream',
-          adapterType: 'csv',
-          config: {},
-        });
+      const response = await request(app).post('/api/admin/stream/register').send({
+        streamId: 'test-stream',
+        adapterType: 'csv',
+        config: {},
+      });
 
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty('error', 'Failed to register stream');
@@ -1059,9 +995,7 @@ describe('Admin Routes', () => {
 
   describe('POST /api/admin/stream/upload-csv', () => {
     it('should return 400 if no file uploaded', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/upload-csv')
-        .send({});
+      const response = await request(app).post('/api/admin/stream/upload-csv').send({});
 
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ error: 'No file uploaded' });
@@ -1105,12 +1039,10 @@ describe('Admin Routes', () => {
         adminReviewedBy: 'admin@example.com',
       });
 
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/approve')
-        .send({
-          approved: false,
-          reviewedBy: 'admin@example.com',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/approve').send({
+        approved: false,
+        reviewedBy: 'admin@example.com',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.proposal.adminApproved).toBe(false);
@@ -1307,18 +1239,19 @@ describe('Admin Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('Pull request created successfully');
       expect(response.body.pr.number).toBe(42);
-      expect(mockGeneratePR).toHaveBeenCalledWith(1, expect.objectContaining({
-        proposalIds: [1, 2],
-        targetRepo: 'org/repo',
-      }));
+      expect(mockGeneratePR).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          proposalIds: [1, 2],
+          targetRepo: 'org/repo',
+        })
+      );
     });
 
     it('should return error for invalid request', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/batches/1/generate-pr')
-        .send({
-          // Missing required fields
-        });
+      const response = await request(app).post('/api/admin/stream/batches/1/generate-pr').send({
+        // Missing required fields
+      });
 
       expect(response.status).toBe(500);
     });
@@ -1356,8 +1289,16 @@ describe('Admin Routes', () => {
   describe('GET /api/admin/stream/conversations - with hasProposals filter', () => {
     it('should filter by hasProposals=true with matching proposals', async () => {
       const conversations = [
-        { conversationId: 'conv-with-proposal', _count: { messageId: 2 }, _min: { createdAt: new Date() } },
-        { conversationId: 'conv-no-proposal', _count: { messageId: 1 }, _min: { createdAt: new Date() } },
+        {
+          conversationId: 'conv-with-proposal',
+          _count: { messageId: 2 },
+          _min: { createdAt: new Date() },
+        },
+        {
+          conversationId: 'conv-no-proposal',
+          _count: { messageId: 1 },
+          _min: { createdAt: new Date() },
+        },
       ];
       const proposals = [
         { ...createMockProposal({ id: 1 }), conversationId: 'conv-with-proposal' },
@@ -1372,7 +1313,22 @@ describe('Admin Routes', () => {
       mockPrismaClient.docProposal.findMany.mockResolvedValue(proposals);
       mockPrismaClient.docConversation.findMany.mockResolvedValue([]);
       mockPrismaClient.messageClassification.findMany.mockResolvedValue([
-        { conversationId: 'conv-with-proposal', category: 'doc', batchId: 'b1', docValueReason: 'r', ragSearchCriteria: 's', message: { id: 1, author: 'u', channel: 'c', content: 't', timestamp: new Date(), streamId: 's', processingStatus: 'COMPLETED' } },
+        {
+          conversationId: 'conv-with-proposal',
+          category: 'doc',
+          batchId: 'b1',
+          docValueReason: 'r',
+          ragSearchCriteria: 's',
+          message: {
+            id: 1,
+            author: 'u',
+            channel: 'c',
+            content: 't',
+            timestamp: new Date(),
+            streamId: 's',
+            processingStatus: 'COMPLETED',
+          },
+        },
       ]);
       mockPrismaClient.conversationRagContext.findUnique.mockResolvedValue(null);
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(10);
@@ -1406,9 +1362,7 @@ describe('Admin Routes', () => {
 
   describe('GET /api/admin/stream/batches via ChangesetBatchService', () => {
     it('should list batches via service', async () => {
-      mockListBatches.mockResolvedValue([
-        { id: 1, batchId: 'batch-1', status: 'draft' },
-      ]);
+      mockListBatches.mockResolvedValue([{ id: 1, batchId: 'batch-1', status: 'draft' }]);
 
       // First registered handler uses direct Prisma, so we also need that mock
       mockPrismaClient.changesetBatch.findMany.mockResolvedValue([
@@ -1439,9 +1393,7 @@ describe('Admin Routes', () => {
   describe('POST /api/admin/stream/upload-csv additional', () => {
     it('should require streamId in request', async () => {
       // This tests the branch when file is uploaded but no streamId
-      const response = await request(app)
-        .post('/api/admin/stream/upload-csv')
-        .send({});
+      const response = await request(app).post('/api/admin/stream/upload-csv').send({});
 
       // Without file upload middleware triggering, we get 'No file uploaded'
       expect(response.status).toBe(400);
@@ -1489,8 +1441,26 @@ describe('Admin Routes', () => {
       oldProposal.createdAt = new Date(Date.now() - 86400000);
 
       const proposals = [
-        { ...newProposal, message: { author: 'user', timestamp: new Date(), content: 'test', channel: 'general', classification: null } },
-        { ...oldProposal, message: { author: 'user', timestamp: new Date(), content: 'test2', channel: 'dev', classification: null } },
+        {
+          ...newProposal,
+          message: {
+            author: 'user',
+            timestamp: new Date(),
+            content: 'test',
+            channel: 'general',
+            classification: null,
+          },
+        },
+        {
+          ...oldProposal,
+          message: {
+            author: 'user',
+            timestamp: new Date(),
+            content: 'test2',
+            channel: 'dev',
+            classification: null,
+          },
+        },
       ];
 
       mockPrismaClient.docProposal.findMany.mockResolvedValue(proposals);
@@ -1524,11 +1494,9 @@ describe('Admin Routes', () => {
       const { streamManager } = await import('../server/stream/stream-manager.js');
       (streamManager.importStream as any).mockRejectedValueOnce(new Error('Stream not found'));
 
-      const response = await request(app)
-        .post('/api/admin/stream/process')
-        .send({
-          streamId: 'nonexistent-stream',
-        });
+      const response = await request(app).post('/api/admin/stream/process').send({
+        streamId: 'nonexistent-stream',
+      });
 
       expect(response.status).toBe(500);
       expect(response.body.error).toBe('Failed to import messages');
@@ -1546,12 +1514,10 @@ describe('Admin Routes', () => {
       });
       mockPrismaClient.docProposal.findMany.mockResolvedValue([]);
 
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/999/status')
-        .send({
-          status: 'approved',
-          reviewedBy: 'admin@example.com',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/999/status').send({
+        status: 'approved',
+        reviewedBy: 'admin@example.com',
+      });
 
       // Should still succeed as long as update works
       expect(response.status).toBe(200);
@@ -1563,15 +1529,19 @@ describe('Admin Routes', () => {
       const proposal = {
         ...createMockProposal({ id: 1 }),
         page: 'docs/guide.md',
-        message: { author: 'user', timestamp: new Date(), content: 'test', channel: 'general', classification: null },
+        message: {
+          author: 'user',
+          timestamp: new Date(),
+          content: 'test',
+          channel: 'general',
+          classification: null,
+        },
       };
 
       mockPrismaClient.docProposal.findMany.mockResolvedValue([proposal]);
       mockPrismaClient.docProposal.count.mockResolvedValue(1);
 
-      const response = await request(app)
-        .get('/api/admin/stream/proposals')
-        .query({ page: 1 });
+      const response = await request(app).get('/api/admin/stream/proposals').query({ page: 1 });
 
       expect(response.status).toBe(200);
       expect(response.body.pagination.page).toBe(1);
@@ -1617,12 +1587,10 @@ describe('Admin Routes', () => {
       const { streamManager } = await import('../server/stream/stream-manager.js');
       (streamManager.importStream as any).mockResolvedValueOnce({ imported: 10 });
 
-      const response = await request(app)
-        .post('/api/admin/stream/process')
-        .send({
-          streamId: 'test-stream',
-          fullScan: true,
-        });
+      const response = await request(app).post('/api/admin/stream/process').send({
+        streamId: 'test-stream',
+        fullScan: true,
+      });
 
       expect(response.status).toBe(200);
     });
@@ -1631,12 +1599,10 @@ describe('Admin Routes', () => {
       const { streamManager } = await import('../server/stream/stream-manager.js');
       (streamManager.importStream as any).mockResolvedValueOnce({ imported: 100 });
 
-      const response = await request(app)
-        .post('/api/admin/stream/process')
-        .send({
-          streamId: 'test-stream',
-          maxMessages: 100,
-        });
+      const response = await request(app).post('/api/admin/stream/process').send({
+        streamId: 'test-stream',
+        maxMessages: 100,
+      });
 
       expect(response.status).toBe(200);
     });
@@ -1674,8 +1640,7 @@ describe('Admin Routes', () => {
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(10);
       mockPrismaClient.messageClassification.count.mockResolvedValue(5);
 
-      const response = await request(app)
-        .get('/api/admin/stream/conversations');
+      const response = await request(app).get('/api/admin/stream/conversations');
 
       expect(response.status).toBe(200);
       expect(response.body.data).toBeDefined();
@@ -1683,7 +1648,11 @@ describe('Admin Routes', () => {
 
     it('should return conversations with proposals', async () => {
       const conversations = [
-        { conversationId: 'conv-with-proposal', _count: { messageId: 2 }, _min: { createdAt: new Date() } },
+        {
+          conversationId: 'conv-with-proposal',
+          _count: { messageId: 2 },
+          _min: { createdAt: new Date() },
+        },
       ];
       const mockProposal = {
         ...createMockProposal({ id: 1 }),
@@ -1702,7 +1671,15 @@ describe('Admin Routes', () => {
           batchId: 'batch-1',
           docValueReason: 'Relevant',
           ragSearchCriteria: 'search query',
-          message: { id: 1, author: 'user', channel: 'general', content: 'test', timestamp: new Date(), streamId: 'test', processingStatus: 'COMPLETED' },
+          message: {
+            id: 1,
+            author: 'user',
+            channel: 'general',
+            content: 'test',
+            timestamp: new Date(),
+            streamId: 'test',
+            processingStatus: 'COMPLETED',
+          },
         },
       ]);
       mockPrismaClient.conversationRagContext.findUnique.mockResolvedValue({
@@ -1714,8 +1691,7 @@ describe('Admin Routes', () => {
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(10);
       mockPrismaClient.messageClassification.count.mockResolvedValue(5);
 
-      const response = await request(app)
-        .get('/api/admin/stream/conversations');
+      const response = await request(app).get('/api/admin/stream/conversations');
 
       expect(response.status).toBe(200);
       expect(response.body.data.length).toBeGreaterThan(0);
@@ -1736,7 +1712,12 @@ describe('Admin Routes', () => {
       ]);
       mockPrismaClient.changesetBatch.findMany.mockResolvedValue([]);
       mockPrismaClient.docProposal.findMany.mockResolvedValue([
-        { ...createMockProposal({ id: 1 }), conversationId: 'conv-1', status: 'approved', message: null },
+        {
+          ...createMockProposal({ id: 1 }),
+          conversationId: 'conv-1',
+          status: 'approved',
+          message: null,
+        },
       ]);
       mockPrismaClient.docConversation.findMany.mockResolvedValue([]);
       mockPrismaClient.messageClassification.findMany.mockResolvedValue([
@@ -1746,15 +1727,22 @@ describe('Admin Routes', () => {
           batchId: 'batch-1',
           docValueReason: 'Relevant',
           ragSearchCriteria: 'search query',
-          message: { id: 1, author: 'user', channel: 'general', content: 'test', timestamp: new Date(), streamId: 'test', processingStatus: 'COMPLETED' },
+          message: {
+            id: 1,
+            author: 'user',
+            channel: 'general',
+            content: 'test',
+            timestamp: new Date(),
+            streamId: 'test',
+            processingStatus: 'COMPLETED',
+          },
         },
       ]);
       mockPrismaClient.conversationRagContext.findUnique.mockResolvedValue(null);
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(10);
       mockPrismaClient.messageClassification.count.mockResolvedValue(5);
 
-      const response = await request(app)
-        .get('/api/admin/stream/conversations?status=changeset');
+      const response = await request(app).get('/api/admin/stream/conversations?status=changeset');
 
       expect(response.status).toBe(200);
       // The groupBy should have been called to filter by status
@@ -1772,7 +1760,12 @@ describe('Admin Routes', () => {
       ]);
       mockPrismaClient.changesetBatch.findMany.mockResolvedValue([]);
       mockPrismaClient.docProposal.findMany.mockResolvedValue([
-        { ...createMockProposal({ id: 1 }), conversationId: 'conv-1', status: 'pending', message: null },
+        {
+          ...createMockProposal({ id: 1 }),
+          conversationId: 'conv-1',
+          status: 'pending',
+          message: null,
+        },
       ]);
       mockPrismaClient.docConversation.findMany.mockResolvedValue([]);
       mockPrismaClient.messageClassification.findMany.mockResolvedValue([]);
@@ -1780,8 +1773,7 @@ describe('Admin Routes', () => {
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(10);
       mockPrismaClient.messageClassification.count.mockResolvedValue(5);
 
-      const response = await request(app)
-        .get('/api/admin/stream/conversations?status=pending');
+      const response = await request(app).get('/api/admin/stream/conversations?status=pending');
 
       expect(response.status).toBe(200);
       expect(mockPrismaClient.docProposal.groupBy).toHaveBeenCalled();
@@ -1799,7 +1791,12 @@ describe('Admin Routes', () => {
       ]);
       mockPrismaClient.changesetBatch.findMany.mockResolvedValue([]);
       mockPrismaClient.docProposal.findMany.mockResolvedValue([
-        { ...createMockProposal({ id: 1 }), conversationId: 'conv-1', status: 'ignored', message: null },
+        {
+          ...createMockProposal({ id: 1 }),
+          conversationId: 'conv-1',
+          status: 'ignored',
+          message: null,
+        },
       ]);
       mockPrismaClient.docConversation.findMany.mockResolvedValue([]);
       mockPrismaClient.messageClassification.findMany.mockResolvedValue([
@@ -1809,7 +1806,15 @@ describe('Admin Routes', () => {
           batchId: 'batch-1',
           docValueReason: 'Relevant',
           ragSearchCriteria: 'search query',
-          message: { id: 1, author: 'user', channel: 'general', content: 'test', timestamp: new Date(), streamId: 'test', processingStatus: 'COMPLETED' },
+          message: {
+            id: 1,
+            author: 'user',
+            channel: 'general',
+            content: 'test',
+            timestamp: new Date(),
+            streamId: 'test',
+            processingStatus: 'COMPLETED',
+          },
         },
       ]);
       mockPrismaClient.conversationRagContext.findMany.mockResolvedValue([]);
@@ -1817,8 +1822,7 @@ describe('Admin Routes', () => {
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(10);
       mockPrismaClient.messageClassification.count.mockResolvedValue(5);
 
-      const response = await request(app)
-        .get('/api/admin/stream/conversations?status=discarded');
+      const response = await request(app).get('/api/admin/stream/conversations?status=discarded');
 
       expect(response.status).toBe(200);
       expect(mockPrismaClient.docProposal.groupBy).toHaveBeenCalled();
@@ -1841,8 +1845,7 @@ describe('Admin Routes', () => {
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(10);
       mockPrismaClient.messageClassification.count.mockResolvedValue(5);
 
-      const response = await request(app)
-        .get('/api/admin/stream/conversations?status=changeset');
+      const response = await request(app).get('/api/admin/stream/conversations?status=changeset');
 
       expect(response.status).toBe(200);
       // No conversations should be returned since none have matching proposals
@@ -1859,13 +1862,11 @@ describe('Admin Routes', () => {
         adminReviewedAt: new Date(),
       });
 
-      const response = await request(app)
-        .post('/api/admin/stream/proposals/1/approve')
-        .send({
-          approved: false,
-          reviewedBy: 'reviewer@test.com',
-          discardReason: 'Not relevant',
-        });
+      const response = await request(app).post('/api/admin/stream/proposals/1/approve').send({
+        approved: false,
+        reviewedBy: 'reviewer@test.com',
+        discardReason: 'Not relevant',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.proposal.adminApproved).toBe(false);
@@ -1888,11 +1889,9 @@ describe('Admin Routes', () => {
 
   describe('POST /api/admin/stream/process-batch different states', () => {
     it('should trigger full batch processing', async () => {
-      const response = await request(app)
-        .post('/api/admin/stream/process-batch')
-        .send({
-          streamId: 'test-stream',
-        });
+      const response = await request(app).post('/api/admin/stream/process-batch').send({
+        streamId: 'test-stream',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toContain('processing');

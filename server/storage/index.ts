@@ -5,7 +5,12 @@
 
 export { s3Storage, type S3Config, type S3StorageOptions } from './s3-client';
 export { configStorage, type ConfigStorageOptions } from './config-storage';
-export { cacheStorage, type CacheBackend, type CacheStorageOptions, type CacheEntry } from './cache-storage';
+export {
+  cacheStorage,
+  type CacheBackend,
+  type CacheStorageOptions,
+  type CacheEntry,
+} from './cache-storage';
 
 /**
  * Initialize all storage services from environment

@@ -24,7 +24,7 @@ async function testStream() {
     console.log('Step 2: Checking stream health...');
     const health = await streamManager.getHealth();
     console.log('Health Status:');
-    health.forEach(h => {
+    health.forEach((h) => {
       console.log(`  - ${h.streamId}: ${h.isHealthy ? '✓ Healthy' : '✗ Unhealthy'}`);
       console.log(`    Total Processed: ${h.totalProcessed}`);
       if (h.lastError) {

@@ -167,9 +167,7 @@ describe('GeminiEmbedder', () => {
         embedding: { values: null },
       });
 
-      await expect(embedder.embedText('Test text')).rejects.toThrow(
-        'Failed to generate embedding'
-      );
+      await expect(embedder.embedText('Test text')).rejects.toThrow('Failed to generate embedding');
     });
 
     it('should retry on transient errors', async () => {

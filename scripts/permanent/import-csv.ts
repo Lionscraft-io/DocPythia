@@ -54,7 +54,7 @@ async function importCSV(csvFilePath: string) {
     const response = await fetch(`${API_URL}/api/admin/stream/process`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ADMIN_TOKEN}`,
+        Authorization: `Bearer ${ADMIN_TOKEN}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -69,7 +69,7 @@ async function importCSV(csvFilePath: string) {
 
     // Wait for processing to complete
     console.log('⏳ Waiting for processing to complete...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     // Check if file was moved
     try {
@@ -82,7 +82,7 @@ async function importCSV(csvFilePath: string) {
       try {
         const processedFiles = await fs.readdir(PROCESSED_DIR);
         const reportFiles = processedFiles
-          .filter(f => f.endsWith('.report.json') && f.includes(filename))
+          .filter((f) => f.endsWith('.report.json') && f.includes(filename))
           .sort()
           .reverse();
 
@@ -106,7 +106,7 @@ async function importCSV(csvFilePath: string) {
 
     const statsResponse = await fetch(`${API_URL}/api/admin/stream/stats`, {
       headers: {
-        'Authorization': `Bearer ${ADMIN_TOKEN}`,
+        Authorization: `Bearer ${ADMIN_TOKEN}`,
       },
     });
 
@@ -119,7 +119,6 @@ async function importCSV(csvFilePath: string) {
     console.log('============================================\n');
     console.log('View results in admin dashboard:');
     console.log(`  ${API_URL}/api/admin/stream/messages\n`);
-
   } catch (error: any) {
     console.error('❌ Error during import:', error.message);
     process.exit(1);

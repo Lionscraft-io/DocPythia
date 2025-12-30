@@ -1,9 +1,17 @@
-import { Header } from "@/components/Header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { GitBranch, FileText, Database, Clock, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { Header } from '@/components/Header';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  GitBranch,
+  FileText,
+  Database,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 interface GitStats {
   gitUrl: string;
@@ -16,10 +24,10 @@ interface GitStats {
 }
 
 export default function Documentation() {
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const { data: gitStats, isLoading } = useQuery<GitStats>({
-    queryKey: ["/api/docs/git-stats"],
+    queryKey: ['/api/docs/git-stats'],
   });
 
   const extractRepoName = (gitUrl: string): string => {
@@ -55,14 +63,20 @@ export default function Documentation() {
     switch (status) {
       case 'completed':
         return (
-          <Badge variant="outline" className="gap-1 border-green-500 text-green-700 dark:text-green-400">
+          <Badge
+            variant="outline"
+            className="gap-1 border-green-500 text-green-700 dark:text-green-400"
+          >
             <CheckCircle className="h-3 w-3" />
             Synced
           </Badge>
         );
       case 'in-progress':
         return (
-          <Badge variant="outline" className="gap-1 border-blue-500 text-blue-700 dark:text-blue-400">
+          <Badge
+            variant="outline"
+            className="gap-1 border-blue-500 text-blue-700 dark:text-blue-400"
+          >
             <Loader2 className="h-3 w-3 animate-spin" />
             Syncing
           </Badge>
@@ -106,9 +120,10 @@ export default function Documentation() {
   }
 
   const repoName = extractRepoName(gitStats.gitUrl);
-  const embeddingPercentage = gitStats.totalDocuments > 0
-    ? Math.round((gitStats.documentsWithEmbeddings / gitStats.totalDocuments) * 100)
-    : 0;
+  const embeddingPercentage =
+    gitStats.totalDocuments > 0
+      ? Math.round((gitStats.documentsWithEmbeddings / gitStats.totalDocuments) * 100)
+      : 0;
 
   return (
     <div className="h-screen flex flex-col">
@@ -136,7 +151,8 @@ export default function Documentation() {
                     {repoName}
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Branch: <code className="text-xs bg-muted px-1 py-0.5 rounded">{gitStats.branch}</code>
+                    Branch:{' '}
+                    <code className="text-xs bg-muted px-1 py-0.5 rounded">{gitStats.branch}</code>
                   </CardDescription>
                 </div>
                 {getStatusBadge(gitStats.status)}
@@ -175,28 +191,24 @@ export default function Documentation() {
           <div className="grid gap-6 md:grid-cols-3 mb-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Documents
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{gitStats.totalDocuments.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Files synced from repository
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Files synced from repository</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Documents with Embeddings
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Documents with Embeddings</CardTitle>
                 <Database className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{gitStats.documentsWithEmbeddings.toLocaleString()}</div>
+                <div className="text-2xl font-bold">
+                  {gitStats.documentsWithEmbeddings.toLocaleString()}
+                </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {embeddingPercentage}% of total documents
                 </p>
@@ -205,9 +217,7 @@ export default function Documentation() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Sync Status
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Sync Status</CardTitle>
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>

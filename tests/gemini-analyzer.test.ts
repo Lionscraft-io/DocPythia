@@ -19,6 +19,13 @@ vi.mock('@google/generative-ai', () => {
       constructor(_apiKey: string) {}
       getGenerativeModel = mockGetGenerativeModel;
     },
+    SchemaType: {
+      STRING: 'string',
+      NUMBER: 'number',
+      BOOLEAN: 'boolean',
+      OBJECT: 'object',
+      ARRAY: 'array',
+    },
   };
 });
 
@@ -61,7 +68,11 @@ vi.mock('../server/stream/llm/prompt-templates.js', () => ({
 import { storage } from '../server/storage';
 import { getConfig } from '../server/config/loader';
 import { llmCache } from '../server/llm/llm-cache.js';
-import { MessageAnalyzer, createAnalyzerFromEnv, AnalysisResult } from '../server/analyzer/gemini-analyzer';
+import {
+  MessageAnalyzer,
+  createAnalyzerFromEnv,
+  AnalysisResult,
+} from '../server/analyzer/gemini-analyzer';
 
 describe('MessageAnalyzer', () => {
   let analyzer: MessageAnalyzer;
@@ -437,19 +448,14 @@ describe('MessageAnalyzer', () => {
     });
 
     it('should continue processing on individual message error', async () => {
-      const messages = [
-        mockMessage,
-        { ...mockMessage, id: 2, messageId: 'msg-456' },
-      ];
+      const messages = [mockMessage, { ...mockMessage, id: 2, messageId: 'msg-456' }];
       vi.mocked(storage.getUnanalyzedMessages).mockResolvedValue(messages as any);
 
-      mockGenerateContent
-        .mockRejectedValueOnce(new Error('API error'))
-        .mockResolvedValueOnce({
-          response: {
-            text: () => JSON.stringify({ relevant: false, reasoning: 'Not relevant' }),
-          },
-        });
+      mockGenerateContent.mockRejectedValueOnce(new Error('API error')).mockResolvedValueOnce({
+        response: {
+          text: () => JSON.stringify({ relevant: false, reasoning: 'Not relevant' }),
+        },
+      });
 
       const result = await analyzer.analyzeUnanalyzedMessages();
 
@@ -509,17 +515,17 @@ describe('MessageAnalyzer', () => {
         },
       });
 
-      await expect(
-        analyzer.generateDocumentationAnswer('Question?')
-      ).rejects.toThrow('Empty response from Gemini');
+      await expect(analyzer.generateDocumentationAnswer('Question?')).rejects.toThrow(
+        'Empty response from Gemini'
+      );
     });
 
     it('should throw on API error', async () => {
       mockGenerateContent.mockRejectedValue(new Error('Network error'));
 
-      await expect(
-        analyzer.generateDocumentationAnswer('Question?')
-      ).rejects.toThrow('Failed to generate answer: Network error');
+      await expect(analyzer.generateDocumentationAnswer('Question?')).rejects.toThrow(
+        'Failed to generate answer: Network error'
+      );
     });
   });
 });

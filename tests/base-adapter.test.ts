@@ -242,10 +242,7 @@ describe('BaseStreamAdapter', () => {
     });
 
     it('should handle errors and continue', async () => {
-      const messages = [
-        testMessage,
-        { ...testMessage, messageId: 'msg-002' },
-      ];
+      const messages = [testMessage, { ...testMessage, messageId: 'msg-002' }];
 
       mockDb.unifiedMessage.findUnique.mockResolvedValue(null);
       mockDb.unifiedMessage.create

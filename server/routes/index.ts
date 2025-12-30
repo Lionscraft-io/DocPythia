@@ -5,24 +5,24 @@
  * Each route module handles a specific domain of functionality.
  */
 
-import type { Express, RequestHandler } from "express";
-import { createServer, type Server } from "http";
-import swaggerUi from "swagger-ui-express";
-import { multiInstanceAdminAuth as adminAuth } from "../middleware/multi-instance-admin-auth.js";
-import { createLogger } from "../utils/logger.js";
-import { swaggerSpec } from "../swagger/config.js";
+import type { Express, RequestHandler } from 'express';
+import { createServer, type Server } from 'http';
+import swaggerUi from 'swagger-ui-express';
+import { multiInstanceAdminAuth as adminAuth } from '../middleware/multi-instance-admin-auth.js';
+import { createLogger } from '../utils/logger.js';
+import { swaggerSpec } from '../swagger/config.js';
 
 // Import route modules
-import healthRoutes from "./health-routes.js";
-import authRoutes from "./auth-routes.js";
-import configRoutes from "./config-routes.js";
-import widgetRoutes from "./widget-routes.js";
-import widgetEmbedRoutes from "./widget-embed-routes.js";
-import { createDocsRoutes, createDocsIndexRoutes } from "./docs-routes.js";
-import { createAdminPanelRoutes } from "./admin-panel-routes.js";
+import healthRoutes from './health-routes.js';
+import authRoutes from './auth-routes.js';
+import configRoutes from './config-routes.js';
+import widgetRoutes from './widget-routes.js';
+import widgetEmbedRoutes from './widget-embed-routes.js';
+import { createDocsRoutes, createDocsIndexRoutes } from './docs-routes.js';
+import { createAdminPanelRoutes } from './admin-panel-routes.js';
 
 // Import swagger path definitions
-import "../swagger/paths/index.js";
+import '../swagger/paths/index.js';
 
 const logger = createLogger('Routes');
 
@@ -32,10 +32,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== API DOCUMENTATION ====================
 
   // Swagger UI - API documentation
-  app.use('/api/docs-ui', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'DocsAI API Documentation',
-  }));
+  app.use(
+    '/api/docs-ui',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'DocsAI API Documentation',
+    })
+  );
 
   // OpenAPI JSON spec endpoint
   app.get('/api/openapi.json', (req, res) => {

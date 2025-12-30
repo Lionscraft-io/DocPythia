@@ -160,7 +160,8 @@ describe('LLM Provider Factory', () => {
 
   describe('createLLMProvider', () => {
     it('should create Gemini provider with API key', async () => {
-      const { createLLMProvider, resetProviders } = await import('../server/llm/providers/index.js');
+      const { createLLMProvider, resetProviders } =
+        await import('../server/llm/providers/index.js');
       resetProviders();
 
       const provider = createLLMProvider({ provider: 'gemini', apiKey: 'test-key' });
@@ -172,12 +173,11 @@ describe('LLM Provider Factory', () => {
       delete process.env.GEMINI_API_KEY;
       delete process.env.GOOGLE_AI_API_KEY;
 
-      const { createLLMProvider, resetProviders } = await import('../server/llm/providers/index.js');
+      const { createLLMProvider, resetProviders } =
+        await import('../server/llm/providers/index.js');
       resetProviders();
 
-      expect(() => createLLMProvider({ provider: 'gemini' })).toThrow(
-        'Gemini API key is required'
-      );
+      expect(() => createLLMProvider({ provider: 'gemini' })).toThrow('Gemini API key is required');
     });
 
     it('should throw for OpenAI (not implemented)', async () => {
@@ -215,9 +215,8 @@ describe('LLM Provider Factory', () => {
 
   describe('createEmbeddingProvider', () => {
     it('should create Gemini embedding provider with API key', async () => {
-      const { createEmbeddingProvider, resetProviders } = await import(
-        '../server/llm/providers/index.js'
-      );
+      const { createEmbeddingProvider, resetProviders } =
+        await import('../server/llm/providers/index.js');
       resetProviders();
 
       const provider = createEmbeddingProvider({ provider: 'gemini', apiKey: 'test-key' });
@@ -230,9 +229,8 @@ describe('LLM Provider Factory', () => {
       delete process.env.GEMINI_API_KEY;
       delete process.env.GOOGLE_AI_API_KEY;
 
-      const { createEmbeddingProvider, resetProviders } = await import(
-        '../server/llm/providers/index.js'
-      );
+      const { createEmbeddingProvider, resetProviders } =
+        await import('../server/llm/providers/index.js');
       resetProviders();
 
       expect(() => createEmbeddingProvider({ provider: 'gemini' })).toThrow(
@@ -301,9 +299,8 @@ describe('LLM Provider Factory', () => {
 
   describe('singleton providers', () => {
     it('should return same instance for getDefaultLLMProvider', async () => {
-      const { getDefaultLLMProvider, resetProviders } = await import(
-        '../server/llm/providers/index.js'
-      );
+      const { getDefaultLLMProvider, resetProviders } =
+        await import('../server/llm/providers/index.js');
       resetProviders();
 
       const provider1 = getDefaultLLMProvider();
@@ -313,9 +310,8 @@ describe('LLM Provider Factory', () => {
     });
 
     it('should return same instance for getDefaultEmbeddingProvider', async () => {
-      const { getDefaultEmbeddingProvider, resetProviders } = await import(
-        '../server/llm/providers/index.js'
-      );
+      const { getDefaultEmbeddingProvider, resetProviders } =
+        await import('../server/llm/providers/index.js');
       resetProviders();
 
       const provider1 = getDefaultEmbeddingProvider();
@@ -325,9 +321,8 @@ describe('LLM Provider Factory', () => {
     });
 
     it('should create new instances after resetProviders', async () => {
-      const { getDefaultLLMProvider, resetProviders } = await import(
-        '../server/llm/providers/index.js'
-      );
+      const { getDefaultLLMProvider, resetProviders } =
+        await import('../server/llm/providers/index.js');
 
       const provider1 = getDefaultLLMProvider();
       resetProviders();
@@ -406,11 +401,13 @@ describe('GeminiLLMProvider', () => {
       });
 
       expect(result.text).toBe('Response with system prompt');
-      expect(mockGenerateContent).toHaveBeenCalledWith(
-        expect.arrayContaining([
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        contents: expect.arrayContaining([
           expect.objectContaining({ role: 'user', parts: [{ text: 'You are helpful' }] }),
-        ])
-      );
+          expect.objectContaining({ role: 'model', parts: [{ text: 'Understood.' }] }),
+          expect.objectContaining({ role: 'user', parts: [{ text: 'Test prompt' }] }),
+        ]),
+      });
     });
 
     it('should throw on generation error', async () => {
@@ -586,17 +583,15 @@ describe('GeminiEmbeddingProvider', () => {
 
   describe('constructor', () => {
     it('should throw when API key is missing', async () => {
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
 
       expect(() => new GeminiEmbeddingProvider('')).toThrow('Gemini API key is required');
     });
 
     it('should create provider with correct dimensions', async () => {
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
 
       const provider = new GeminiEmbeddingProvider('test-key');
 
@@ -612,9 +607,8 @@ describe('GeminiEmbeddingProvider', () => {
         embedding: { values: mockEmbedding },
       });
 
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       const result = await provider.embedText('Test text');
@@ -624,18 +618,16 @@ describe('GeminiEmbeddingProvider', () => {
     });
 
     it('should throw on empty text', async () => {
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       await expect(provider.embedText('')).rejects.toThrow('Cannot embed empty text');
     });
 
     it('should throw on whitespace-only text', async () => {
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       await expect(provider.embedText('   ')).rejects.toThrow('Cannot embed empty text');
@@ -650,9 +642,8 @@ describe('GeminiEmbeddingProvider', () => {
         category: 'embeddings',
       });
 
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       const result = await provider.embedText('Test text');
@@ -674,9 +665,8 @@ describe('GeminiEmbeddingProvider', () => {
         embedding: { values: mockEmbedding },
       });
 
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       const result = await provider.embedText('Test text');
@@ -691,9 +681,8 @@ describe('GeminiEmbeddingProvider', () => {
         .mockRejectedValueOnce(new Error('Transient error'))
         .mockResolvedValueOnce({ embedding: { values: mockEmbedding } });
 
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       const result = await provider.embedText('Test text');
@@ -705,9 +694,8 @@ describe('GeminiEmbeddingProvider', () => {
     it('should throw after max retries', async () => {
       mockEmbedContent.mockRejectedValue(new Error('Persistent error'));
 
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       await expect(provider.embedText('Test text')).rejects.toThrow(
@@ -720,9 +708,8 @@ describe('GeminiEmbeddingProvider', () => {
         embedding: { values: null },
       });
 
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       await expect(provider.embedText('Test text')).rejects.toThrow(
@@ -738,9 +725,8 @@ describe('GeminiEmbeddingProvider', () => {
         embedding: { values: mockEmbedding },
       });
 
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       const texts = ['Text 1', 'Text 2', 'Text 3'];
@@ -751,9 +737,8 @@ describe('GeminiEmbeddingProvider', () => {
     }, 10000);
 
     it('should return empty array for empty input', async () => {
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       const results = await provider.embedBatch([]);
@@ -769,9 +754,8 @@ describe('GeminiEmbeddingProvider', () => {
         .mockRejectedValueOnce(new Error('Failed'))
         .mockResolvedValueOnce({ embedding: { values: new Array(768).fill(0.2) } });
 
-      const { GeminiEmbeddingProvider } = await import(
-        '../server/llm/providers/gemini-provider.js'
-      );
+      const { GeminiEmbeddingProvider } =
+        await import('../server/llm/providers/gemini-provider.js');
       const provider = new GeminiEmbeddingProvider('test-key');
 
       const texts = ['Success 1', 'Fail', 'Success 2'];

@@ -182,9 +182,9 @@ describe('FileModificationService', () => {
         section: 'Nonexistent Section',
       });
 
-      await expect(
-        service.applyProposalsToFile('test.md', [proposal])
-      ).rejects.toThrow('Section not found: Nonexistent Section');
+      await expect(service.applyProposalsToFile('test.md', [proposal])).rejects.toThrow(
+        'Section not found: Nonexistent Section'
+      );
     });
 
     it('should insert multi-line content', async () => {
@@ -261,9 +261,9 @@ describe('FileModificationService', () => {
         section: null,
       });
 
-      await expect(
-        service.applyProposalsToFile('test.md', [proposal])
-      ).rejects.toThrow('UPDATE requires either location or section');
+      await expect(service.applyProposalsToFile('test.md', [proposal])).rejects.toThrow(
+        'UPDATE requires either location or section'
+      );
     });
 
     it('should throw error if section not found', async () => {
@@ -277,9 +277,9 @@ describe('FileModificationService', () => {
         section: 'Missing Section',
       });
 
-      await expect(
-        service.applyProposalsToFile('test.md', [proposal])
-      ).rejects.toThrow('Section not found: Missing Section');
+      await expect(service.applyProposalsToFile('test.md', [proposal])).rejects.toThrow(
+        'Section not found: Missing Section'
+      );
     });
 
     it('should use editedText over suggestedText', async () => {
@@ -321,7 +321,8 @@ describe('FileModificationService', () => {
     });
 
     it('should delete entire section', async () => {
-      const content = '# Title\n\nContent\n\n## Delete Me\n\nTo be deleted\n\n## Keep Me\n\nKeep this';
+      const content =
+        '# Title\n\nContent\n\n## Delete Me\n\nTo be deleted\n\n## Keep Me\n\nKeep this';
       vi.mocked(fs.access).mockResolvedValue(undefined);
       vi.mocked(fs.readFile).mockResolvedValue(content);
 
@@ -349,9 +350,9 @@ describe('FileModificationService', () => {
         section: null,
       });
 
-      await expect(
-        service.applyProposalsToFile('test.md', [proposal])
-      ).rejects.toThrow('DELETE requires either location or section');
+      await expect(service.applyProposalsToFile('test.md', [proposal])).rejects.toThrow(
+        'DELETE requires either location or section'
+      );
     });
 
     it('should throw error if section not found', async () => {
@@ -364,9 +365,9 @@ describe('FileModificationService', () => {
         section: 'Missing Section',
       });
 
-      await expect(
-        service.applyProposalsToFile('test.md', [proposal])
-      ).rejects.toThrow('Section not found: Missing Section');
+      await expect(service.applyProposalsToFile('test.md', [proposal])).rejects.toThrow(
+        'Section not found: Missing Section'
+      );
     });
   });
 

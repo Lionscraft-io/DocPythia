@@ -41,7 +41,9 @@ async function main() {
 
     console.log(`\n✅ Scrape completed!`);
     console.log(`   New messages stored: ${storedCount}`);
-    console.log(`\n💡 Run 'npx tsx scripts/permanent/check-zulip-messages.ts' to see statistics.\n`);
+    console.log(
+      `\n💡 Run 'npx tsx scripts/permanent/check-zulip-messages.ts' to see statistics.\n`
+    );
   } catch (error: any) {
     console.error('❌ Scrape failed:', error.message);
     process.exit(1);

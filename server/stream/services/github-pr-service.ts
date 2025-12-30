@@ -23,9 +23,9 @@ const execAsync = promisify(exec);
 
 interface GitHubConfig {
   token: string;
-  targetRepo: string;    // e.g., "username/fork-repo"
-  sourceRepo: string;    // e.g., "org-name/documentation-repo"
-  baseBranch: string;    // e.g., "main"
+  targetRepo: string; // e.g., "username/fork-repo"
+  sourceRepo: string; // e.g., "org-name/documentation-repo"
+  baseBranch: string; // e.g., "main"
 }
 
 interface PRCreateOptions {
@@ -74,7 +74,7 @@ export class GitHubPRService {
 
     try {
       await execAsync(`git clone ${repoUrl} ${repoPath}`, {
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       });
 
       // Checkout the base branch
@@ -157,13 +157,13 @@ export class GitHubPRService {
         body: options.body,
         head: options.branchName,
         base: this.config.baseBranch,
-        draft: options.draft ?? true
+        draft: options.draft ?? true,
       });
 
       return {
         url: pr.html_url,
         number: pr.number,
-        branchName: options.branchName
+        branchName: options.branchName,
       };
     } catch (error: any) {
       throw new Error(`Failed to create pull request: ${error.message}`);

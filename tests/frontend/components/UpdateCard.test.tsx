@@ -22,7 +22,9 @@ describe('UpdateCard', () => {
     render(<UpdateCard {...defaultProps} />);
 
     expect(screen.getByTestId('text-section')).toHaveTextContent('docs/getting-started.md');
-    expect(screen.getByTestId('text-summary')).toHaveTextContent('Added missing configuration step');
+    expect(screen.getByTestId('text-summary')).toHaveTextContent(
+      'Added missing configuration step'
+    );
   });
 
   it('should render source and timestamp', () => {
@@ -124,15 +126,11 @@ describe('UpdateCard', () => {
     expect(screen.getByTestId('button-reject-update-1')).toHaveTextContent('Reject');
 
     // Approved status
-    rerender(
-      <UpdateCard {...defaultProps} status="approved" onReject={onReject} />
-    );
+    rerender(<UpdateCard {...defaultProps} status="approved" onReject={onReject} />);
     expect(screen.getByTestId('button-reject-update-1')).toHaveTextContent('Unapprove');
 
     // Rejected status
-    rerender(
-      <UpdateCard {...defaultProps} status="rejected" onReject={onReject} />
-    );
+    rerender(<UpdateCard {...defaultProps} status="rejected" onReject={onReject} />);
     expect(screen.getByTestId('button-reject-update-1')).toHaveTextContent('Reset to Pending');
   });
 
@@ -157,7 +155,9 @@ describe('UpdateCard', () => {
 
       // Dialog should now be visible
       expect(screen.getByText('Edit Change Proposal')).toBeInTheDocument();
-      expect(screen.getByText('Modify the AI-generated content before approving.')).toBeInTheDocument();
+      expect(
+        screen.getByText('Modify the AI-generated content before approving.')
+      ).toBeInTheDocument();
     });
 
     it('should pre-fill textarea with diff.after content', () => {
@@ -241,13 +241,7 @@ describe('UpdateCard', () => {
 
     it('should disable textarea for delete type', () => {
       const onEdit = vi.fn();
-      render(
-        <UpdateCard
-          {...propsWithDiff}
-          type="delete"
-          onEdit={onEdit}
-        />
-      );
+      render(<UpdateCard {...propsWithDiff} type="delete" onEdit={onEdit} />);
 
       fireEvent.click(screen.getByTestId('button-edit-update-1'));
 
@@ -257,13 +251,7 @@ describe('UpdateCard', () => {
 
     it('should show delete-specific label for delete type', () => {
       const onEdit = vi.fn();
-      render(
-        <UpdateCard
-          {...propsWithDiff}
-          type="delete"
-          onEdit={onEdit}
-        />
-      );
+      render(<UpdateCard {...propsWithDiff} type="delete" onEdit={onEdit} />);
 
       fireEvent.click(screen.getByTestId('button-edit-update-1'));
 
@@ -272,13 +260,7 @@ describe('UpdateCard', () => {
 
     it('should show "(No content)" when diff.after is empty', () => {
       const onEdit = vi.fn();
-      render(
-        <UpdateCard
-          {...defaultProps}
-          diff={{ before: 'Old', after: '' }}
-          onEdit={onEdit}
-        />
-      );
+      render(<UpdateCard {...defaultProps} diff={{ before: 'Old', after: '' }} onEdit={onEdit} />);
 
       // The card itself should show "(No content)" for the proposed change
       expect(screen.getByText('(No content)')).toBeInTheDocument();

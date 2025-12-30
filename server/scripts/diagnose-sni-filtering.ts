@@ -13,7 +13,8 @@ const resolve4 = promisify(dns.resolve4);
 const resolve6 = promisify(dns.resolve6);
 const lookup = promisify(dns.lookup);
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8';
+const BOT_TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN || '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8';
 const HOST = 'api.telegram.org';
 const PATH = `/bot${BOT_TOKEN}/getMe`;
 
@@ -146,7 +147,7 @@ async function testDirectIP(ip: string) {
     const options = {
       host: ip,
       path: PATH,
-      headers: { 'Host': HOST },
+      headers: { Host: HOST },
       servername: HOST, // This still sends SNI!
       timeout: 10000,
     };
@@ -186,7 +187,7 @@ async function testDirectIPNoSNI(ip: string) {
     const options = {
       host: ip,
       path: PATH,
-      headers: { 'Host': HOST },
+      headers: { Host: HOST },
       servername: undefined, // Don't send SNI
       timeout: 10000,
       rejectUnauthorized: false, // Required when SNI doesn't match cert
@@ -231,7 +232,12 @@ async function compareCurl() {
     );
 
     console.log('✅ Curl details:');
-    console.log(stdout.split('\n').map(line => `   ${line}`).join('\n'));
+    console.log(
+      stdout
+        .split('\n')
+        .map((line) => `   ${line}`)
+        .join('\n')
+    );
   } catch (err: any) {
     console.log(`❌ Curl failed: ${err.message}`);
   }
@@ -251,7 +257,13 @@ async function testWithDebug() {
 
     if (stderr.includes('HTTPS') || stdout.includes('HTTPS')) {
       console.log('   Debug output (first 20 lines):');
-      console.log((stderr + stdout).split('\n').slice(0, 20).map(line => `   ${line}`).join('\n'));
+      console.log(
+        (stderr + stdout)
+          .split('\n')
+          .slice(0, 20)
+          .map((line) => `   ${line}`)
+          .join('\n')
+      );
     }
   } catch (err: any) {
     console.log(`   ⏱️  Timed out or failed (expected if connection blocked)`);

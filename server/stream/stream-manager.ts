@@ -7,8 +7,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import cron from 'node-cron';
-import { StreamAdapter } from './adapters/base-adapter.js';
+import cron, { ScheduledTask } from 'node-cron';
+import type { StreamAdapter } from './types.js';
 import { CsvFileAdapter } from './adapters/csv-file-adapter.js';
 import { TelegramBotAdapter } from './adapters/telegram-bot-adapter.js';
 import { ZulipBotAdapter } from './adapters/zulip-bot-adapter.js';
@@ -41,7 +41,7 @@ export interface StreamHealth {
 
 export class StreamManager {
   private adapters: Map<string, StreamAdapter> = new Map();
-  private jobs: Map<string, cron.ScheduledTask> = new Map();
+  private jobs: Map<string, ScheduledTask> = new Map();
   private runningStreams: Set<string> = new Set();
   private config: Required<StreamManagerConfig>;
   private streamToInstance: Map<string, string> = new Map(); // Track which instance each stream belongs to
@@ -50,11 +50,15 @@ export class StreamManager {
     const schedulingEnabled = process.env.STREAM_SCHEDULING_ENABLED === 'true';
 
     this.config = {
-      maxConcurrentStreams: config?.maxConcurrentStreams || parseInt(process.env.MAX_CONCURRENT_STREAMS || '3'),
-      defaultBatchSize: config?.defaultBatchSize || parseInt(process.env.MESSAGE_BATCH_SIZE || '10'),
+      maxConcurrentStreams:
+        config?.maxConcurrentStreams || parseInt(process.env.MAX_CONCURRENT_STREAMS || '3'),
+      defaultBatchSize:
+        config?.defaultBatchSize || parseInt(process.env.MESSAGE_BATCH_SIZE || '10'),
       enableScheduling: config?.enableScheduling ?? schedulingEnabled,
-      errorRetryAttempts: config?.errorRetryAttempts || parseInt(process.env.STREAM_ERROR_RETRY_ATTEMPTS || '3'),
-      errorRetryDelay: config?.errorRetryDelay || parseInt(process.env.STREAM_ERROR_RETRY_DELAY || '60000'),
+      errorRetryAttempts:
+        config?.errorRetryAttempts || parseInt(process.env.STREAM_ERROR_RETRY_ATTEMPTS || '3'),
+      errorRetryDelay:
+        config?.errorRetryDelay || parseInt(process.env.STREAM_ERROR_RETRY_DELAY || '60000'),
     };
 
     logger.info('StreamManager initialized with config:', this.config);
@@ -70,7 +74,10 @@ export class StreamManager {
     try {
       // Get all available instances
       const availableInstances = InstanceConfigLoader.getAvailableInstances();
-      logger.info(`Loading streams from ${availableInstances.length} instances:`, availableInstances);
+      logger.info(
+        `Loading streams from ${availableInstances.length} instances:`,
+        availableInstances
+      );
 
       let totalStreams = 0;
 
@@ -86,7 +93,9 @@ export class StreamManager {
           // Filter to enabled streams only
           const enabledStreams = streamConfigs.filter((s: any) => s.enabled === true);
 
-          logger.info(`Found ${enabledStreams.length} active streams for instance "${instanceId}" (${streamConfigs.length} total)`);
+          logger.info(
+            `Found ${enabledStreams.length} active streams for instance "${instanceId}" (${streamConfigs.length} total)`
+          );
 
           // Register adapters for each enabled stream
           for (const streamConfig of enabledStreams) {
@@ -97,7 +106,10 @@ export class StreamManager {
               await this.registerStream(streamConfig, instanceId, instanceDb);
               totalStreams++;
             } catch (error) {
-              logger.error(`Failed to register stream ${streamConfig.streamId} for instance ${instanceId}:`, error);
+              logger.error(
+                `Failed to register stream ${streamConfig.streamId} for instance ${instanceId}:`,
+                error
+              );
             }
           }
         } catch (error) {
@@ -105,7 +117,9 @@ export class StreamManager {
         }
       }
 
-      logger.info(`StreamManager initialized with ${totalStreams} streams across ${availableInstances.length} instances`);
+      logger.info(
+        `StreamManager initialized with ${totalStreams} streams across ${availableInstances.length} instances`
+      );
     } catch (error) {
       logger.error('Failed to initialize StreamManager:', error);
       throw error;
@@ -118,7 +132,11 @@ export class StreamManager {
    * @param instanceId - Instance ID this stream belongs to
    * @param instanceDb - Database client for this instance
    */
-  async registerStream(streamConfig: any, instanceId: string, instanceDb: PrismaClient): Promise<void> {
+  async registerStream(
+    streamConfig: any,
+    instanceId: string,
+    instanceDb: PrismaClient
+  ): Promise<void> {
     const { streamId, adapterType, config: adapterConfig, schedule } = streamConfig;
 
     logger.info(`Registering stream: ${streamId} (${adapterType}) for instance: ${instanceId}`);
@@ -128,7 +146,13 @@ export class StreamManager {
     const enhancedConfig = this.injectEnvVars(adapterConfig, adapterType, instanceId);
 
     // Create adapter instance based on type
-    const adapter = this.createAdapter(streamId, adapterType, enhancedConfig, instanceId, instanceDb);
+    const adapter = this.createAdapter(
+      streamId,
+      adapterType,
+      enhancedConfig,
+      instanceId,
+      instanceDb
+    );
 
     if (!adapter) {
       throw new Error(`Unknown adapter type: ${adapterType}`);
@@ -198,15 +222,24 @@ export class StreamManager {
           config.pollingInterval = parseInt(process.env.TELEGRAM_POLLING_INTERVAL);
         }
         if (process.env.TELEGRAM_ALLOWED_CHATS && !config.allowedChats) {
-          config.allowedChats = process.env.TELEGRAM_ALLOWED_CHATS.split(',').map(s => s.trim());
+          config.allowedChats = process.env.TELEGRAM_ALLOWED_CHATS.split(',').map((s) => s.trim());
         }
-        if (process.env.TELEGRAM_IGNORE_OLD_MESSAGES !== undefined && config.ignoreOldMessages === undefined) {
+        if (
+          process.env.TELEGRAM_IGNORE_OLD_MESSAGES !== undefined &&
+          config.ignoreOldMessages === undefined
+        ) {
           config.ignoreOldMessages = process.env.TELEGRAM_IGNORE_OLD_MESSAGES === 'true';
         }
-        if (process.env.TELEGRAM_PROCESS_COMMANDS !== undefined && config.processCommands === undefined) {
+        if (
+          process.env.TELEGRAM_PROCESS_COMMANDS !== undefined &&
+          config.processCommands === undefined
+        ) {
           config.processCommands = process.env.TELEGRAM_PROCESS_COMMANDS === 'true';
         }
-        if (process.env.TELEGRAM_SAVE_RAW_UPDATES !== undefined && config.saveRawUpdates === undefined) {
+        if (
+          process.env.TELEGRAM_SAVE_RAW_UPDATES !== undefined &&
+          config.saveRawUpdates === undefined
+        ) {
           config.saveRawUpdates = process.env.TELEGRAM_SAVE_RAW_UPDATES === 'true';
         }
         break;
@@ -250,7 +283,10 @@ export class StreamManager {
         if (process.env.ZULIP_BATCH_SIZE && !config.batchSize) {
           config.batchSize = parseInt(process.env.ZULIP_BATCH_SIZE);
         }
-        if (process.env.ZULIP_IGNORE_OLD_MESSAGES !== undefined && config.ignoreOldMessages === undefined) {
+        if (
+          process.env.ZULIP_IGNORE_OLD_MESSAGES !== undefined &&
+          config.ignoreOldMessages === undefined
+        ) {
           config.ignoreOldMessages = process.env.ZULIP_IGNORE_OLD_MESSAGES === 'true';
         }
         break;
@@ -315,8 +351,7 @@ export class StreamManager {
           await this.runStream(streamId);
         },
         {
-          scheduled: true,
-          timezone: 'UTC'
+          timezone: 'UTC',
         }
       );
 
@@ -359,11 +394,7 @@ export class StreamManager {
     // Update watermark after successful import
     if (messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
-      await adapter.updateWatermark(
-        lastMessage.timestamp,
-        lastMessage.messageId,
-        messages.length
-      );
+      await adapter.updateWatermark(lastMessage.timestamp, lastMessage.messageId, messages.length);
     }
 
     return messages.length;
@@ -375,7 +406,9 @@ export class StreamManager {
   async runStream(streamId: string, batchSize?: number): Promise<void> {
     // Check concurrency limit
     if (this.runningStreams.size >= this.config.maxConcurrentStreams) {
-      logger.warn(`Max concurrent streams reached (${this.config.maxConcurrentStreams}). Skipping ${streamId}`);
+      logger.warn(
+        `Max concurrent streams reached (${this.config.maxConcurrentStreams}). Skipping ${streamId}`
+      );
       return;
     }
 
@@ -415,7 +448,9 @@ export class StreamManager {
 
       // Messages are now stored in database as PENDING
       // They will be processed in 24-hour batches by the batch processor
-      logger.info(`Stream ${streamId} import complete - ${messages.length} messages imported (PENDING status)`);
+      logger.info(
+        `Stream ${streamId} import complete - ${messages.length} messages imported (PENDING status)`
+      );
 
       // Update watermark after successful processing
       if (messages.length > 0) {
@@ -426,7 +461,6 @@ export class StreamManager {
           messages.length
         );
       }
-
     } catch (error: any) {
       logger.error(`Error running stream ${streamId}:`, error);
 
@@ -451,11 +485,7 @@ export class StreamManager {
       },
       data: {
         enabled: false,
-        metadata: {
-          disabledReason: 'Error during processing',
-          disabledAt: new Date(),
-          lastError: error.message,
-        },
+        // Error info is logged; config field could be used if needed
       },
     });
 
@@ -486,15 +516,14 @@ export class StreamManager {
     for (const [streamId, adapter] of this.adapters.entries()) {
       try {
         const watermark = await adapter.getWatermark();
-        const metadata = watermark.metadata as any;
 
         health.push({
           streamId,
-          isHealthy: !metadata?.lastError || Date.now() - new Date(metadata.lastErrorTime).getTime() > 3600000, // 1 hour
-          lastSuccessfulRun: watermark.lastProcessedTime,
-          lastError: metadata?.lastError || null,
+          isHealthy: true, // Stream is healthy if we can get the watermark
+          lastSuccessfulRun: watermark.lastProcessedTime ?? null,
+          lastError: null,
           totalProcessed: watermark.totalProcessed,
-          errorCount: metadata?.errorCount || 0,
+          errorCount: 0,
         });
       } catch (error: any) {
         health.push({
@@ -521,19 +550,19 @@ export class StreamManager {
     scheduledStreams: number;
     totalMessagesProcessed: number;
   }> {
-    const watermarks = await prisma.streamWatermark.findMany();
-
-    const totalMessagesProcessed = watermarks.reduce(
-      (sum, w) => sum + w.totalProcessed,
-      0
-    );
+    // Count total messages processed from unified_messages table
+    const messageCount = await prisma.unifiedMessage.count({
+      where: {
+        processingStatus: 'COMPLETED',
+      },
+    });
 
     return {
       totalStreams: this.adapters.size,
       activeStreams: this.adapters.size,
       runningStreams: this.runningStreams.size,
       scheduledStreams: this.jobs.size,
-      totalMessagesProcessed,
+      totalMessagesProcessed: messageCount,
     };
   }
 

@@ -27,7 +27,9 @@ export class GeminiEmbedder implements EmbeddingService {
       throw new Error('Gemini API key not found. Please set GEMINI_API_KEY or GOOGLE_AI_API_KEY');
     }
 
-    console.log(`[DEBUG] GeminiEmbedder API key: ${key.substring(0, 15)}... (length: ${key.length})`);
+    console.log(
+      `[DEBUG] GeminiEmbedder API key: ${key.substring(0, 15)}... (length: ${key.length})`
+    );
     this.genAI = new GoogleGenerativeAI(key);
     this.embedModel = process.env.GEMINI_EMBED_MODEL || 'text-embedding-004';
     console.log(`GeminiEmbedder initialized with model: ${this.embedModel}`);
@@ -57,7 +59,9 @@ export class GeminiEmbedder implements EmbeddingService {
 
     for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
       try {
-        console.log(`Generating embedding for text (attempt ${attempt + 1}/${this.MAX_RETRIES})...`);
+        console.log(
+          `Generating embedding for text (attempt ${attempt + 1}/${this.MAX_RETRIES})...`
+        );
 
         const model = this.genAI.getGenerativeModel({ model: this.embedModel });
         const result = await model.embedContent(text);
@@ -94,7 +98,9 @@ export class GeminiEmbedder implements EmbeddingService {
       }
     }
 
-    throw new Error(`Failed to generate embedding after ${this.MAX_RETRIES} attempts: ${lastError?.message}`);
+    throw new Error(
+      `Failed to generate embedding after ${this.MAX_RETRIES} attempts: ${lastError?.message}`
+    );
   }
 
   /**
@@ -154,7 +160,7 @@ export class GeminiEmbedder implements EmbeddingService {
    * Helper function to sleep for a given number of milliseconds
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**

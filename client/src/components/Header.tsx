@@ -1,9 +1,9 @@
-import { Link } from "wouter";
-import { ThemeToggle } from "./ThemeToggle";
-import { Search, Menu } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useConfig } from "@/hooks/useConfig";
+import { Link } from 'wouter';
+import { ThemeToggle } from './ThemeToggle';
+import { Search, Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useConfig } from '@/hooks/useConfig';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -11,7 +11,7 @@ interface HeaderProps {
   onSearchChange?: (value: string) => void;
 }
 
-export function Header({ onMenuClick, searchValue = "", onSearchChange }: HeaderProps) {
+export function Header({ onMenuClick, searchValue = '', onSearchChange }: HeaderProps) {
   const { data: config, isLoading } = useConfig();
 
   // Use default values while loading
@@ -43,7 +43,11 @@ export function Header({ onMenuClick, searchValue = "", onSearchChange }: Header
         </Link>
 
         <nav className="hidden md:flex items-center gap-6 flex-1">
-          <Link href="/admin" className="text-sm font-medium text-muted-foreground hover-elevate px-3 py-2 rounded-md" data-testid="link-admin">
+          <Link
+            href="/admin"
+            className="text-sm font-medium text-muted-foreground hover-elevate px-3 py-2 rounded-md"
+            data-testid="link-admin"
+          >
             Admin
           </Link>
         </nav>

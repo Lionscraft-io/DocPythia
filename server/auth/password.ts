@@ -35,34 +35,15 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 /**
- * Synchronous password hashing (for backwards compatibility)
- * @deprecated Use async hashPassword() instead
- */
-export function hashPasswordSync(password: string): string {
-  return bcrypt.hashSync(password, SALT_ROUNDS);
-}
-
-/**
- * Synchronous password verification (for backwards compatibility)
- * @deprecated Use async verifyPassword() instead
- */
-export function verifyPasswordSync(password: string, hash: string): boolean {
-  // Support legacy SHA256 hashes during migration period
-  if (hash.length === 64 && /^[a-f0-9]+$/.test(hash)) {
-    const sha256Hash = crypto.createHash('sha256').update(password).digest('hex');
-    return sha256Hash === hash;
-  }
-
-  return bcrypt.compareSync(password, hash);
-}
-
-/**
  * Generate a secure random password
  * @param length - Length of the password (default: 24)
  * @returns A cryptographically secure random password
  */
 export function generatePassword(length: number = 24): string {
-  return crypto.randomBytes(Math.ceil(length * 3 / 4)).toString('base64').slice(0, length);
+  return crypto
+    .randomBytes(Math.ceil((length * 3) / 4))
+    .toString('base64')
+    .slice(0, length);
 }
 
 /**

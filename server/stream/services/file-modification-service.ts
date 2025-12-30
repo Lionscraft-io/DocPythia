@@ -96,11 +96,7 @@ export class FileModificationService {
     // Strategy 1: Insert at specific line
     if (location?.lineStart !== undefined) {
       const insertIndex = location.lineStart;
-      return [
-        ...lines.slice(0, insertIndex),
-        ...newLines,
-        ...lines.slice(insertIndex)
-      ];
+      return [...lines.slice(0, insertIndex), ...newLines, ...lines.slice(insertIndex)];
     }
 
     // Strategy 2: Insert under section
@@ -108,11 +104,7 @@ export class FileModificationService {
       const sectionIndex = this.findSectionIndex(lines, section);
       if (sectionIndex !== -1) {
         const insertIndex = this.findSectionEnd(lines, sectionIndex);
-        return [
-          ...lines.slice(0, insertIndex),
-          ...newLines,
-          ...lines.slice(insertIndex)
-        ];
+        return [...lines.slice(0, insertIndex), ...newLines, ...lines.slice(insertIndex)];
       }
       // Section not found - throw error
       throw new Error(`Section not found: ${section}`);
@@ -141,7 +133,7 @@ export class FileModificationService {
       return [
         ...lines.slice(0, location.lineStart),
         ...newLines,
-        ...lines.slice(location.lineEnd + 1)
+        ...lines.slice(location.lineEnd + 1),
       ];
     }
 
@@ -151,11 +143,7 @@ export class FileModificationService {
       if (sectionIndex !== -1) {
         const sectionEnd = this.findSectionEnd(lines, sectionIndex);
         // Keep the section header, replace content
-        return [
-          ...lines.slice(0, sectionIndex + 1),
-          ...newLines,
-          ...lines.slice(sectionEnd)
-        ];
+        return [...lines.slice(0, sectionIndex + 1), ...newLines, ...lines.slice(sectionEnd)];
       }
       throw new Error(`Section not found: ${section}`);
     }
@@ -176,10 +164,7 @@ export class FileModificationService {
   ): string[] {
     // Strategy 1: Delete line range
     if (location?.lineStart !== undefined && location?.lineEnd !== undefined) {
-      return [
-        ...lines.slice(0, location.lineStart),
-        ...lines.slice(location.lineEnd + 1)
-      ];
+      return [...lines.slice(0, location.lineStart), ...lines.slice(location.lineEnd + 1)];
     }
 
     // Strategy 2: Delete entire section
@@ -187,10 +172,7 @@ export class FileModificationService {
       const sectionIndex = this.findSectionIndex(lines, section);
       if (sectionIndex !== -1) {
         const sectionEnd = this.findSectionEnd(lines, sectionIndex);
-        return [
-          ...lines.slice(0, sectionIndex),
-          ...lines.slice(sectionEnd)
-        ];
+        return [...lines.slice(0, sectionIndex), ...lines.slice(sectionEnd)];
       }
       throw new Error(`Section not found: ${section}`);
     }
@@ -289,7 +271,7 @@ export class FileModificationService {
         return {
           success: false,
           error: `File not found: ${filePath}`,
-          errorType: 'file_not_found'
+          errorType: 'file_not_found',
         };
       }
 
@@ -316,7 +298,7 @@ export class FileModificationService {
       return {
         success: false,
         error: error.message || 'Unknown error',
-        errorType
+        errorType,
       };
     }
   }

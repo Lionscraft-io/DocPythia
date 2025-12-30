@@ -8,14 +8,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { LLMService, SilentLogger } from '../server/stream/llm/llm-service.js';
-import { ILLMProvider, GenerationResult, GenerationOptions, ConversationMessage } from '../server/stream/llm/llm-provider.js';
+import {
+  ILLMProvider,
+  GenerationResult,
+  GenerationOptions,
+  ConversationMessage,
+} from '../server/stream/llm/llm-provider.js';
 import { ILLMCache, CachePurpose, CachedLLMRequest } from '../server/llm/llm-cache.js';
 import { LLMModel } from '../server/stream/types.js';
 
 // Mock provider for testing
 class MockProvider implements ILLMProvider {
   public generateFn: (prompt: string, options: GenerationOptions) => Promise<GenerationResult>;
-  public generateWithHistoryFn: (prompt: string, history: ConversationMessage[], options: GenerationOptions) => Promise<GenerationResult>;
+  public generateWithHistoryFn: (
+    prompt: string,
+    history: ConversationMessage[],
+    options: GenerationOptions
+  ) => Promise<GenerationResult>;
 
   constructor() {
     this.generateFn = vi.fn().mockResolvedValue({
@@ -34,7 +43,11 @@ class MockProvider implements ILLMProvider {
     return this.generateFn(prompt, options);
   }
 
-  async generateWithHistory(prompt: string, history: ConversationMessage[], options: GenerationOptions): Promise<GenerationResult> {
+  async generateWithHistory(
+    prompt: string,
+    history: ConversationMessage[],
+    options: GenerationOptions
+  ): Promise<GenerationResult> {
     return this.generateWithHistoryFn(prompt, history, options);
   }
 }
@@ -158,10 +171,12 @@ describe('LLMService with Dependency Injection', () => {
         finishReason: 'STOP',
       });
 
-      await expect(service.request({
-        model: LLMModel.FLASH,
-        userPrompt: 'Test',
-      })).rejects.toThrow('Empty response from LLM');
+      await expect(
+        service.request({
+          model: LLMModel.FLASH,
+          userPrompt: 'Test',
+        })
+      ).rejects.toThrow('Empty response from LLM');
     });
 
     it('should retry on transient error and succeed', async () => {
@@ -192,10 +207,13 @@ describe('LLMService with Dependency Injection', () => {
     });
 
     it('should parse JSON response', async () => {
-      const { data, response } = await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Return JSON',
-      }, schema);
+      const { data, response } = await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'Return JSON',
+        },
+        schema
+      );
 
       expect(data).toEqual({ result: 'success' });
       expect(response.content).toBe('{"result": "success"}');
@@ -207,10 +225,14 @@ describe('LLMService with Dependency Injection', () => {
         tokensUsed: 25,
       });
 
-      const { data, response } = await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Cached prompt',
-      }, schema, 'analysis' as CachePurpose);
+      const { data, response } = await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'Cached prompt',
+        },
+        schema,
+        'analysis' as CachePurpose
+      );
 
       expect(data).toEqual({ result: 'cached' });
       expect(response.finishReason).toBe('CACHED');
@@ -219,10 +241,14 @@ describe('LLMService with Dependency Injection', () => {
     });
 
     it('should save to cache when purpose provided', async () => {
-      await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'New request',
-      }, schema, 'analysis' as CachePurpose);
+      await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'New request',
+        },
+        schema,
+        'analysis' as CachePurpose
+      );
 
       expect(mockCache.setFn).toHaveBeenCalledWith(
         'New request',
@@ -235,23 +261,29 @@ describe('LLMService with Dependency Injection', () => {
     });
 
     it('should not save to cache when no purpose provided', async () => {
-      await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'No cache request',
-      }, schema);
+      await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'No cache request',
+        },
+        schema
+      );
 
       expect(mockCache.setFn).not.toHaveBeenCalled();
     });
 
     it('should use generateWithHistory for requests with history', async () => {
-      await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Follow up',
-        history: [
-          { role: 'user', content: 'First message' },
-          { role: 'assistant', content: 'First response' },
-        ],
-      }, schema);
+      await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'Follow up',
+          history: [
+            { role: 'user', content: 'First message' },
+            { role: 'assistant', content: 'First response' },
+          ],
+        },
+        schema
+      );
 
       expect(mockProvider.generateWithHistoryFn).toHaveBeenCalled();
       expect(mockProvider.generateFn).not.toHaveBeenCalled();
@@ -264,10 +296,15 @@ describe('LLMService with Dependency Injection', () => {
         finishReason: 'STOP',
       });
 
-      await expect(service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Test',
-      }, schema)).rejects.toThrow('Malformed JSON');
+      await expect(
+        service.requestJSON(
+          {
+            model: LLMModel.FLASH,
+            userPrompt: 'Test',
+          },
+          schema
+        )
+      ).rejects.toThrow('Malformed JSON');
     });
 
     it('should throw on empty response with transient flag', async () => {
@@ -277,19 +314,29 @@ describe('LLMService with Dependency Injection', () => {
         finishReason: 'STOP',
       });
 
-      await expect(service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Test',
-      }, schema)).rejects.toThrow('Empty response');
+      await expect(
+        service.requestJSON(
+          {
+            model: LLMModel.FLASH,
+            userPrompt: 'Test',
+          },
+          schema
+        )
+      ).rejects.toThrow('Empty response');
     });
 
     it('should throw transient error on API failure', async () => {
       mockProvider.generateFn = vi.fn().mockRejectedValue(new Error('API rate limit'));
 
-      await expect(service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Test',
-      }, schema)).rejects.toThrow('Gemini API error');
+      await expect(
+        service.requestJSON(
+          {
+            model: LLMModel.FLASH,
+            userPrompt: 'Test',
+          },
+          schema
+        )
+      ).rejects.toThrow('Gemini API error');
     });
 
     it('should retry on transient JSON errors', async () => {
@@ -302,10 +349,13 @@ describe('LLMService with Dependency Injection', () => {
         return { text: '{"result": "ok"}', tokensUsed: 50, finishReason: 'STOP' };
       });
 
-      const { data } = await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Test',
-      }, z.object({ result: z.string() }));
+      const { data } = await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'Test',
+        },
+        z.object({ result: z.string() })
+      );
 
       expect(data.result).toBe('ok');
       expect(mockProvider.generateFn).toHaveBeenCalledTimes(2);
@@ -314,20 +364,29 @@ describe('LLMService with Dependency Injection', () => {
     it('should regenerate when cached response is invalid JSON', async () => {
       mockCache.addCacheEntry('Bad cache', 'analysis', 'not valid json');
 
-      const { data } = await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Bad cache',
-      }, schema, 'analysis' as CachePurpose);
+      const { data } = await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'Bad cache',
+        },
+        schema,
+        'analysis' as CachePurpose
+      );
 
       expect(data).toEqual({ result: 'success' });
       expect(mockProvider.generateFn).toHaveBeenCalled();
     });
 
     it('should include messageId in cache metadata', async () => {
-      await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'With message ID',
-      }, schema, 'analysis' as CachePurpose, 12345);
+      await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'With message ID',
+        },
+        schema,
+        'analysis' as CachePurpose,
+        12345
+      );
 
       expect(mockCache.setFn).toHaveBeenCalledWith(
         'With message ID',
@@ -370,10 +429,12 @@ describe('LLMService with Dependency Injection', () => {
       (error as any).transient = true;
       mockProvider.generateFn = vi.fn().mockRejectedValue(error);
 
-      await expect(service.request({
-        model: LLMModel.FLASH,
-        userPrompt: 'Test',
-      })).rejects.toThrow('Always fails');
+      await expect(
+        service.request({
+          model: LLMModel.FLASH,
+          userPrompt: 'Test',
+        })
+      ).rejects.toThrow('Always fails');
 
       expect(mockProvider.generateFn).toHaveBeenCalledTimes(3); // Default max retries
     });
@@ -383,10 +444,12 @@ describe('LLMService with Dependency Injection', () => {
       (error as any).transient = false;
       mockProvider.generateFn = vi.fn().mockRejectedValue(error);
 
-      await expect(service.request({
-        model: LLMModel.FLASH,
-        userPrompt: 'Test',
-      })).rejects.toThrow('Permanent failure');
+      await expect(
+        service.request({
+          model: LLMModel.FLASH,
+          userPrompt: 'Test',
+        })
+      ).rejects.toThrow('Permanent failure');
 
       expect(mockProvider.generateFn).toHaveBeenCalledTimes(1);
     });
@@ -407,10 +470,12 @@ describe('LLMService Custom Retry Config', () => {
       retryConfig: { maxRetries: 5 },
     });
 
-    await expect(service.request({
-      model: LLMModel.FLASH,
-      userPrompt: 'Test',
-    })).rejects.toThrow();
+    await expect(
+      service.request({
+        model: LLMModel.FLASH,
+        userPrompt: 'Test',
+      })
+    ).rejects.toThrow();
 
     expect(mockProvider.generateFn).toHaveBeenCalledTimes(5);
   });

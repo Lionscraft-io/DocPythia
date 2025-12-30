@@ -61,7 +61,17 @@ export interface StreamAdapter {
   /**
    * Fetch messages since the last watermark
    */
-  fetchMessages(watermark?: StreamWatermark): Promise<StreamMessage[]>;
+  fetchMessages(watermark?: StreamWatermark, batchSize?: number): Promise<StreamMessage[]>;
+
+  /**
+   * Get the current watermark for this stream
+   */
+  getWatermark(): Promise<StreamWatermark>;
+
+  /**
+   * Update the watermark after processing messages
+   */
+  updateWatermark(timestamp: Date, messageId: string, count: number): Promise<void>;
 
   /**
    * Validate adapter configuration
@@ -128,7 +138,7 @@ export interface DocProposal {
 export enum LLMModel {
   FLASH = 'gemini-2.5-flash',
   PRO = 'gemini-2.5-pro',
-  PRO_2 = 'gemini-2.5-pro'  // Consolidated to 2.5-pro (gemini-exp-1206 deprecated)
+  PRO_2 = 'gemini-2.5-pro', // Consolidated to 2.5-pro (gemini-exp-1206 deprecated)
 }
 
 export interface LLMRequest {

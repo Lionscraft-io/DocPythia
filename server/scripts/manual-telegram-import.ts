@@ -10,7 +10,8 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8';
+const BOT_TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN || '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8';
 const STREAM_ID = 'telegram-bot';
 
 interface TelegramUpdate {
@@ -69,7 +70,7 @@ async function importUpdates() {
       const timestamp = new Date(post.date * 1000);
       const author = post.sender_chat?.title || 'Unknown';
       const channel = post.chat.title;
-      const content = post.text;
+      const content = post.text!; // Checked for existence above
 
       // Check if message already exists
       const existing = await prisma.unifiedMessage.findUnique({
@@ -113,7 +114,7 @@ async function importUpdates() {
         where: {
           streamId_resourceId: {
             streamId: STREAM_ID,
-            resourceId: null,
+            resourceId: '', // Empty string for null resource ID
           },
         },
         create: {
@@ -129,7 +130,6 @@ async function importUpdates() {
       });
       console.log(`Updated watermark to update_id: ${lastUpdate.update_id}`);
     }
-
   } catch (error) {
     console.error('Error importing updates:', error);
     process.exit(1);

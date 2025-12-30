@@ -13,7 +13,7 @@
  * Updated: 2025-11-14 - Multi-instance support
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { llmService } from '../llm/llm-service.js';
 import { MessageVectorSearch } from '../message-vector-search.js';
 import { PROMPT_TEMPLATES, fillTemplate } from '../llm/prompt-templates.js';
@@ -26,16 +26,20 @@ const logger = createLogger('BatchProcessor');
 // ========== Batch Classification Schema ==========
 
 const BatchClassificationResultSchema = z.object({
-  threads: z.array(z.object({
-    category: z.string().max(50, 'Category must be 50 characters or less'),
-    messages: z.array(z.number()).min(1, 'Thread must contain at least one message'),
-    summary: z.string().max(200, 'Thread summary must be 200 characters or less'),
-    docValueReason: z.string().max(300, 'Documentation value reason must be 300 characters or less'),
-    ragSearchCriteria: z.object({
-      keywords: z.array(z.string().max(50, 'Keywords must be 50 characters or less')),
-      semanticQuery: z.string().max(200, 'Semantic query must be 200 characters or less'),
-    }),
-  })),
+  threads: z.array(
+    z.object({
+      category: z.string().max(50, 'Category must be 50 characters or less'),
+      messages: z.array(z.number()).min(1, 'Thread must contain at least one message'),
+      summary: z.string().max(200, 'Thread summary must be 200 characters or less'),
+      docValueReason: z
+        .string()
+        .max(300, 'Documentation value reason must be 300 characters or less'),
+      ragSearchCriteria: z.object({
+        keywords: z.array(z.string().max(50, 'Keywords must be 50 characters or less')),
+        semanticQuery: z.string().max(200, 'Semantic query must be 200 characters or less'),
+      }),
+    })
+  ),
   batchSummary: z.string().max(500, 'Batch summary must be 500 characters or less'),
 });
 
@@ -47,11 +51,13 @@ const ProposalGenerationSchema = z.object({
   updateType: z.enum(['INSERT', 'UPDATE', 'DELETE', 'NONE']),
   page: z.string().max(150, 'Page path must be 150 characters or less'),
   section: z.string().max(100, 'Section name must be 100 characters or less').optional(),
-  location: z.object({
-    lineStart: z.number().optional(),
-    lineEnd: z.number().optional(),
-    sectionName: z.string().max(100, 'Section name must be 100 characters or less').optional(),
-  }).optional(),
+  location: z
+    .object({
+      lineStart: z.number().optional(),
+      lineEnd: z.number().optional(),
+      sectionName: z.string().max(100, 'Section name must be 100 characters or less').optional(),
+    })
+    .optional(),
   suggestedText: z.string().max(2000, 'Suggested text must be 2000 characters or less').optional(),
   reasoning: z.string().max(300, 'Reasoning must be 300 characters or less'),
   sourceMessages: z.array(z.number()).optional(), // Message IDs that led to this proposal
@@ -83,12 +89,12 @@ interface ConversationGroup {
 // ========== Configuration ==========
 
 interface BatchProcessorConfig {
-  batchWindowHours: number;  // 24 hours
+  batchWindowHours: number; // 24 hours
   contextWindowHours: number; // 24 hours (previous batch)
-  maxBatchSize: number;       // Maximum messages per batch
+  maxBatchSize: number; // Maximum messages per batch
   classificationModel: string;
   proposalModel: string;
-  ragTopK: number;            // Number of docs to retrieve for RAG
+  ragTopK: number; // Number of docs to retrieve for RAG
   conversationTimeWindowMinutes: number; // Time window for grouping messages into conversations
   maxConversationSize: number; // Maximum messages per conversation
   minConversationGapMinutes: number; // Minimum gap to start new conversation
@@ -191,15 +197,21 @@ export class BatchMessageProcessor {
             break;
           }
 
-          logger.debug(`Stream ${streamId}: Earliest unprocessed at ${earliestUnprocessed.timestamp.toISOString()}`);
+          logger.debug(
+            `Stream ${streamId}: Earliest unprocessed at ${earliestUnprocessed.timestamp.toISOString()}`
+          );
 
           // 3. Calculate batch window for this stream
           const batchStart = earliestUnprocessed.timestamp;
-          const idealBatchEnd = new Date(batchStart.getTime() + this.config.batchWindowHours * 60 * 60 * 1000);
+          const idealBatchEnd = new Date(
+            batchStart.getTime() + this.config.batchWindowHours * 60 * 60 * 1000
+          );
           const now = new Date();
           const batchEnd = idealBatchEnd < now ? idealBatchEnd : now;
 
-          logger.debug(`Stream ${streamId} batch window: ${batchStart.toISOString()} to ${batchEnd.toISOString()}`);
+          logger.debug(
+            `Stream ${streamId} batch window: ${batchStart.toISOString()} to ${batchEnd.toISOString()}`
+          );
 
           // Check if there are any messages in this window for this stream
           const messageCount = await this.db.unifiedMessage.count({
@@ -211,7 +223,9 @@ export class BatchMessageProcessor {
           });
 
           if (messageCount === 0) {
-            logger.debug(`Stream ${streamId}: No pending messages in batch window, moving watermark forward`);
+            logger.debug(
+              `Stream ${streamId}: No pending messages in batch window, moving watermark forward`
+            );
             await this.updateProcessingWatermark(streamId, batchEnd);
             continue;
           }
@@ -222,8 +236,14 @@ export class BatchMessageProcessor {
           const batchId = `${streamId.substring(0, 10)}_${batchStart.getTime()}`;
 
           // Fetch context messages for this stream batch
-          const contextStart = new Date(batchStart.getTime() - this.config.contextWindowHours * 60 * 60 * 1000);
-          const contextMessages = await this.fetchContextMessages(contextStart, batchStart, streamId);
+          const contextStart = new Date(
+            batchStart.getTime() - this.config.contextWindowHours * 60 * 60 * 1000
+          );
+          const contextMessages = await this.fetchContextMessages(
+            contextStart,
+            batchStart,
+            streamId
+          );
           logger.debug(`Stream ${streamId}: Fetched ${contextMessages.length} context messages`);
 
           // Process messages in chunks until this batch window is exhausted
@@ -239,106 +259,133 @@ export class BatchMessageProcessor {
 
             // Fetch next chunk of messages for batch (up to maxBatchSize) from this stream
             const messages = await this.fetchMessagesForBatch(batchStart, batchEnd, streamId);
-            logger.debug(`Stream ${streamId} - Iteration ${iteration}: Fetched ${messages.length} messages`);
+            logger.debug(
+              `Stream ${streamId} - Iteration ${iteration}: Fetched ${messages.length} messages`
+            );
 
-      if (messages.length === 0) {
-        // No more messages in this batch window
-        break;
-      }
+            if (messages.length === 0) {
+              // No more messages in this batch window
+              break;
+            }
 
-      // 5. Perform batch classification (LLM groups messages into threads)
-      const classification = await this.classifyBatch(messages, contextMessages, batchId);
-      const valuableThreads = classification.threads.filter(t => t.category !== 'no-doc-value');
-      const noValueThreads = classification.threads.filter(t => t.category === 'no-doc-value');
-      logger.info(`Iteration ${iteration}: Classified ${classification.threads.length} threads (${valuableThreads.length} valuable, ${noValueThreads.length} no-value)`);
+            // 5. Perform batch classification (LLM groups messages into threads)
+            const classification = await this.classifyBatch(messages, contextMessages, batchId);
+            const valuableThreads = classification.threads.filter(
+              (t) => t.category !== 'no-doc-value'
+            );
+            const noValueThreads = classification.threads.filter(
+              (t) => t.category === 'no-doc-value'
+            );
+            logger.info(
+              `Iteration ${iteration}: Classified ${classification.threads.length} threads (${valuableThreads.length} valuable, ${noValueThreads.length} no-value)`
+            );
 
-      // 6. Convert ALL threads to conversation groups (including no-value threads for proper tracking)
-      const valuableConversations = await this.convertThreadsToConversations(
-        valuableThreads,
-        messages,
-        batchId
-      );
-      const noValueConversations = await this.convertThreadsToConversations(
-        noValueThreads,
-        messages,
-        batchId
-      );
-      const allConversations = [...valuableConversations, ...noValueConversations];
-      logger.info(`Iteration ${iteration}: Created ${valuableConversations.length} valuable and ${noValueConversations.length} no-value conversation groups`);
+            // 6. Convert ALL threads to conversation groups (including no-value threads for proper tracking)
+            const valuableConversations = await this.convertThreadsToConversations(
+              valuableThreads,
+              messages,
+              batchId
+            );
+            const noValueConversations = await this.convertThreadsToConversations(
+              noValueThreads,
+              messages,
+              batchId
+            );
+            const allConversations = [...valuableConversations, ...noValueConversations];
+            logger.info(
+              `Iteration ${iteration}: Created ${valuableConversations.length} valuable and ${noValueConversations.length} no-value conversation groups`
+            );
 
-      // 7. Store classification results for ALL threads (valuable + no-value)
-      await this.storeClassificationResults(classification.threads, batchId, allConversations, messages);
+            // 7. Store classification results for ALL threads (valuable + no-value)
+            await this.storeClassificationResults(
+              classification.threads,
+              batchId,
+              allConversations,
+              messages
+            );
 
-      // 8. Process each conversation (RAG + Changeset Proposals for valuable, mark no-value as discarded)
-      // Track successfully processed message IDs
-      const successfullyProcessedMessageIds = new Set<number>();
-      let iterationProposals = 0;
+            // 8. Process each conversation (RAG + Changeset Proposals for valuable, mark no-value as discarded)
+            // Track successfully processed message IDs
+            const successfullyProcessedMessageIds = new Set<number>();
+            let iterationProposals = 0;
 
-      for (const conversation of valuableConversations) {
-        try {
-          const proposalCount = await this.processConversation(conversation, batchId);
-          totalConversationsProcessed++;
-          iterationProposals += proposalCount;
+            for (const conversation of valuableConversations) {
+              try {
+                const proposalCount = await this.processConversation(conversation, batchId);
+                totalConversationsProcessed++;
+                iterationProposals += proposalCount;
 
-          // Mark this conversation's messages as successfully processed
-          conversation.messages.forEach(msg => successfullyProcessedMessageIds.add(msg.messageId));
-        } catch (error) {
-          logger.error(`Error processing conversation ${conversation.id}:`, error);
-          logger.warn(`Conversation will remain unprocessed and retry on next batch run`);
-          // Do NOT mark messages as completed - they will retry
-          // Continue processing other conversations
-        }
-      }
+                // Mark this conversation's messages as successfully processed
+                conversation.messages.forEach((msg) =>
+                  successfullyProcessedMessageIds.add(msg.messageId)
+                );
+              } catch (error) {
+                logger.error(`Error processing conversation ${conversation.id}:`, error);
+                logger.warn(`Conversation will remain unprocessed and retry on next batch run`);
+                // Do NOT mark messages as completed - they will retry
+                // Continue processing other conversations
+              }
+            }
 
-      // 8.5. Create RAG context entries for no-value conversations (mark as auto-discarded)
-      for (const conversation of noValueConversations) {
-        try {
-          await this.processNoValueConversation(conversation, batchId);
-          totalConversationsProcessed++;
+            // 8.5. Create RAG context entries for no-value conversations (mark as auto-discarded)
+            for (const conversation of noValueConversations) {
+              try {
+                await this.processNoValueConversation(conversation, batchId);
+                totalConversationsProcessed++;
 
-          // Mark this conversation's messages as successfully processed
-          conversation.messages.forEach(msg => successfullyProcessedMessageIds.add(msg.messageId));
-        } catch (error) {
-          logger.error(`Error processing no-value conversation ${conversation.id}:`, error);
-          logger.warn(`Conversation will remain unprocessed and retry on next batch run`);
-          // Do NOT mark messages as completed - they will retry
-          // Continue processing other conversations
-        }
-      }
+                // Mark this conversation's messages as successfully processed
+                conversation.messages.forEach((msg) =>
+                  successfullyProcessedMessageIds.add(msg.messageId)
+                );
+              } catch (error) {
+                logger.error(`Error processing no-value conversation ${conversation.id}:`, error);
+                logger.warn(`Conversation will remain unprocessed and retry on next batch run`);
+                // Do NOT mark messages as completed - they will retry
+                // Continue processing other conversations
+              }
+            }
 
-      // 9. Mark only successfully processed messages as COMPLETED
-      if (successfullyProcessedMessageIds.size > 0) {
-        await this.db.unifiedMessage.updateMany({
-          where: { id: { in: Array.from(successfullyProcessedMessageIds) } },
-          data: { processingStatus: 'COMPLETED' },
-        });
-        logger.info(`Marked ${successfullyProcessedMessageIds.size} messages as COMPLETED`);
-      }
+            // 9. Mark only successfully processed messages as COMPLETED
+            if (successfullyProcessedMessageIds.size > 0) {
+              await this.db.unifiedMessage.updateMany({
+                where: { id: { in: Array.from(successfullyProcessedMessageIds) } },
+                data: { processingStatus: 'COMPLETED' },
+              });
+              logger.info(`Marked ${successfullyProcessedMessageIds.size} messages as COMPLETED`);
+            }
 
-      // 10. Clean up classification data for failed messages so they can be re-classified on retry
-      const failedMessageIds = messages
-        .map(m => m.id)
-        .filter(id => !successfullyProcessedMessageIds.has(id));
+            // 10. Clean up classification data for failed messages so they can be re-classified on retry
+            const failedMessageIds = messages
+              .map((m) => m.id)
+              .filter((id) => !successfullyProcessedMessageIds.has(id));
 
-      if (failedMessageIds.length > 0) {
-        await this.db.messageClassification.deleteMany({
-          where: { messageId: { in: failedMessageIds } },
-        });
-        anyMessagesFailed = true;
-        logger.warn(`${failedMessageIds.length} messages remain unprocessed due to errors and will retry (classifications cleaned up)`);
-      }
+            if (failedMessageIds.length > 0) {
+              await this.db.messageClassification.deleteMany({
+                where: { messageId: { in: failedMessageIds } },
+              });
+              anyMessagesFailed = true;
+              logger.warn(
+                `${failedMessageIds.length} messages remain unprocessed due to errors and will retry (classifications cleaned up)`
+              );
+            }
 
-        totalMessagesProcessed += successfullyProcessedMessageIds.size;
-        totalProposalsGenerated += iterationProposals;
-            logger.info(`Stream ${streamId} - Iteration ${iteration} complete: ${successfullyProcessedMessageIds.size}/${messages.length} messages successfully processed, ${allConversations.length} conversations (${valuableConversations.length} valuable, ${noValueConversations.length} no-value), ${iterationProposals} proposals`);
+            totalMessagesProcessed += successfullyProcessedMessageIds.size;
+            totalProposalsGenerated += iterationProposals;
+            logger.info(
+              `Stream ${streamId} - Iteration ${iteration} complete: ${successfullyProcessedMessageIds.size}/${messages.length} messages successfully processed, ${allConversations.length} conversations (${valuableConversations.length} valuable, ${noValueConversations.length} no-value), ${iterationProposals} proposals`
+            );
           }
 
           // Update stream watermark only if ALL messages in this batch succeeded
           if (!anyMessagesFailed) {
             await this.updateProcessingWatermark(streamId, batchEnd);
-            logger.info(`Stream ${streamId} batch complete: ${totalMessagesProcessed} messages, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark updated to ${batchEnd.toISOString()}`);
+            logger.info(
+              `Stream ${streamId} batch complete: ${totalMessagesProcessed} messages, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark updated to ${batchEnd.toISOString()}`
+            );
           } else {
-            logger.warn(`Stream ${streamId} batch complete with failures: ${totalMessagesProcessed} messages succeeded, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark NOT updated - failed messages will retry on next run.`);
+            logger.warn(
+              `Stream ${streamId} batch complete with failures: ${totalMessagesProcessed} messages succeeded, ${totalConversationsProcessed} conversations, ${totalProposalsGenerated} proposals. Watermark NOT updated - failed messages will retry on next run.`
+            );
           }
 
           // Accumulate totals across all batches
@@ -375,7 +422,8 @@ export class BatchMessageProcessor {
         select: { timestamp: true },
       });
 
-      const initialWatermark = earliestMessage?.timestamp || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const initialWatermark =
+        earliestMessage?.timestamp || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
       await this.db.processingWatermark.create({
         data: {
@@ -452,11 +500,13 @@ export class BatchMessageProcessor {
    * Returns: Map<messageId, { replyToId, depth }>
    * Only includes replies where the original message IS in the current batch
    */
-  private buildReplyChainMap(messages: any[]): Map<string, { replyToId: string | null, depth: number }> {
-    const chainMap = new Map<string, { replyToId: string | null, depth: number }>();
+  private buildReplyChainMap(
+    messages: any[]
+  ): Map<string, { replyToId: string | null; depth: number }> {
+    const chainMap = new Map<string, { replyToId: string | null; depth: number }>();
 
     // Create lookup by composite messageId ("{chatId}-{messageId}")
-    const messageIdSet = new Set(messages.map(m => m.messageId));
+    const messageIdSet = new Set(messages.map((m) => m.messageId));
 
     // First pass: identify direct reply relationships within batch
     for (const msg of messages) {
@@ -470,7 +520,7 @@ export class BatchMessageProcessor {
         if (messageIdSet.has(replyToCompositeId)) {
           chainMap.set(msg.messageId, {
             replyToId: replyToCompositeId,
-            depth: 0 // Will be calculated in second pass
+            depth: 0, // Will be calculated in second pass
           });
         }
       }
@@ -479,7 +529,7 @@ export class BatchMessageProcessor {
       if (!chainMap.has(msg.messageId)) {
         chainMap.set(msg.messageId, {
           replyToId: null,
-          depth: 0
+          depth: 0,
         });
       }
     }
@@ -535,9 +585,11 @@ export class BatchMessageProcessor {
     };
 
     const contextText = contextMessages.map(formatMessage).join('\n');
-    const messagesToAnalyze = messages.map((msg, idx) => {
-      return `[MSG_${msg.id}] ${formatMessage(msg)}`;
-    }).join('\n\n');
+    const messagesToAnalyze = messages
+      .map((msg, idx) => {
+        return `[MSG_${msg.id}] ${formatMessage(msg)}`;
+      })
+      .join('\n\n');
 
     const systemPrompt = PROMPT_TEMPLATES.threadClassification.system;
 
@@ -545,10 +597,12 @@ export class BatchMessageProcessor {
     const userPrompt = fillTemplate(PROMPT_TEMPLATES.threadClassification.user, {
       projectName: config.project.name,
       contextText: contextText || '(No context messages)',
-      messagesToAnalyze
+      messagesToAnalyze,
     });
 
-    logger.info(`Classifying batch with ${messages.length} messages and ${contextMessages.length} context messages`);
+    logger.info(
+      `Classifying batch with ${messages.length} messages and ${contextMessages.length} context messages`
+    );
 
     const { data } = await llmService.requestJSON(
       {
@@ -584,7 +638,7 @@ export class BatchMessageProcessor {
     const classifiedMessageIds = new Set<number>();
 
     // Create a set of valid message IDs in the current batch (to filter out context messages)
-    const validMessageIds = new Set(allMessages.map(msg => msg.id));
+    const validMessageIds = new Set(allMessages.map((msg) => msg.id));
 
     // Create a map of messageId -> conversationId for valuable threads
     const messageToConversationMap = new Map<number, string>();
@@ -618,7 +672,7 @@ export class BatchMessageProcessor {
             category: thread.category,
             docValueReason: thread.docValueReason,
             suggestedDocPage: null,
-            ragSearchCriteria: isNoValue ? null : thread.ragSearchCriteria,
+            ragSearchCriteria: isNoValue ? Prisma.DbNull : thread.ragSearchCriteria,
             modelUsed: this.config.classificationModel,
           },
           create: {
@@ -628,7 +682,7 @@ export class BatchMessageProcessor {
             category: thread.category,
             docValueReason: thread.docValueReason,
             suggestedDocPage: null,
-            ragSearchCriteria: isNoValue ? null : thread.ragSearchCriteria,
+            ragSearchCriteria: isNoValue ? Prisma.DbNull : thread.ragSearchCriteria,
             modelUsed: this.config.classificationModel,
           },
         });
@@ -637,9 +691,11 @@ export class BatchMessageProcessor {
 
     // Safety net: Create classification records for any messages the LLM missed
     // This should rarely happen now that we instruct the LLM to classify EVERY message
-    const missedMessages = allMessages.filter(msg => !classifiedMessageIds.has(msg.id));
+    const missedMessages = allMessages.filter((msg) => !classifiedMessageIds.has(msg.id));
     if (missedMessages.length > 0) {
-      logger.warn(`LLM missed ${missedMessages.length} messages - creating fallback classifications`);
+      logger.warn(
+        `LLM missed ${missedMessages.length} messages - creating fallback classifications`
+      );
       for (const message of missedMessages) {
         // Use upsert to handle retries where classification may already exist
         await this.db.messageClassification.upsert({
@@ -648,9 +704,10 @@ export class BatchMessageProcessor {
             batchId,
             conversationId: null,
             category: 'no-doc-value',
-            docValueReason: 'LLM classification error: Message was not included in any thread during batch processing',
+            docValueReason:
+              'LLM classification error: Message was not included in any thread during batch processing',
             suggestedDocPage: null,
-            ragSearchCriteria: null,
+            ragSearchCriteria: Prisma.DbNull,
             modelUsed: this.config.classificationModel,
           },
           create: {
@@ -658,16 +715,19 @@ export class BatchMessageProcessor {
             batchId,
             conversationId: null,
             category: 'no-doc-value',
-            docValueReason: 'LLM classification error: Message was not included in any thread during batch processing',
+            docValueReason:
+              'LLM classification error: Message was not included in any thread during batch processing',
             suggestedDocPage: null,
-            ragSearchCriteria: null,
+            ragSearchCriteria: Prisma.DbNull,
             modelUsed: this.config.classificationModel,
           },
         });
       }
     }
 
-    logger.info(`Stored classifications for ${classifiedMessageIds.size} messages in conversations and ${missedMessages.length} fallback classifications`);
+    logger.info(
+      `Stored classifications for ${classifiedMessageIds.size} messages in conversations and ${missedMessages.length} fallback classifications`
+    );
   }
 
   /**
@@ -692,23 +752,26 @@ export class BatchMessageProcessor {
 
     for (const thread of threads) {
       // Get full message details for all messages in thread
-      const messageDetails = thread.messages.map(messageId => {
-        const msg = allMessages.find(m => m.id === messageId);
-        if (!msg) {
-          logger.warn(`Message ${messageId} not found in batch, skipping`);
-          return null;
-        }
-        return {
-          messageId: msg.id,
-          timestamp: msg.timestamp,
-          author: msg.author,
-          content: msg.content,
-          channel: msg.channel,
-          category: thread.category,
-          docValueReason: thread.docValueReason,
-          ragSearchCriteria: thread.ragSearchCriteria,
-        };
-      }).filter(m => m !== null);
+      const messageDetails = thread.messages
+        .map((messageId) => {
+          const msg = allMessages.find((m) => m.id === messageId);
+          if (!msg) {
+            logger.warn(`Message ${messageId} not found in batch, skipping`);
+            return null;
+          }
+          return {
+            messageId: msg.id,
+            timestamp: msg.timestamp,
+            author: msg.author,
+            content: msg.content,
+            channel: msg.channel,
+            metadata: msg.metadata,
+            category: thread.category,
+            docValueReason: thread.docValueReason,
+            ragSearchCriteria: thread.ragSearchCriteria,
+          };
+        })
+        .filter((m) => m !== null);
 
       if (messageDetails.length === 0) {
         logger.warn(`Thread has no valid messages, skipping`);
@@ -722,7 +785,9 @@ export class BatchMessageProcessor {
       const lastMsg = messageDetails[messageDetails.length - 1]!;
 
       // Include topic in conversation ID for Zulip messages to ensure different topics get unique IDs
-      const topic = firstMsg.metadata?.topic ? `_${firstMsg.metadata.topic.replace(/[^a-zA-Z0-9]/g, '-')}` : '';
+      const topic = firstMsg.metadata?.topic
+        ? `_${firstMsg.metadata.topic.replace(/[^a-zA-Z0-9]/g, '-')}`
+        : '';
 
       conversations.push({
         id: `thread_${firstMsg.channel || 'general'}${topic}_${firstMsg.timestamp.getTime()}`,
@@ -750,20 +815,26 @@ export class BatchMessageProcessor {
   /**
    * Process a conversation group (RAG + Changeset Proposals)
    */
-  private async processConversation(conversation: ConversationGroup, batchId: string): Promise<number> {
-    logger.info(`Processing conversation ${conversation.id} (${conversation.messageCount} messages)`);
+  private async processConversation(
+    conversation: ConversationGroup,
+    batchId: string
+  ): Promise<number> {
+    logger.info(
+      `Processing conversation ${conversation.id} (${conversation.messageCount} messages)`
+    );
 
     // 1. Perform RAG retrieval once for the entire conversation
     const ragDocs = await this.performConversationRAG(conversation);
 
     // 2. Store RAG context for the conversation
     // Truncate summary to 200 characters to fit in database VARCHAR(200)
-    const truncatedSummary = conversation.summary.length > 200
-      ? conversation.summary.substring(0, 197) + '...'
-      : conversation.summary;
+    const truncatedSummary =
+      conversation.summary.length > 200
+        ? conversation.summary.substring(0, 197) + '...'
+        : conversation.summary;
 
     // Store only metadata in retrievedDocs (remove full content to reduce JSON size)
-    const ragDocsMetadata = ragDocs.map(doc => ({
+    const ragDocsMetadata = ragDocs.map((doc) => ({
       docId: doc.docId,
       title: doc.title,
       filePath: doc.filePath,
@@ -782,7 +853,8 @@ export class BatchMessageProcessor {
     });
 
     // 3. Generate changeset proposals for the conversation
-    const { proposals, proposalsRejected, rejectionReason } = await this.generateConversationProposals(conversation, ragDocs);
+    const { proposals, proposalsRejected, rejectionReason } =
+      await this.generateConversationProposals(conversation, ragDocs);
 
     // 3.5. Update RAG context with rejection info if proposals were rejected
     if (proposalsRejected || rejectionReason) {
@@ -806,10 +878,10 @@ export class BatchMessageProcessor {
           page: proposal.page,
           updateType: proposal.updateType,
           section: proposal.section || null,
-          location: proposal.location || null,
+          location: proposal.location ?? Prisma.DbNull,
           suggestedText: proposal.suggestedText || null,
           reasoning: proposal.reasoning || null,
-          sourceMessages: proposal.sourceMessages || null,
+          sourceMessages: proposal.sourceMessages ?? Prisma.DbNull,
           modelUsed: this.config.proposalModel,
         },
       });
@@ -818,7 +890,9 @@ export class BatchMessageProcessor {
 
     // Note: Messages are marked as COMPLETED earlier in processBatch() after classification
     const rejectionMsg = proposalsRejected ? ` (Rejected: ${rejectionReason})` : '';
-    logger.info(`Conversation ${conversation.id} complete. Generated ${proposalCount} proposals${rejectionMsg}`);
+    logger.info(
+      `Conversation ${conversation.id} complete. Generated ${proposalCount} proposals${rejectionMsg}`
+    );
     return proposalCount;
   }
 
@@ -831,9 +905,10 @@ export class BatchMessageProcessor {
     batchId: string
   ): Promise<void> {
     // Truncate summary to 200 characters to fit in database VARCHAR(200)
-    const truncatedSummary = conversation.summary.length > 200
-      ? conversation.summary.substring(0, 197) + '...'
-      : conversation.summary;
+    const truncatedSummary =
+      conversation.summary.length > 200
+        ? conversation.summary.substring(0, 197) + '...'
+        : conversation.summary;
 
     // Create RAG context with rejection marker
     await this.db.conversationRagContext.create({
@@ -844,11 +919,14 @@ export class BatchMessageProcessor {
         totalTokens: 0,
         summary: truncatedSummary,
         proposalsRejected: true,
-        rejectionReason: conversation.messages[0]?.docValueReason || 'Classified as no documentation value',
+        rejectionReason:
+          conversation.messages[0]?.docValueReason || 'Classified as no documentation value',
       },
     });
 
-    logger.debug(`No-value conversation ${conversation.id} marked as discarded: ${conversation.messages[0]?.docValueReason}`);
+    logger.debug(
+      `No-value conversation ${conversation.id} marked as discarded: ${conversation.messages[0]?.docValueReason}`
+    );
   }
 
   /**
@@ -857,9 +935,7 @@ export class BatchMessageProcessor {
    */
   private async performConversationRAG(conversation: ConversationGroup): Promise<any[]> {
     // Build comprehensive search query from all messages in conversation
-    const allContent = conversation.messages
-      .map(m => m.content)
-      .join(' ');
+    const allContent = conversation.messages.map((m) => m.content).join(' ');
 
     // Combine all RAG search criteria
     const allKeywords = new Set<string>();
@@ -875,9 +951,8 @@ export class BatchMessageProcessor {
     }
 
     // Use combined semantic query or fall back to conversation content
-    const searchQuery = semanticQueries.length > 0
-      ? semanticQueries.join(' ')
-      : allContent.substring(0, 500); // Limit to avoid overly long queries
+    const searchQuery =
+      semanticQueries.length > 0 ? semanticQueries.join(' ') : allContent.substring(0, 500); // Limit to avoid overly long queries
 
     logger.debug(`RAG search for conversation: "${searchQuery.substring(0, 100)}..."`);
 
@@ -918,17 +993,21 @@ export class BatchMessageProcessor {
       } else {
         const existing = uniqueByBasePath.get(basePath);
         // Replace if this is English and existing is not, or if both same language but higher similarity
-        if ((isEnglish && existing.filePath.startsWith('i18n/')) ||
-            (isEnglish === existing.filePath.startsWith('i18n/') && doc.similarity > existing.similarity)) {
+        if (
+          (isEnglish && existing.filePath.startsWith('i18n/')) ||
+          (isEnglish === existing.filePath.startsWith('i18n/') &&
+            doc.similarity > existing.similarity)
+        ) {
           uniqueByBasePath.set(basePath, doc);
         }
       }
     }
 
-    const dedupedDocs = Array.from(uniqueByBasePath.values())
-      .slice(0, this.config.ragTopK); // Limit to original topK after deduplication
+    const dedupedDocs = Array.from(uniqueByBasePath.values()).slice(0, this.config.ragTopK); // Limit to original topK after deduplication
 
-    logger.debug(`Retrieved ${results.length} docs, deduplicated to ${dedupedDocs.length} unique docs (removed ${results.length - dedupedDocs.length} translations)`);
+    logger.debug(
+      `Retrieved ${results.length} docs, deduplicated to ${dedupedDocs.length} unique docs (removed ${results.length - dedupedDocs.length} translations)`
+    );
     return dedupedDocs;
   }
 
@@ -938,29 +1017,37 @@ export class BatchMessageProcessor {
   private async generateConversationProposals(
     conversation: ConversationGroup,
     ragDocs: any[]
-  ): Promise<Array<ProposalGeneration>> {
+  ): Promise<{
+    proposals: ProposalGeneration[];
+    proposalsRejected?: boolean;
+    rejectionReason?: string;
+  }> {
     const systemPrompt = PROMPT_TEMPLATES.changesetGeneration.system;
 
-    const ragContext = ragDocs.map((doc, idx) => {
-      return `[DOC ${idx + 1}] ${doc.title}
+    const ragContext = ragDocs
+      .map((doc, idx) => {
+        return `[DOC ${idx + 1}] ${doc.title}
 File Path: ${doc.filePath}
 Similarity: ${doc.similarity.toFixed(3)}
 Length: ${doc.content.length} chars
 
 COMPLETE FILE CONTENT:
 ${doc.content}`;
-    }).join('\n\n========================================\n\n');
+      })
+      .join('\n\n========================================\n\n');
 
     // Format conversation messages
-    const conversationContext = conversation.messages.map((msg, idx) => {
-      return `[MESSAGE ${idx + 1}] (ID: ${msg.messageId})
+    const conversationContext = conversation.messages
+      .map((msg, idx) => {
+        return `[MESSAGE ${idx + 1}] (ID: ${msg.messageId})
 Author: ${msg.author}
 Time: ${msg.timestamp.toISOString()}
 Category: ${msg.category}
 Reason: ${msg.docValueReason}
 Suggested Page: ${msg.suggestedDocPage || 'Not specified'}
 Content: ${msg.content}`;
-    }).join('\n\n');
+      })
+      .join('\n\n');
 
     const config = InstanceConfigLoader.get(this.instanceId);
     const userPrompt = fillTemplate(PROMPT_TEMPLATES.changesetGeneration.user, {
@@ -968,7 +1055,7 @@ Content: ${msg.content}`;
       messageCount: conversation.messageCount,
       channel: conversation.channel || 'general',
       conversationContext,
-      ragContext: ragContext || '(No relevant docs found)'
+      ragContext: ragContext || '(No relevant docs found)',
     });
 
     logger.info(`Generating changeset for conversation ${conversation.id}`);

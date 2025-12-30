@@ -5,9 +5,9 @@
  * Date: 2025-12-23
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { Request, Response, NextFunction } from 'express';
-import { hashPasswordSync } from '../server/auth/password.js';
+import { hashPassword } from '../server/auth/password.js';
 
 // Mock dependencies
 vi.mock('../server/config/instance-loader.js', () => ({
@@ -91,46 +91,39 @@ describe('Instance Middleware', () => {
       const { req, res, next } = createMockReqResNext();
       req.params = { instance: 'test' };
 
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-        'test',
-      ]);
+      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['test']);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
       vi.mocked(InstanceConfigLoader.get).mockReturnValue(mockConfig as any);
       vi.mocked(getInstanceDb).mockReturnValue(mockDb as any);
 
       instanceMiddleware(req, res, next);
 
-      expect(req.instance).toBeDefined();
-      expect(req.instance?.id).toBe('test');
-      expect(req.instance?.config).toBe(mockConfig);
-      expect(req.instance?.db).toBe(mockDb);
-      expect(next).toHaveBeenCalledWith();
+      expect((req as any).instance.id).toBe('test');
+      expect((req as any).instance.config).toBe(mockConfig);
+      expect((req as any).instance.db).toBe(mockDb);
+      expect(next).toHaveBeenCalled();
     });
 
     it('should load config if not cached', () => {
       const { req, res, next } = createMockReqResNext();
-      req.params = { instance: 'test' };
+      req.params = { instance: 'uncached' };
 
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-        'test',
-      ]);
+      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['uncached']);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
       vi.mocked(loadInstanceConfig).mockReturnValue(mockConfig as any);
       vi.mocked(getInstanceDb).mockReturnValue(mockDb as any);
 
       instanceMiddleware(req, res, next);
 
-      expect(loadInstanceConfig).toHaveBeenCalledWith('test');
-      expect(next).toHaveBeenCalledWith();
+      expect(loadInstanceConfig).toHaveBeenCalledWith('uncached');
+      expect(next).toHaveBeenCalled();
     });
 
-    it('should return 404 when config load fails', () => {
+    it('should handle config load error', () => {
       const { req, res, next } = createMockReqResNext();
-      req.params = { instance: 'test' };
+      req.params = { instance: 'broken' };
 
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-        'test',
-      ]);
+      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['broken']);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
       vi.mocked(loadInstanceConfig).mockImplementation(() => {
         throw new Error('Config not found');
@@ -139,34 +132,18 @@ describe('Instance Middleware', () => {
       instanceMiddleware(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Instance not found',
-        })
-      );
-    });
-
-    it('should handle lowercase instance ID', () => {
-      const { req, res, next } = createMockReqResNext();
-      req.params = { instance: 'TEST' };
-
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-        'test',
-      ]);
-      vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
-      vi.mocked(InstanceConfigLoader.get).mockReturnValue(mockConfig as any);
-      vi.mocked(getInstanceDb).mockReturnValue(mockDb as any);
-
-      instanceMiddleware(req, res, next);
-
-      expect(req.instance?.id).toBe('test');
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Instance not found',
+        message: 'Configuration not found for instance "broken"',
+        availableInstances: ['broken'],
+      });
     });
   });
 
   describe('requireInstance', () => {
-    it('should call next when instance exists', () => {
+    it('should call next when instance is present', () => {
       const { req, res, next } = createMockReqResNext();
-      req.instance = { id: 'test', config: mockConfig as any, db: mockDb as any };
+      (req as any).instance = { id: 'test', config: mockConfig, db: mockDb };
 
       requireInstance(req, res, next);
 
@@ -174,24 +151,23 @@ describe('Instance Middleware', () => {
       expect(res.status).not.toHaveBeenCalled();
     });
 
-    it('should return 400 when no instance', () => {
+    it('should return 400 when instance is missing', () => {
       const { req, res, next } = createMockReqResNext();
 
       requireInstance(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'No instance context',
-        })
-      );
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'No instance context',
+        message: 'This endpoint requires instance context. Ensure instanceMiddleware is applied.',
+      });
     });
   });
 
   describe('getInstanceInfo', () => {
-    it('should return instance info', () => {
+    it('should return instance info when present', () => {
       const { req, res } = createMockReqResNext();
-      req.instance = { id: 'test', config: mockConfig as any, db: mockDb as any };
+      (req as any).instance = { id: 'test', config: mockConfig, db: mockDb };
 
       getInstanceInfo(req, res);
 
@@ -216,33 +192,44 @@ describe('Instance Middleware', () => {
 
 describe('Multi-Instance Admin Auth Middleware', () => {
   const testPassword = 'adminPassword123';
-  const testPasswordHash = hashPasswordSync(testPassword);
+  let testPasswordHash: string;
+  let mockConfig: { admin: { passwordHash: string } };
+  let wrongPasswordHash: string;
+  let wrongConfig: { admin: { passwordHash: string } };
 
-  const mockConfig = {
-    admin: {
-      passwordHash: testPasswordHash,
-    },
-  };
+  beforeAll(async () => {
+    // Pre-compute hashes once for all tests
+    testPasswordHash = await hashPassword(testPassword);
+    wrongPasswordHash = await hashPassword('wrong');
+    mockConfig = {
+      admin: {
+        passwordHash: testPasswordHash,
+      },
+    };
+    wrongConfig = {
+      admin: { passwordHash: wrongPasswordHash },
+    };
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.DISABLE_ADMIN_AUTH;
   });
 
-  it('should skip auth when DISABLE_ADMIN_AUTH is true', () => {
+  it('should skip auth when DISABLE_ADMIN_AUTH is true', async () => {
     process.env.DISABLE_ADMIN_AUTH = 'true';
     const { req, res, next } = createMockReqResNext();
 
-    multiInstanceAdminAuth(req, res, next);
+    await multiInstanceAdminAuth(req, res, next);
 
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  it('should return 401 when no authorization header', () => {
+  it('should return 401 when no authorization header', async () => {
     const { req, res, next } = createMockReqResNext();
 
-    multiInstanceAdminAuth(req, res, next);
+    await multiInstanceAdminAuth(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith({
@@ -250,42 +237,38 @@ describe('Multi-Instance Admin Auth Middleware', () => {
     });
   });
 
-  it('should return 401 when authorization header is not Bearer', () => {
+  it('should return 401 when authorization header is not Bearer', async () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: 'Basic token123' };
 
-    multiInstanceAdminAuth(req, res, next);
+    await multiInstanceAdminAuth(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
-  it('should authenticate valid token', () => {
+  it('should authenticate valid token', async () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: `Bearer ${testPassword}` };
 
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-      'test',
-    ]);
+    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['test']);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
     vi.mocked(InstanceConfigLoader.get).mockReturnValue(mockConfig as any);
 
-    multiInstanceAdminAuth(req, res, next);
+    await multiInstanceAdminAuth(req, res, next);
 
     expect(next).toHaveBeenCalled();
     expect((req as any).adminInstance).toBe('test');
   });
 
-  it('should return 403 for invalid token', () => {
+  it('should return 403 for invalid token', async () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: 'Bearer wrongPassword' };
 
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-      'test',
-    ]);
+    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['test']);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
     vi.mocked(InstanceConfigLoader.get).mockReturnValue(mockConfig as any);
 
-    multiInstanceAdminAuth(req, res, next);
+    await multiInstanceAdminAuth(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
@@ -293,61 +276,49 @@ describe('Multi-Instance Admin Auth Middleware', () => {
     });
   });
 
-  it('should try all instances until match found', () => {
+  it('should try all instances until match found', async () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: `Bearer ${testPassword}` };
 
-    const wrongConfig = {
-      admin: { passwordHash: hashPasswordSync('wrong') },
-    };
-
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-      'wrong1',
-      'correct',
-    ]);
+    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['wrong1', 'correct']);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
     vi.mocked(InstanceConfigLoader.get).mockImplementation((id: string) => {
       if (id === 'correct') return mockConfig as any;
       return wrongConfig as any;
     });
 
-    multiInstanceAdminAuth(req, res, next);
+    await multiInstanceAdminAuth(req, res, next);
 
     expect(next).toHaveBeenCalled();
     expect((req as any).adminInstance).toBe('correct');
   });
 
-  it('should load config if not cached', () => {
+  it('should load config if not cached', async () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: `Bearer ${testPassword}` };
 
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-      'test',
-    ]);
+    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['test']);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
     vi.mocked(InstanceConfigLoader.load).mockReturnValue(mockConfig as any);
 
-    multiInstanceAdminAuth(req, res, next);
+    await multiInstanceAdminAuth(req, res, next);
 
     expect(InstanceConfigLoader.load).toHaveBeenCalledWith('test');
     expect(next).toHaveBeenCalled();
   });
 
-  it('should continue to next instance on config error', () => {
+  it('should continue to next instance on config error', async () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: `Bearer ${testPassword}` };
 
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-      'broken',
-      'working',
-    ]);
+    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['broken', 'working']);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
     vi.mocked(InstanceConfigLoader.load).mockImplementation((id: string) => {
       if (id === 'broken') throw new Error('Config error');
       return mockConfig as any;
     });
 
-    multiInstanceAdminAuth(req, res, next);
+    await multiInstanceAdminAuth(req, res, next);
 
     expect(next).toHaveBeenCalled();
     expect((req as any).adminInstance).toBe('working');

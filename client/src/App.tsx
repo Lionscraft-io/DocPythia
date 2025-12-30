@@ -1,15 +1,15 @@
-import { Switch, Route, Redirect } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import Admin from "@/pages/Admin";
-import AdminAdvanced from "@/pages/AdminAdvanced";
-import AdminLogin from "@/pages/AdminLogin";
-import AdminLegacy from "@/pages/AdminLegacy";
-import Logout from "@/pages/Logout";
-import NotFound from "@/pages/not-found";
-import { useConfig } from "@/hooks/useConfig";
-import { useEffect } from "react";
+import { Switch, Route, Redirect } from 'wouter';
+import { queryClient } from './lib/queryClient';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '@/components/ui/toaster';
+import Admin from '@/pages/Admin';
+import AdminAdvanced from '@/pages/AdminAdvanced';
+import AdminLogin from '@/pages/AdminLogin';
+import AdminLegacy from '@/pages/AdminLegacy';
+import Logout from '@/pages/Logout';
+import NotFound from '@/pages/not-found';
+import { useConfig } from '@/hooks/useConfig';
+import { useEffect } from 'react';
 
 function Router() {
   return (
@@ -34,8 +34,8 @@ function AppContent() {
   // Update document title and meta tags when config loads
   useEffect(() => {
     // Only update if we're not on the login page (let AdminLogin handle it)
-    const isLoginPage = window.location.pathname === '/login' ||
-                        window.location.pathname.endsWith('/admin/login');
+    const isLoginPage =
+      window.location.pathname === '/login' || window.location.pathname.endsWith('/admin/login');
 
     if (config && !isLoginPage) {
       // Update document title

@@ -6,7 +6,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { apiRequest, adminApiRequest, getQueryFn, queryClient } from '../../../client/src/lib/queryClient';
+import {
+  apiRequest,
+  adminApiRequest,
+  getQueryFn,
+  queryClient,
+} from '../../../client/src/lib/queryClient';
 
 // Mock fetch globally
 const mockFetch = vi.fn();

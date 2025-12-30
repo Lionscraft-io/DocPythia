@@ -8,14 +8,15 @@ import http from 'http';
 import dns from 'dns';
 import { promisify } from 'util';
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8';
+const BOT_TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN || '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8';
 const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}/getMe`;
 const API_HOST = 'api.telegram.org';
 
 const dnsLookup = promisify(dns.resolve4);
 
 console.log('🔍 Telegram API Connectivity Diagnostic Tool\n');
-console.log('=' . repeat(60));
+console.log('='.repeat(60));
 
 // Test 1: DNS Resolution
 async function testDNS() {
@@ -100,25 +101,29 @@ async function testHTTPSNoVerify(): Promise<boolean> {
   return new Promise((resolve) => {
     const startTime = Date.now();
 
-    const req = https.get(API_URL, {
-      timeout: 10000,
-      rejectUnauthorized: false, // Disable TLS verification
-    }, (res) => {
-      const duration = Date.now() - startTime;
-      let data = '';
+    const req = https.get(
+      API_URL,
+      {
+        timeout: 10000,
+        rejectUnauthorized: false, // Disable TLS verification
+      },
+      (res) => {
+        const duration = Date.now() - startTime;
+        let data = '';
 
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
 
-      res.on('end', () => {
-        console.log('✅ HTTPS (no verify): SUCCESS');
-        console.log(`   Status: ${res.statusCode}`);
-        console.log(`   Duration: ${duration}ms`);
-        console.log('   💡 This suggests a TLS certificate validation issue!');
-        resolve(true);
-      });
-    });
+        res.on('end', () => {
+          console.log('✅ HTTPS (no verify): SUCCESS');
+          console.log(`   Status: ${res.statusCode}`);
+          console.log(`   Duration: ${duration}ms`);
+          console.log('   💡 This suggests a TLS certificate validation issue!');
+          resolve(true);
+        });
+      }
+    );
 
     req.on('error', (err: any) => {
       const duration = Date.now() - startTime;
@@ -148,7 +153,7 @@ async function testDirectIP(ip: string): Promise<boolean> {
     const options = {
       host: ip,
       path: `/bot${BOT_TOKEN}/getMe`,
-      headers: { 'Host': API_HOST },
+      headers: { Host: API_HOST },
       timeout: 10000,
     };
 
@@ -200,7 +205,7 @@ function testEnvironment() {
 
   let hasProxy = false;
 
-  proxyVars.forEach(varName => {
+  proxyVars.forEach((varName) => {
     const value = process.env[varName];
     if (value) {
       console.log(`   ${varName}: ${value}`);

@@ -14,7 +14,7 @@ const mockFs = vi.hoisted(() => ({
 }));
 
 vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal() as object;
+  const actual = (await importOriginal()) as object;
   return {
     ...actual,
     default: {
@@ -43,7 +43,12 @@ vi.mock('../server/storage/s3-client', () => ({
 }));
 
 // Import after mocking
-import { InstanceConfigLoader, loadInstanceConfig, getInstanceConfig, loadInstanceConfigAsync } from '../server/config/instance-loader';
+import {
+  InstanceConfigLoader,
+  loadInstanceConfig,
+  getInstanceConfig,
+  loadInstanceConfigAsync,
+} from '../server/config/instance-loader';
 import { s3Storage } from '../server/storage/s3-client';
 
 describe('InstanceConfigLoader', () => {
@@ -216,9 +221,11 @@ describe('InstanceConfigLoader', () => {
 
       // Change what would be loaded
       mockFs.existsSync.mockReturnValue(true);
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({
-        project: { name: 'Reloaded Project' },
-      }));
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          project: { name: 'Reloaded Project' },
+        })
+      );
 
       const config2 = InstanceConfigLoader.reload('reload-test');
 
@@ -279,10 +286,7 @@ describe('InstanceConfigLoader', () => {
 
       const config = InstanceConfigLoader.load('array-merge');
 
-      expect(config.widget.suggestedQuestions).toEqual([
-        'Custom question 1',
-        'Custom question 2',
-      ]);
+      expect(config.widget.suggestedQuestions).toEqual(['Custom question 1', 'Custom question 2']);
     });
   });
 
@@ -408,7 +412,9 @@ describe('InstanceConfigLoader', () => {
 
       await InstanceConfigLoader.loadAsync('custom-prefix');
 
-      expect(mockS3Storage.getJson).toHaveBeenCalledWith('custom-configs/custom-prefix/instance.json');
+      expect(mockS3Storage.getJson).toHaveBeenCalledWith(
+        'custom-configs/custom-prefix/instance.json'
+      );
 
       delete process.env.CONFIG_SOURCE;
       delete process.env.CONFIG_S3_PREFIX;
@@ -488,9 +494,11 @@ describe('InstanceConfigLoader', () => {
 
       // Change what would be loaded
       mockFs.existsSync.mockReturnValue(true);
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({
-        project: { name: 'Reloaded Async Project' },
-      }));
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          project: { name: 'Reloaded Async Project' },
+        })
+      );
 
       const config2 = await InstanceConfigLoader.reloadAsync('reload-async-test');
 
@@ -563,9 +571,7 @@ describe('InstanceConfigLoader', () => {
     it('should fall back to local when S3 is disabled', async () => {
       mockS3Storage.isEnabled.mockReturnValue(false);
       mockFs.existsSync.mockReturnValue(true);
-      mockFs.readdirSync.mockReturnValue([
-        { name: 'local-proj', isDirectory: () => true },
-      ] as any);
+      mockFs.readdirSync.mockReturnValue([{ name: 'local-proj', isDirectory: () => true }] as any);
 
       const instances = await InstanceConfigLoader.getAvailableInstancesAsync();
 
@@ -612,10 +618,7 @@ describe('InstanceConfigLoader', () => {
 
       await InstanceConfigLoader.saveToS3('save-test', config);
 
-      expect(mockS3Storage.putJson).toHaveBeenCalledWith(
-        'configs/save-test/instance.json',
-        config
-      );
+      expect(mockS3Storage.putJson).toHaveBeenCalledWith('configs/save-test/instance.json', config);
     });
 
     it('should use custom CONFIG_S3_PREFIX', async () => {

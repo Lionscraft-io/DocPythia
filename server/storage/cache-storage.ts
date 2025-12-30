@@ -94,7 +94,12 @@ class CacheStorage {
   /**
    * Set a cached entry
    */
-  async set<T>(category: string, key: string, data: T, metadata?: Record<string, unknown>): Promise<void> {
+  async set<T>(
+    category: string,
+    key: string,
+    data: T,
+    metadata?: Record<string, unknown>
+  ): Promise<void> {
     const entry: CacheEntry<T> = {
       key,
       data,
@@ -153,7 +158,7 @@ class CacheStorage {
 
       // Extract key names from full paths
       return keys
-        .map(key => {
+        .map((key) => {
           const match = key.match(new RegExp(`^${prefix}(.+)\\.json$`));
           return match ? match[1] : null;
         })
@@ -166,9 +171,10 @@ class CacheStorage {
       return [];
     }
 
-    return fs.readdirSync(dir)
-      .filter(f => f.endsWith('.json'))
-      .map(f => f.replace('.json', ''));
+    return fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => f.replace('.json', ''));
   }
 
   /**
@@ -220,7 +226,7 @@ class CacheStorage {
       return { count: 0, totalSize: 0 };
     }
 
-    const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
     let totalSize = 0;
 
     for (const file of files) {

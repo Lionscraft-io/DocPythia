@@ -163,7 +163,9 @@ export class InstanceConfigLoader {
       return resolvedConfig;
     } catch (error) {
       console.error(`Configuration validation failed for instance "${instanceId}":`, error);
-      throw new Error(`Invalid configuration for instance "${instanceId}": ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Invalid configuration for instance "${instanceId}": ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -211,9 +213,7 @@ export class InstanceConfigLoader {
     }
 
     const entries = fs.readdirSync(configDir, { withFileTypes: true });
-    return entries
-      .filter(entry => entry.isDirectory())
-      .map(entry => entry.name);
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   }
 
   /**
@@ -274,7 +274,10 @@ export class InstanceConfigLoader {
       const content = fs.readFileSync(configPath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      console.error(`Failed to parse config file for "${instanceId}":`, error instanceof Error ? error.message : String(error));
+      console.error(
+        `Failed to parse config file for "${instanceId}":`,
+        error instanceof Error ? error.message : String(error)
+      );
       return null;
     }
   }
@@ -300,8 +303,12 @@ export class InstanceConfigLoader {
     if (env[`${envPrefix}_PROJECT_NAME`] || env.PROJECT_NAME) {
       envConfig.project = {
         ...(env[`${envPrefix}_PROJECT_NAME`] && { name: env[`${envPrefix}_PROJECT_NAME`] }),
-        ...(env[`${envPrefix}_PROJECT_SHORT_NAME`] && { shortName: env[`${envPrefix}_PROJECT_SHORT_NAME`] }),
-        ...(env[`${envPrefix}_PROJECT_DESCRIPTION`] && { description: env[`${envPrefix}_PROJECT_DESCRIPTION`] }),
+        ...(env[`${envPrefix}_PROJECT_SHORT_NAME`] && {
+          shortName: env[`${envPrefix}_PROJECT_SHORT_NAME`],
+        }),
+        ...(env[`${envPrefix}_PROJECT_DESCRIPTION`] && {
+          description: env[`${envPrefix}_PROJECT_DESCRIPTION`],
+        }),
       } as any;
     }
 

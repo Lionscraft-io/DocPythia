@@ -250,13 +250,15 @@ describe('LLMCache', () => {
     it('should skip non-json files', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readdirSync).mockReturnValue(['hash1.json', 'readme.txt'] as any);
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-        hash: 'hash1',
-        purpose: 'analysis',
-        prompt: 'p',
-        response: 'r',
-        timestamp: '2025-12-23T10:00:00Z',
-      }));
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({
+          hash: 'hash1',
+          purpose: 'analysis',
+          prompt: 'p',
+          response: 'r',
+          timestamp: '2025-12-23T10:00:00Z',
+        })
+      );
 
       const result = cache.listByPurpose('analysis');
 
@@ -294,7 +296,7 @@ describe('LLMCache', () => {
 
       const result = cache.listAll();
 
-      expect(result.some(r => r.purpose === 'analysis')).toBe(true);
+      expect(result.some((r) => r.purpose === 'analysis')).toBe(true);
     });
   });
 
@@ -463,20 +465,20 @@ describe('LLMCache', () => {
     it('should filter by purpose when specified', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
       vi.mocked(fs.readdirSync).mockReturnValue(['hash1.json'] as any);
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-        hash: 'hash1',
-        purpose: 'analysis',
-        prompt: 'test',
-        response: 'r',
-        timestamp: '2025-12-23T10:00:00Z',
-      }));
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({
+          hash: 'hash1',
+          purpose: 'analysis',
+          prompt: 'test',
+          response: 'r',
+          timestamp: '2025-12-23T10:00:00Z',
+        })
+      );
 
       cache.search('test', 'analysis');
 
       // Should only search in 'analysis' directory
-      expect(fs.readdirSync).toHaveBeenCalledWith(
-        expect.stringContaining('analysis')
-      );
+      expect(fs.readdirSync).toHaveBeenCalledWith(expect.stringContaining('analysis'));
     });
   });
 

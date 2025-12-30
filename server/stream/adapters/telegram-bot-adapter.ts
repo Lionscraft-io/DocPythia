@@ -16,15 +16,15 @@ import https from 'https';
 import dns from 'dns';
 
 export interface TelegramBotConfig {
-  botToken: string;                    // Telegram bot token from @BotFather
-  mode: 'webhook' | 'polling';         // Webhook for production, polling for dev
-  webhookUrl?: string;                 // Required if mode=webhook
-  webhookPath?: string;                // URL path for webhook (default: /telegram-webhook)
-  pollingInterval?: number;            // Polling interval in ms (default: 3000)
-  allowedChats?: string[];             // Whitelist of chat IDs (optional)
-  ignoreOldMessages?: boolean;         // Ignore messages sent before bot started (default: true)
-  processCommands?: boolean;           // Process bot commands (default: false)
-  saveRawUpdates?: boolean;            // Save full Telegram update JSON (default: true)
+  botToken: string; // Telegram bot token from @BotFather
+  mode: 'webhook' | 'polling'; // Webhook for production, polling for dev
+  webhookUrl?: string; // Required if mode=webhook
+  webhookPath?: string; // URL path for webhook (default: /telegram-webhook)
+  pollingInterval?: number; // Polling interval in ms (default: 3000)
+  allowedChats?: string[]; // Whitelist of chat IDs (optional)
+  ignoreOldMessages?: boolean; // Ignore messages sent before bot started (default: true)
+  processCommands?: boolean; // Process bot commands (default: false)
+  saveRawUpdates?: boolean; // Save full Telegram update JSON (default: true)
 }
 
 export class TelegramBotAdapter extends BaseStreamAdapter {
@@ -184,11 +184,7 @@ export class TelegramBotAdapter extends BaseStreamAdapter {
 
       if (savedIds.length > 0) {
         // Update watermark
-        await this.updateWatermark(
-          streamMessage.timestamp,
-          ctx.update.update_id.toString(),
-          1
-        );
+        await this.updateWatermark(streamMessage.timestamp, ctx.update.update_id.toString(), 1);
 
         console.log(
           `Telegram message saved: ${streamMessage.messageId} from ${streamMessage.author} in ${streamMessage.channel}`
@@ -258,9 +254,9 @@ export class TelegramBotAdapter extends BaseStreamAdapter {
 
       await ctx.reply(
         `📊 *Stream Status*\n\n` +
-        `Last processed: ${watermark.lastProcessedTime?.toISOString() || 'Never'}\n` +
-        `Total messages: ${stats.totalMessages}\n` +
-        `Pending processing: ${stats.pendingMessages}`,
+          `Last processed: ${watermark.lastProcessedTime?.toISOString() || 'Never'}\n` +
+          `Total messages: ${stats.totalMessages}\n` +
+          `Pending processing: ${stats.pendingMessages}`,
         { parse_mode: 'Markdown' }
       );
     });

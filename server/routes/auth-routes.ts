@@ -34,7 +34,7 @@ router.post('/login', async (req: Request, res: Response) => {
     if (!password) {
       return res.status(400).json({
         success: false,
-        error: 'Password is required'
+        error: 'Password is required',
       });
     }
 
@@ -56,7 +56,7 @@ router.post('/login', async (req: Request, res: Response) => {
         success: true,
         instanceId,
         csrfToken,
-        message: 'Authentication disabled (development mode)'
+        message: 'Authentication disabled (development mode)',
       });
     }
 
@@ -78,20 +78,20 @@ router.post('/login', async (req: Request, res: Response) => {
         success: true,
         instanceId: result.instanceId,
         csrfToken, // Frontend needs this for CSRF protection
-        redirectUrl: `/${result.instanceId}/admin`
+        redirectUrl: `/${result.instanceId}/admin`,
       });
     } else {
       logger.warn('Login failed: Invalid credentials');
       return res.status(401).json({
         success: false,
-        error: result.error || 'Invalid password'
+        error: result.error || 'Invalid password',
       });
     }
   } catch (error) {
     logger.error('Login error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Internal server error',
     });
   }
 });
@@ -107,13 +107,13 @@ router.post('/logout', (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      message: 'Logged out successfully'
+      message: 'Logged out successfully',
     });
   } catch (error) {
     logger.error('Logout error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Internal server error',
     });
   }
 });
@@ -141,7 +141,7 @@ router.get('/session', (req: Request, res: Response) => {
     logger.error('Session check error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Internal server error',
     });
   }
 });
@@ -157,7 +157,7 @@ router.post('/refresh-csrf', (req: Request, res: Response) => {
     if (!session) {
       return res.status(401).json({
         success: false,
-        error: 'Not authenticated'
+        error: 'Not authenticated',
       });
     }
 
@@ -181,7 +181,7 @@ router.post('/refresh-csrf', (req: Request, res: Response) => {
     logger.error('CSRF refresh error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Internal server error',
     });
   }
 });
@@ -204,14 +204,14 @@ router.get('/instances', (req: Request, res: Response) => {
  * POST /api/auth/verify
  * Body: { password: string, instanceId: string }
  */
-router.post('/verify', (req: Request, res: Response) => {
+router.post('/verify', async (req: Request, res: Response) => {
   try {
     const { password, instanceId } = req.body;
 
     if (!password || !instanceId) {
       return res.status(400).json({
         success: false,
-        error: 'Password and instanceId are required'
+        error: 'Password and instanceId are required',
       });
     }
 
@@ -220,21 +220,21 @@ router.post('/verify', (req: Request, res: Response) => {
       return res.json({ success: true });
     }
 
-    const isValid = authenticateInstance(password, instanceId);
+    const isValid = await authenticateInstance(password, instanceId);
 
     if (isValid) {
       return res.json({ success: true });
     } else {
       return res.status(401).json({
         success: false,
-        error: 'Invalid credentials'
+        error: 'Invalid credentials',
       });
     }
   } catch (error) {
     logger.error('Verify error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Internal server error',
     });
   }
 });

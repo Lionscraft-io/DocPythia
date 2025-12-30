@@ -89,11 +89,7 @@ describe('FileConsolidationService', () => {
 
   describe('consolidateFile', () => {
     it('should return original content if no proposals', async () => {
-      const result = await service.consolidateFile(
-        'docs/test.md',
-        '# Original Content',
-        []
-      );
+      const result = await service.consolidateFile('docs/test.md', '# Original Content', []);
 
       expect(result.consolidatedContent).toBe('# Original Content');
       expect(llmService.requestJSON).not.toHaveBeenCalled();
@@ -134,11 +130,7 @@ describe('FileConsolidationService', () => {
       });
 
       const proposals = [createMockProposal()];
-      const result = await service.consolidateFile(
-        'docs/test.md',
-        '# Original',
-        proposals
-      );
+      const result = await service.consolidateFile('docs/test.md', '# Original', proposals);
 
       expect(result.consolidatedContent).toBe('# New Content\n\nUpdated documentation.');
       expect(result.tokensUsed).toBe(150);
@@ -200,9 +192,7 @@ describe('FileConsolidationService', () => {
     });
 
     it('should handle LLM errors gracefully', async () => {
-      vi.mocked(llmService.requestJSON).mockRejectedValue(
-        new Error('LLM service unavailable')
-      );
+      vi.mocked(llmService.requestJSON).mockRejectedValue(new Error('LLM service unavailable'));
 
       const proposals = [createMockProposal()];
 
@@ -240,9 +230,7 @@ describe('FileConsolidationService', () => {
       const proposals = [createMockProposal({ updateType: 'UPDATE' })];
       await service.consolidateFile('docs/test.md', '# Original content here', proposals);
 
-      expect(consoleSpy.log).toHaveBeenCalledWith(
-        expect.stringContaining('CONSOLIDATING FILE')
-      );
+      expect(consoleSpy.log).toHaveBeenCalledWith(expect.stringContaining('CONSOLIDATING FILE'));
       expect(consoleSpy.log).toHaveBeenCalledWith(
         expect.stringContaining('FILE CONSOLIDATION COMPLETE')
       );
@@ -278,20 +266,14 @@ describe('FileConsolidationService', () => {
     });
 
     it('should return true for multiple proposals', () => {
-      const proposals = [
-        createMockProposal({ id: 1 }),
-        createMockProposal({ id: 2 }),
-      ];
+      const proposals = [createMockProposal({ id: 1 }), createMockProposal({ id: 2 })];
       const result = service.shouldConsolidate(proposals, '# Content');
 
       expect(result).toBe(true);
     });
 
     it('should return false for very large files', () => {
-      const proposals = [
-        createMockProposal({ id: 1 }),
-        createMockProposal({ id: 2 }),
-      ];
+      const proposals = [createMockProposal({ id: 1 }), createMockProposal({ id: 2 })];
       const largeContent = 'x'.repeat(60_000); // Over 50KB limit
 
       const result = service.shouldConsolidate(proposals, largeContent);
@@ -303,10 +285,7 @@ describe('FileConsolidationService', () => {
     });
 
     it('should return true for files at size limit', () => {
-      const proposals = [
-        createMockProposal({ id: 1 }),
-        createMockProposal({ id: 2 }),
-      ];
+      const proposals = [createMockProposal({ id: 1 }), createMockProposal({ id: 2 })];
       const contentAtLimit = 'x'.repeat(50_000); // Exactly at 50KB limit
 
       const result = service.shouldConsolidate(proposals, contentAtLimit);

@@ -4,11 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  mockPrismaClient,
-  createMockWatermark,
-  resetPrismaMocks,
-} from './mocks/prisma.mock.js';
+import { mockPrismaClient, createMockWatermark, resetPrismaMocks } from './mocks/prisma.mock.js';
 
 vi.mock('../server/db.js', () => ({
   default: mockPrismaClient,
@@ -284,10 +280,9 @@ describe('Watermark System', () => {
       );
 
       const imports = await mockPrismaClient.importWatermark.findMany();
-      const processing =
-        await mockPrismaClient.processingWatermark.findUnique({
-          where: { id: 1 },
-        });
+      const processing = await mockPrismaClient.processingWatermark.findUnique({
+        where: { id: 1 },
+      });
 
       expect(imports[0].lastImportedTime! > processing!.watermarkTime).toBe(true);
     });
@@ -363,9 +358,7 @@ describe('Watermark System', () => {
       const batchWindowHours = 24;
 
       const batchStart = watermarkTime;
-      const batchEnd = new Date(
-        batchStart.getTime() + batchWindowHours * 60 * 60 * 1000
-      );
+      const batchEnd = new Date(batchStart.getTime() + batchWindowHours * 60 * 60 * 1000);
 
       expect(batchEnd).toEqual(new Date('2025-10-31T00:00:00Z'));
     });
@@ -374,9 +367,7 @@ describe('Watermark System', () => {
       const batchStart = new Date('2025-10-30T00:00:00Z');
       const contextWindowHours = 24;
 
-      const contextStart = new Date(
-        batchStart.getTime() - contextWindowHours * 60 * 60 * 1000
-      );
+      const contextStart = new Date(batchStart.getTime() - contextWindowHours * 60 * 60 * 1000);
       const contextEnd = batchStart;
 
       expect(contextStart).toEqual(new Date('2025-10-29T00:00:00Z'));
@@ -411,10 +402,9 @@ describe('Watermark System', () => {
       );
 
       // Simulate processing failure - watermark should not advance
-      const watermark =
-        await mockPrismaClient.processingWatermark.findUnique({
-          where: { id: 1 },
-        });
+      const watermark = await mockPrismaClient.processingWatermark.findUnique({
+        where: { id: 1 },
+      });
 
       expect(watermark?.watermarkTime).toEqual(originalWatermark);
       // On failure, upsert should not be called
@@ -429,10 +419,9 @@ describe('Watermark System', () => {
       );
 
       // Can re-fetch same batch for retry
-      const watermark =
-        await mockPrismaClient.processingWatermark.findUnique({
-          where: { id: 1 },
-        });
+      const watermark = await mockPrismaClient.processingWatermark.findUnique({
+        where: { id: 1 },
+      });
 
       expect(watermark?.watermarkTime).toEqual(watermarkTime);
     });

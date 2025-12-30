@@ -51,7 +51,11 @@ vi.mock('@tanstack/react-query', async () => {
       const data = mockQueryDataHolder.current;
 
       if (key.includes('/api/updates')) {
-        return { data: data.updates || [], isLoading: data.isLoading || false, error: data.error || null };
+        return {
+          data: data.updates || [],
+          isLoading: data.isLoading || false,
+          error: data.error || null,
+        };
       }
       if (key.includes('/api/docs')) {
         return { data: data.sections || [], isLoading: false };
@@ -60,19 +64,51 @@ vi.mock('@tanstack/react-query', async () => {
         return { data: data.history || [], isLoading: false };
       }
       if (key.includes('status=pending')) {
-        return { data: data.suggestedChanges || { data: [], pagination: { total: 0 }, totals: { total_messages_in_conversations: 0 } }, isLoading: false };
+        return {
+          data: data.suggestedChanges || {
+            data: [],
+            pagination: { total: 0 },
+            totals: { total_messages_in_conversations: 0 },
+          },
+          isLoading: false,
+        };
       }
       if (key.includes('status=changeset')) {
-        return { data: data.changeset || { data: [], pagination: { total: 0 }, totals: { total_messages_in_conversations: 0 } }, isLoading: false };
+        return {
+          data: data.changeset || {
+            data: [],
+            pagination: { total: 0 },
+            totals: { total_messages_in_conversations: 0 },
+          },
+          isLoading: false,
+        };
       }
       if (key.includes('status=discarded')) {
-        return { data: data.discarded || { data: [], pagination: { total: 0 }, totals: { total_messages_in_conversations: 0 } }, isLoading: false };
+        return {
+          data: data.discarded || {
+            data: [],
+            pagination: { total: 0 },
+            totals: { total_messages_in_conversations: 0 },
+          },
+          isLoading: false,
+        };
       }
       if (key.includes('processingStatus=PENDING')) {
-        return { data: data.unprocessedMessages || { data: [], pagination: { total: 0 } }, isLoading: false };
+        return {
+          data: data.unprocessedMessages || { data: [], pagination: { total: 0 } },
+          isLoading: false,
+        };
       }
       if (key.includes('/api/admin/stream/stats')) {
-        return { data: data.streamStats || { processed: 0, total_messages: 0, queued: 0, proposals: { total: 0 } }, isLoading: false };
+        return {
+          data: data.streamStats || {
+            processed: 0,
+            total_messages: 0,
+            queued: 0,
+            proposals: { total: 0 },
+          },
+          isLoading: false,
+        };
       }
       if (key.includes('/api/admin/llm-cache/stats')) {
         return { data: data.llmCacheStats || { total: 0, byPurpose: {} }, isLoading: false };

@@ -11,14 +11,14 @@ import { StreamMessage, StreamWatermark } from '../types.js';
 import { PrismaClient } from '@prisma/client';
 
 export interface ZulipBotConfig {
-  email: string;              // Bot email for Zulip authentication
-  apiKey: string;             // API key from Zulip settings
-  site: string;               // Zulip site URL (e.g., https://example.zulipchat.com)
-  channel: string;            // Single channel/stream name to monitor
-  pollingInterval?: number;   // Default: 30000ms (30 seconds)
-  batchSize?: number;         // Messages per fetch (default: 100)
+  email: string; // Bot email for Zulip authentication
+  apiKey: string; // API key from Zulip settings
+  site: string; // Zulip site URL (e.g., https://example.zulipchat.com)
+  channel: string; // Single channel/stream name to monitor
+  pollingInterval?: number; // Default: 30000ms (30 seconds)
+  batchSize?: number; // Messages per fetch (default: 100)
   ignoreOldMessages?: boolean; // Ignore messages before adapter initialization
-  startDate?: string;         // ISO date to start fetching from (e.g., "2024-09-01")
+  startDate?: string; // ISO date to start fetching from (e.g., "2024-09-01")
 }
 
 export interface ZulipMessage {
@@ -171,11 +171,11 @@ export class ZulipBotAdapter extends BaseStreamAdapter {
 
     // Filter out the anchor message if doing incremental fetch
     if (watermark?.lastProcessedId) {
-      messages = messages.filter(msg => msg.id.toString() !== watermark.lastProcessedId);
+      messages = messages.filter((msg) => msg.id.toString() !== watermark.lastProcessedId);
     }
 
     // Normalize to StreamMessage format
-    const streamMessages = messages.map(msg => this.normalizeMessage(msg));
+    const streamMessages = messages.map((msg) => this.normalizeMessage(msg));
 
     // Save messages to database
     if (streamMessages.length > 0) {
@@ -199,9 +199,8 @@ export class ZulipBotAdapter extends BaseStreamAdapter {
    * Normalize Zulip message to StreamMessage format
    */
   private normalizeMessage(message: ZulipMessage): StreamMessage {
-    const channelName = typeof message.display_recipient === 'string'
-      ? message.display_recipient
-      : 'Direct Message';
+    const channelName =
+      typeof message.display_recipient === 'string' ? message.display_recipient : 'Direct Message';
 
     return {
       messageId: message.id.toString(),

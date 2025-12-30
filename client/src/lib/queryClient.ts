@@ -1,5 +1,5 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { getCsrfHeaders, requiresCsrf } from "@/hooks/useCsrf";
+import { QueryClient, QueryFunction } from '@tanstack/react-query';
+import { getCsrfHeaders, requiresCsrf } from '@/hooks/useCsrf';
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -14,10 +14,10 @@ async function throwIfResNotOk(res: Response) {
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown | undefined
 ): Promise<Response> {
   const headers: Record<string, string> = {
-    ...(data ? { "Content-Type": "application/json" } : {}),
+    ...(data ? { 'Content-Type': 'application/json' } : {}),
     ...(requiresCsrf(method) ? getCsrfHeaders() : {}),
   };
 
@@ -25,7 +25,7 @@ export async function apiRequest(
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include", // Send cookies with request
+    credentials: 'include', // Send cookies with request
   });
 
   await throwIfResNotOk(res);
@@ -39,23 +39,23 @@ export async function apiRequest(
 export async function adminApiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown | undefined
 ): Promise<Response> {
   // Legacy: check for Bearer token fallback (for API-to-API calls)
-  const adminToken = sessionStorage.getItem("admin_token");
+  const adminToken = sessionStorage.getItem('admin_token');
 
   const headers: Record<string, string> = {
-    ...(data ? { "Content-Type": "application/json" } : {}),
+    ...(data ? { 'Content-Type': 'application/json' } : {}),
     ...(requiresCsrf(method) ? getCsrfHeaders() : {}),
     // Include Bearer token if present (legacy/API fallback)
-    ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {}),
+    ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
   };
 
   const res = await fetch(url, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include", // Send cookies with request
+    credentials: 'include', // Send cookies with request
   });
 
   // If we get 401/403, auth is required
@@ -64,7 +64,7 @@ export async function adminApiRequest(
     const sessionCheck = await fetch('/api/auth/session', { credentials: 'include' });
     const session = await sessionCheck.json();
     if (!session.authenticated) {
-      throw new Error("Session expired. Please login again.");
+      throw new Error('Session expired. Please login again.');
     }
   }
 
@@ -72,17 +72,17 @@ export async function adminApiRequest(
   return res;
 }
 
-type UnauthorizedBehavior = "returnNull" | "throw";
+type UnauthorizedBehavior = 'returnNull' | 'throw';
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
   requiresAuth?: boolean;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior, requiresAuth = false }) =>
   async ({ queryKey }) => {
-    const url = queryKey.join("/") as string;
+    const url = queryKey.join('/') as string;
 
     // Legacy: check for Bearer token fallback
-    const adminToken = sessionStorage.getItem("admin_token");
+    const adminToken = sessionStorage.getItem('admin_token');
     const headers: Record<string, string> = {};
 
     if (requiresAuth && adminToken) {
@@ -90,17 +90,17 @@ export const getQueryFn: <T>(options: {
     }
 
     const res = await fetch(url, {
-      credentials: "include", // Send cookies with request
+      credentials: 'include', // Send cookies with request
       headers,
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+    if (unauthorizedBehavior === 'returnNull' && res.status === 401) {
       return null;
     }
 
     // If we get 401/403 and requiresAuth, check session
     if ((res.status === 401 || res.status === 403) && requiresAuth) {
-      throw new Error("Session expired. Please login again.");
+      throw new Error('Session expired. Please login again.');
     }
 
     await throwIfResNotOk(res);
@@ -110,7 +110,7 @@ export const getQueryFn: <T>(options: {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
+      queryFn: getQueryFn({ on401: 'throw' }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,

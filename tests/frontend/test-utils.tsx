@@ -32,18 +32,11 @@ interface AllProvidersProps {
 function AllProviders({ children }: AllProvidersProps) {
   const queryClient = createTestQueryClient();
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  );
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
 // Custom render function that includes all providers
-function customRender(
-  ui: ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'>
-) {
+function customRender(ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) {
   return render(ui, { wrapper: AllProviders, ...options });
 }
 

@@ -8,10 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ResponseParser } from '../server/stream/llm/response-parser';
 import { SchemaConverter } from '../server/stream/llm/schema-converter';
-import {
-  RetryHandler,
-  DEFAULT_RETRY_CONFIG,
-} from '../server/stream/llm/retry-handler';
+import { RetryHandler, DEFAULT_RETRY_CONFIG } from '../server/stream/llm/retry-handler';
 import { PromptBuilder } from '../server/stream/llm/prompt-builder';
 
 describe('ResponseParser', () => {
@@ -332,10 +329,7 @@ describe('RetryHandler', () => {
       const handler = new RetryHandler({}, mockDelay);
 
       const transientError = RetryHandler.transientError('Temporary failure');
-      const operation = vi
-        .fn()
-        .mockRejectedValueOnce(transientError)
-        .mockResolvedValue('success');
+      const operation = vi.fn().mockRejectedValueOnce(transientError).mockResolvedValue('success');
 
       const result = await handler.execute(operation);
 
@@ -362,10 +356,7 @@ describe('RetryHandler', () => {
       const onRetry = vi.fn();
 
       const transientError = RetryHandler.transientError('Retry me');
-      const operation = vi
-        .fn()
-        .mockRejectedValueOnce(transientError)
-        .mockResolvedValue('done');
+      const operation = vi.fn().mockRejectedValueOnce(transientError).mockResolvedValue('done');
 
       await handler.execute(operation, onRetry);
 

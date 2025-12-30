@@ -7,12 +7,28 @@
  */
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { AlertCircle, FileText, GitPullRequest, Loader2, CheckCircle2, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  AlertCircle,
+  FileText,
+  GitPullRequest,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useConfig } from '@/hooks/useConfig';
 
@@ -32,7 +48,12 @@ export interface PRSubmitData {
   submittedBy: string;
 }
 
-export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }: PRPreviewModalProps) {
+export function PRPreviewModal({
+  isOpen,
+  onClose,
+  approvedProposals,
+  onSubmit,
+}: PRPreviewModalProps) {
   const { data: config, isLoading: configLoading } = useConfig();
   const [prTitle, setPrTitle] = useState('');
   const [prBody, setPrBody] = useState('');
@@ -52,14 +73,17 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
   const baseBranch = config?.repository?.baseBranch || 'main';
 
   // Group proposals by file
-  const proposalsByFile = approvedProposals.reduce((acc, proposal) => {
-    const file = proposal.page;
-    if (!acc[file]) {
-      acc[file] = [];
-    }
-    acc[file].push(proposal);
-    return acc;
-  }, {} as Record<string, any[]>);
+  const proposalsByFile = approvedProposals.reduce(
+    (acc, proposal) => {
+      const file = proposal.page;
+      if (!acc[file]) {
+        acc[file] = [];
+      }
+      acc[file].push(proposal);
+      return acc;
+    },
+    {} as Record<string, any[]>
+  );
 
   const affectedFiles = Object.keys(proposalsByFile);
   const totalProposals = approvedProposals.length;
@@ -85,18 +109,18 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
         baseBranch,
         prTitle: prTitle.trim(),
         prBody: prBody.trim(),
-        submittedBy: 'system'
+        submittedBy: 'system',
       });
 
       setSubmitResult({
         success: true,
         appliedCount: totalProposals,
-        failedCount: 0
+        failedCount: 0,
       });
     } catch (error: any) {
       setSubmitResult({
         success: false,
-        error: error.message || 'Failed to generate PR'
+        error: error.message || 'Failed to generate PR',
       });
     } finally {
       setIsSubmitting(false);
@@ -121,7 +145,8 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
             Generate Pull Request
           </DialogTitle>
           <DialogDescription className="text-gray-600">
-            Review and configure your pull request for {totalProposals} approved proposals across {affectedFiles.length} files.
+            Review and configure your pull request for {totalProposals} approved proposals across{' '}
+            {affectedFiles.length} files.
           </DialogDescription>
         </DialogHeader>
 
@@ -135,7 +160,15 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
                     <p className="font-semibold">Pull request created successfully!</p>
                     {submitResult.pr && (
                       <p>
-                        PR #{submitResult.pr.number}: <a href={submitResult.pr.url} target="_blank" rel="noopener noreferrer" className="underline">{submitResult.pr.url}</a>
+                        PR #{submitResult.pr.number}:{' '}
+                        <a
+                          href={submitResult.pr.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          {submitResult.pr.url}
+                        </a>
                       </p>
                     )}
                     <p className="text-sm">
@@ -182,7 +215,9 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
                 className="flex items-center justify-between w-full p-3 border border-gray-200 rounded-md bg-white hover:bg-gray-50 transition-colors text-gray-900"
               >
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium cursor-pointer text-gray-900">Affected Files</Label>
+                  <Label className="text-sm font-medium cursor-pointer text-gray-900">
+                    Affected Files
+                  </Label>
                   <span className="text-sm text-gray-600">({affectedFiles.length} files)</span>
                 </div>
                 {isFilesExpanded ? (
@@ -198,7 +233,9 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
                       <li key={idx} className="flex items-center gap-2">
                         <FileText className="w-3 h-3 text-gray-500" />
                         <span className="font-mono text-xs text-gray-900">{file}</span>
-                        <span className="text-gray-600">({proposalsByFile[file].length} changes)</span>
+                        <span className="text-gray-600">
+                          ({proposalsByFile[file].length} changes)
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -214,13 +251,19 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
                 <Alert className="bg-yellow-50 border-yellow-200">
                   <AlertCircle className="h-4 w-4 text-yellow-600" />
                   <AlertDescription className="text-gray-900">
-                    Repository configuration not found. Please ensure <code className="px-1 py-0.5 bg-gray-200 rounded text-xs">DEFAULT_TARGET_REPO</code> is set in your environment.
+                    Repository configuration not found. Please ensure{' '}
+                    <code className="px-1 py-0.5 bg-gray-200 rounded text-xs">
+                      DEFAULT_TARGET_REPO
+                    </code>{' '}
+                    is set in your environment.
                   </AlertDescription>
                 </Alert>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="targetRepo" className="text-gray-900">Repository</Label>
+                <Label htmlFor="targetRepo" className="text-gray-900">
+                  Repository
+                </Label>
                 <Input
                   id="targetRepo"
                   value={targetRepo || (configLoading ? 'Loading...' : 'Not configured')}
@@ -231,7 +274,9 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="baseBranch" className="text-gray-900">Base Branch</Label>
+                <Label htmlFor="baseBranch" className="text-gray-900">
+                  Base Branch
+                </Label>
                 <Input
                   id="baseBranch"
                   value={baseBranch || 'main'}
@@ -247,7 +292,9 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
               <h3 className="font-semibold text-gray-900">Pull Request Details</h3>
 
               <div className="space-y-2">
-                <Label htmlFor="prTitle" className="text-gray-900">PR Title *</Label>
+                <Label htmlFor="prTitle" className="text-gray-900">
+                  PR Title *
+                </Label>
                 <Input
                   id="prTitle"
                   placeholder="e.g., docs: Update documentation based on community feedback"
@@ -259,7 +306,9 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="prBody" className="text-gray-900">PR Description *</Label>
+                <Label htmlFor="prBody" className="text-gray-900">
+                  PR Description *
+                </Label>
                 <Textarea
                   id="prBody"
                   placeholder="Describe the changes in this pull request..."
@@ -279,7 +328,8 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
             <Alert className="bg-blue-50 border-blue-200">
               <AlertCircle className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-gray-900">
-                The PR will be created as a <strong>draft</strong>. Review it on GitHub before publishing.
+                The PR will be created as a <strong>draft</strong>. Review it on GitHub before
+                publishing.
               </AlertDescription>
             </Alert>
           </div>
@@ -287,10 +337,17 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
 
         <DialogFooter className="bg-white border-t border-gray-200">
           {submitResult ? (
-            <Button onClick={handleClose} className="text-gray-900">Close</Button>
+            <Button onClick={handleClose} className="text-gray-900">
+              Close
+            </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={handleClose} disabled={isSubmitting} className="text-gray-900 border-gray-300">
+              <Button
+                variant="outline"
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className="text-gray-900 border-gray-300"
+              >
                 Cancel
               </Button>
               <Button

@@ -27,7 +27,9 @@ export class InstanceDatabaseManager {
     const baseUrl = process.env.DATABASE_URL || '';
     const databaseUrl = this.buildDatabaseUrl(baseUrl, config.database.name);
 
-    console.log(`📦 Creating Prisma client for instance "${instanceId}" with database: ${config.database.name}`);
+    console.log(
+      `📦 Creating Prisma client for instance "${instanceId}" with database: ${config.database.name}`
+    );
 
     // Create new Prisma client with instance-specific database
     const client = new PrismaClient({
@@ -57,7 +59,9 @@ export class InstanceDatabaseManager {
       url.pathname = pathParts.join('/');
       return url.toString();
     } catch (error) {
-      throw new Error(`Invalid DATABASE_URL format: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Invalid DATABASE_URL format: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -77,7 +81,7 @@ export class InstanceDatabaseManager {
    * Disconnect all clients
    */
   static async disconnectAll(): Promise<void> {
-    const promises = Array.from(this.clients.keys()).map(instanceId =>
+    const promises = Array.from(this.clients.keys()).map((instanceId) =>
       this.disconnect(instanceId)
     );
     await Promise.all(promises);

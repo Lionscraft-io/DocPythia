@@ -110,7 +110,9 @@ describe('Admin Page', () => {
 
     it('should render description text', () => {
       render(<Admin />);
-      expect(screen.getByText('Review and manage AI-suggested documentation updates')).toBeInTheDocument();
+      expect(
+        screen.getByText('Review and manage AI-suggested documentation updates')
+      ).toBeInTheDocument();
     });
 
     it('should render stats cards', () => {
@@ -219,13 +221,13 @@ describe('Admin Page', () => {
     beforeEach(() => {
       mockQueryDataHolder.current = {
         pending: {
-          data: [createMockConversation('conv-1', [createMockProposal(1, 'pending')])]
+          data: [createMockConversation('conv-1', [createMockProposal(1, 'pending')])],
         },
         approved: {
-          data: [createMockConversation('conv-2', [createMockProposal(2, 'approved')])]
+          data: [createMockConversation('conv-2', [createMockProposal(2, 'approved')])],
         },
         ignored: {
-          data: [createMockConversation('conv-3', [createMockProposal(3, 'ignored')])]
+          data: [createMockConversation('conv-3', [createMockProposal(3, 'ignored')])],
         },
         batches: { batches: [] },
       };
@@ -281,19 +283,21 @@ describe('Admin Page', () => {
         approved: { data: [] },
         ignored: { data: [] },
         batches: {
-          batches: [{
-            id: 'batch-1',
-            batchId: 'BATCH001',
-            status: 'submitted',
-            prTitle: 'Test PR',
-            prUrl: 'https://github.com/test/repo/pull/123',
-            prNumber: 123,
-            submittedAt: new Date().toISOString(),
-            totalProposals: 5,
-            affectedFiles: ['docs/test.md'],
-            proposals: [],
-            failures: [],
-          }]
+          batches: [
+            {
+              id: 'batch-1',
+              batchId: 'BATCH001',
+              status: 'submitted',
+              prTitle: 'Test PR',
+              prUrl: 'https://github.com/test/repo/pull/123',
+              prNumber: 123,
+              submittedAt: new Date().toISOString(),
+              totalProposals: 5,
+              affectedFiles: ['docs/test.md'],
+              proposals: [],
+              failures: [],
+            },
+          ],
         },
       };
 
@@ -325,7 +329,7 @@ describe('Admin Page', () => {
           batches: [
             { id: 'batch-1', batchId: 'BATCH001', status: 'submitted', totalProposals: 5 },
             { id: 'batch-2', batchId: 'BATCH002', status: 'merged', totalProposals: 3 },
-          ]
+          ],
         },
       };
 
@@ -375,11 +379,13 @@ describe('Admin Page', () => {
     it('should display multiple proposals in a conversation', () => {
       mockQueryDataHolder.current = {
         pending: {
-          data: [createMockConversation('conv-multi', [
-            createMockProposal(1, 'pending'),
-            createMockProposal(2, 'pending'),
-            createMockProposal(3, 'pending'),
-          ])]
+          data: [
+            createMockConversation('conv-multi', [
+              createMockProposal(1, 'pending'),
+              createMockProposal(2, 'pending'),
+              createMockProposal(3, 'pending'),
+            ]),
+          ],
         },
         approved: { data: [] },
         ignored: { data: [] },
@@ -394,9 +400,7 @@ describe('Admin Page', () => {
     it('should show singular "proposal" for single proposal', () => {
       mockQueryDataHolder.current = {
         pending: {
-          data: [createMockConversation('conv-single', [
-            createMockProposal(1, 'pending'),
-          ])]
+          data: [createMockConversation('conv-single', [createMockProposal(1, 'pending')])],
         },
         approved: { data: [] },
         ignored: { data: [] },
@@ -412,7 +416,7 @@ describe('Admin Page', () => {
     it('should show truncated conversation ID', () => {
       mockQueryDataHolder.current = {
         pending: {
-          data: [createMockConversation('abcdefgh12345678', [createMockProposal(1, 'pending')])]
+          data: [createMockConversation('abcdefgh12345678', [createMockProposal(1, 'pending')])],
         },
         approved: { data: [] },
         ignored: { data: [] },

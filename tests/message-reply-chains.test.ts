@@ -193,7 +193,7 @@ describe('Message Reply Chains', () => {
       ];
 
       expect(classifications).toHaveLength(3);
-      expect(new Set(classifications.map(c => c.conversationId)).size).toBe(1);
+      expect(new Set(classifications.map((c) => c.conversationId)).size).toBe(1);
     });
 
     it('should separate independent conversations', () => {
@@ -203,8 +203,8 @@ describe('Message Reply Chains', () => {
         { messageId: 3, conversationId: 'conv-2', batchId: 'batch-1' },
       ];
 
-      const conv1Count = classifications.filter(c => c.conversationId === 'conv-1').length;
-      const conv2Count = classifications.filter(c => c.conversationId === 'conv-2').length;
+      const conv1Count = classifications.filter((c) => c.conversationId === 'conv-1').length;
+      const conv2Count = classifications.filter((c) => c.conversationId === 'conv-2').length;
 
       expect(conv1Count).toBe(2);
       expect(conv2Count).toBe(1);
@@ -220,8 +220,8 @@ describe('Message Reply Chains', () => {
 
       // Both messages in same conversation, different batches
       expect(classifications).toHaveLength(2);
-      expect(classifications.map(c => c.batchId)).toEqual(['batch-1', 'batch-2']);
-      expect(new Set(classifications.map(c => c.conversationId)).size).toBe(1);
+      expect(classifications.map((c) => c.batchId)).toEqual(['batch-1', 'batch-2']);
+      expect(new Set(classifications.map((c) => c.conversationId)).size).toBe(1);
     });
   });
 

@@ -10,51 +10,26 @@ import { Activity } from 'lucide-react';
 
 describe('StatsCard', () => {
   it('should render title and value', () => {
-    render(
-      <StatsCard
-        title="Total Messages"
-        value={1234}
-        icon={Activity}
-      />
-    );
+    render(<StatsCard title="Total Messages" value={1234} icon={Activity} />);
 
     expect(screen.getByText('Total Messages')).toBeInTheDocument();
     expect(screen.getByTestId('stat-value-total-messages')).toHaveTextContent('1234');
   });
 
   it('should render string value correctly', () => {
-    render(
-      <StatsCard
-        title="Status"
-        value="Active"
-        icon={Activity}
-      />
-    );
+    render(<StatsCard title="Status" value="Active" icon={Activity} />);
 
     expect(screen.getByTestId('stat-value-status')).toHaveTextContent('Active');
   });
 
   it('should render description when provided', () => {
-    render(
-      <StatsCard
-        title="Messages"
-        value={100}
-        icon={Activity}
-        description="Last 24 hours"
-      />
-    );
+    render(<StatsCard title="Messages" value={100} icon={Activity} description="Last 24 hours" />);
 
     expect(screen.getByTestId('stat-description')).toHaveTextContent('Last 24 hours');
   });
 
   it('should not render description when not provided', () => {
-    render(
-      <StatsCard
-        title="Messages"
-        value={100}
-        icon={Activity}
-      />
-    );
+    render(<StatsCard title="Messages" value={100} icon={Activity} />);
 
     expect(screen.queryByTestId('stat-description')).not.toBeInTheDocument();
   });
@@ -90,13 +65,7 @@ describe('StatsCard', () => {
   });
 
   it('should not render trend when not provided', () => {
-    render(
-      <StatsCard
-        title="Count"
-        value={50}
-        icon={Activity}
-      />
-    );
+    render(<StatsCard title="Count" value={50} icon={Activity} />);
 
     expect(screen.queryByTestId('stat-trend')).not.toBeInTheDocument();
   });

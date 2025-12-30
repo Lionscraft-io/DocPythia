@@ -51,7 +51,7 @@ async function setupWatermarkAndTelegram() {
     const telegramMode = process.env.TELEGRAM_BOT_MODE || 'polling';
     const telegramPollingInterval = parseInt(process.env.TELEGRAM_POLLING_INTERVAL || '3000', 10);
     const telegramAllowedChats = process.env.TELEGRAM_ALLOWED_CHATS
-      ? process.env.TELEGRAM_ALLOWED_CHATS.split(',').map(c => c.trim())
+      ? process.env.TELEGRAM_ALLOWED_CHATS.split(',').map((c) => c.trim())
       : [];
     const telegramIgnoreOld = process.env.TELEGRAM_IGNORE_OLD_MESSAGES !== 'false';
     const telegramProcessCommands = process.env.TELEGRAM_PROCESS_COMMANDS !== 'false';
@@ -99,7 +99,10 @@ async function setupWatermarkAndTelegram() {
       console.log('   Adapter Type:', streamConfig.adapterType);
       console.log('   Mode:', telegramMode);
       console.log('   Polling Interval:', telegramPollingInterval, 'ms');
-      console.log('   Allowed Chats:', telegramAllowedChats.length > 0 ? telegramAllowedChats : 'All chats allowed');
+      console.log(
+        '   Allowed Chats:',
+        telegramAllowedChats.length > 0 ? telegramAllowedChats : 'All chats allowed'
+      );
       console.log('   Ignore Old Messages:', telegramIgnoreOld);
       console.log('   Process Commands:', telegramProcessCommands);
       console.log('   Enabled:', streamConfig.enabled);
@@ -116,7 +119,9 @@ async function setupWatermarkAndTelegram() {
 
     console.log('📊 Current Stream Configurations:');
     allStreams.forEach((stream, idx) => {
-      console.log(`   ${idx + 1}. ${stream.streamId} (${stream.adapterType}) - ${stream.enabled ? 'Enabled' : 'Disabled'}`);
+      console.log(
+        `   ${idx + 1}. ${stream.streamId} (${stream.adapterType}) - ${stream.enabled ? 'Enabled' : 'Disabled'}`
+      );
     });
 
     const watermark = await prisma.processingWatermark.findUnique({
@@ -125,8 +130,10 @@ async function setupWatermarkAndTelegram() {
 
     console.log('\n⏰ Processing Watermark:');
     console.log('   Watermark Time:', watermark?.watermarkTime.toISOString());
-    console.log('   Last Processed Batch:', watermark?.lastProcessedBatch?.toISOString() || 'Never');
-
+    console.log(
+      '   Last Processed Batch:',
+      watermark?.lastProcessedBatch?.toISOString() || 'Never'
+    );
   } catch (error) {
     console.error('💥 Setup failed:', error);
     throw error;

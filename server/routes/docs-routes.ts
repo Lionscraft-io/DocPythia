@@ -1,13 +1,13 @@
-import { Router, Request, Response, RequestHandler } from "express";
-import { z } from "zod";
-import { storage } from "../storage";
-import { db as prisma } from "../db";
-import { GitFetcher } from "../git-fetcher.js";
-import { PgVectorStore } from "../vector-store.js";
-import { getInstanceDb } from "../db/instance-db.js";
-import { docIndexGenerator } from "../stream/doc-index-generator.js";
-import { geminiEmbedder, GeminiEmbedder } from "../embeddings/gemini-embedder.js";
-import { createLogger } from "../utils/logger.js";
+import { Router, Request, Response, RequestHandler } from 'express';
+import { z } from 'zod';
+import { storage } from '../storage';
+import { db as prisma } from '../db';
+import { GitFetcher } from '../git-fetcher.js';
+import { PgVectorStore } from '../vector-store.js';
+import { getInstanceDb } from '../db/instance-db.js';
+import { docIndexGenerator } from '../stream/doc-index-generator.js';
+import { geminiEmbedder, GeminiEmbedder } from '../embeddings/gemini-embedder.js';
+import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('DocsRoutes');
 
@@ -33,45 +33,45 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
   const router = Router();
 
   // Documentation routes (public)
-  router.get("/", async (req: Request, res: Response) => {
+  router.get('/', async (req: Request, res: Response) => {
     try {
       // Check if DATABASE_URL is set
       if (!process.env.DATABASE_URL) {
         return res.status(500).json({
-          error: "Database not configured",
-          message: "DATABASE_URL environment variable is not set"
+          error: 'Database not configured',
+          message: 'DATABASE_URL environment variable is not set',
         });
       }
 
       const sections = await storage.getDocumentationSections();
       res.json(sections);
     } catch (error) {
-      logger.error("Error fetching documentation:", error);
+      logger.error('Error fetching documentation:', error);
 
       // Provide more specific error messages
       const details = error instanceof Error ? error.message : String(error);
-      let errorMessage = "Failed to fetch documentation";
-      if (details.includes("connect")) {
-        errorMessage = "Database connection failed";
-      } else if (details.includes("relation") || details.includes("table")) {
-        errorMessage = "Database tables not found - run migrations";
+      let errorMessage = 'Failed to fetch documentation';
+      if (details.includes('connect')) {
+        errorMessage = 'Database connection failed';
+      } else if (details.includes('relation') || details.includes('table')) {
+        errorMessage = 'Database tables not found - run migrations';
       }
 
       res.status(500).json({
         error: errorMessage,
-        details
+        details,
       });
     }
   });
 
   // Public Git documentation stats endpoint (must be before :sectionId wildcard)
-  router.get("/git-stats", async (req: Request, res: Response) => {
+  router.get('/git-stats', async (req: Request, res: Response) => {
     try {
       const defaultGitUrl = process.env.DOCS_GIT_URL || '';
       const syncState = await prisma.gitSyncState.findFirst({
         where: {
-          gitUrl: defaultGitUrl
-        }
+          gitUrl: defaultGitUrl,
+        },
       });
 
       if (!syncState) {
@@ -82,7 +82,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
           lastCommitHash: null,
           status: 'idle',
           totalDocuments: 0,
-          documentsWithEmbeddings: 0
+          documentsWithEmbeddings: 0,
         });
       }
 
@@ -96,7 +96,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
         lastCommitHash: syncState.lastCommitHash,
         status: syncState.syncStatus,
         totalDocuments: stats.totalDocuments,
-        documentsWithEmbeddings: stats.documentsWithEmbeddings
+        documentsWithEmbeddings: stats.documentsWithEmbeddings,
       });
     } catch (error) {
       logger.error('Error fetching git stats:', error);
@@ -105,33 +105,37 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
   });
 
   // Get single section
-  router.get("/:sectionId", async (req: Request, res: Response) => {
+  router.get('/:sectionId', async (req: Request, res: Response) => {
     try {
       const validation = sectionIdSchema.safeParse(req.params);
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid section ID" });
+        return res.status(400).json({ error: 'Invalid section ID' });
       }
 
       const section = await storage.getDocumentationSection(validation.data.sectionId);
       if (!section) {
-        return res.status(404).json({ error: "Section not found" });
+        return res.status(404).json({ error: 'Section not found' });
       }
       res.json(section);
     } catch (error) {
-      logger.error("Error fetching section:", error);
-      res.status(500).json({ error: "Failed to fetch section" });
+      logger.error('Error fetching section:', error);
+      res.status(500).json({ error: 'Failed to fetch section' });
     }
   });
 
   // RAG Documentation Sync endpoint (admin only)
-  router.post("/sync", adminAuth, async (req: Request, res: Response) => {
+  router.post('/sync', adminAuth, async (req: Request, res: Response) => {
     try {
-      const bodyValidation = z.object({
-        force: z.boolean().optional().default(false),
-      }).safeParse(req.body);
+      const bodyValidation = z
+        .object({
+          force: z.boolean().optional().default(false),
+        })
+        .safeParse(req.body);
 
       if (!bodyValidation.success) {
-        return res.status(400).json({ error: "Invalid request body", details: bodyValidation.error });
+        return res
+          .status(400)
+          .json({ error: 'Invalid request body', details: bodyValidation.error });
       }
 
       const { force } = bodyValidation.data;
@@ -140,7 +144,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
       // Get instance from authenticated admin
       const adminInstance = (req as any).adminInstance;
       if (!adminInstance) {
-        return res.status(401).json({ error: "No instance associated with admin" });
+        return res.status(401).json({ error: 'No instance associated with admin' });
       }
 
       logger.info(`[${adminInstance}] Starting documentation sync (force: ${force})...`);
@@ -180,7 +184,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
             previousHash: updateInfo.storedHash,
             summary: { added: 0, modified: 0, deleted: 0, filesProcessed: [] },
             totalDocuments: stats.totalDocuments,
-            duration: Date.now() - startTime
+            duration: Date.now() - startTime,
           });
         }
 
@@ -194,18 +198,18 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
           added: 0,
           modified: 0,
           deleted: 0,
-          filesProcessed: [] as string[]
+          filesProcessed: [] as string[],
         };
 
         // Process deletions
-        for (const file of changedFiles.filter(f => f.changeType === 'deleted')) {
+        for (const file of changedFiles.filter((f) => f.changeType === 'deleted')) {
           await instanceVectorStore.deleteDocument(file.path);
           summary.deleted++;
           summary.filesProcessed.push(file.path);
         }
 
         // Process additions and modifications
-        for (const file of changedFiles.filter(f => f.changeType !== 'deleted')) {
+        for (const file of changedFiles.filter((f) => f.changeType !== 'deleted')) {
           try {
             // Check if file already has embedding for this commit (resume logic)
             const existing = await instanceVectorStore.getDocument(file.path, file.commitHash);
@@ -226,7 +230,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
               content: file.content,
               gitHash: file.commitHash,
               gitUrl,
-              embedding
+              embedding,
             });
 
             if (file.changeType === 'added') summary.added++;
@@ -258,30 +262,28 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
           previousHash: updateInfo.storedHash,
           summary,
           totalDocuments: stats.totalDocuments,
-          duration: Date.now() - startTime
+          duration: Date.now() - startTime,
         });
-
       } catch (syncError: any) {
         await gitFetcher.updateSyncStatus('error', syncError.message);
         throw syncError;
       }
-
     } catch (error: any) {
       logger.error('Documentation sync failed:', error);
       res.status(500).json({
         success: false,
-        error: error.message || 'Unknown error during documentation sync'
+        error: error.message || 'Unknown error during documentation sync',
       });
     }
   });
 
   // Get sync status endpoint
-  router.get("/sync/status", adminAuth, async (req: Request, res: Response) => {
+  router.get('/sync/status', adminAuth, async (req: Request, res: Response) => {
     try {
       // Get instance from authenticated admin
       const adminInstance = (req as any).adminInstance;
       if (!adminInstance) {
-        return res.status(401).json({ error: "No instance associated with admin" });
+        return res.status(401).json({ error: 'No instance associated with admin' });
       }
 
       // Get instance config for gitUrl
@@ -294,7 +296,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
       const instanceVectorStore = new PgVectorStore(adminInstance, instanceDb);
 
       const syncState = await instanceDb.gitSyncState.findFirst({
-        where: { gitUrl }
+        where: { gitUrl },
       });
 
       if (!syncState) {
@@ -303,7 +305,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
           lastSyncAt: null,
           lastCommitHash: null,
           totalDocuments: 0,
-          documentsWithEmbeddings: 0
+          documentsWithEmbeddings: 0,
         });
       }
 
@@ -318,7 +320,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
         gitUrl: syncState.gitUrl,
         errorMessage: syncState.errorMessage,
         totalDocuments: stats.totalDocuments,
-        documentsWithEmbeddings: stats.documentsWithEmbeddings
+        documentsWithEmbeddings: stats.documentsWithEmbeddings,
       });
     } catch (error: any) {
       logger.error('Error fetching sync status:', error);
@@ -327,31 +329,31 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
   });
 
   // Section version history routes (admin only)
-  router.get("/:sectionId/history", adminAuth, async (req: Request, res: Response) => {
+  router.get('/:sectionId/history', adminAuth, async (req: Request, res: Response) => {
     try {
       const validation = sectionIdSchema.safeParse(req.params);
       if (!validation.success) {
-        return res.status(400).json({ error: "Invalid section ID" });
+        return res.status(400).json({ error: 'Invalid section ID' });
       }
 
       const history = await storage.getSectionHistory(validation.data.sectionId);
       res.json(history);
     } catch (error) {
-      logger.error("Error fetching section history:", error);
-      res.status(500).json({ error: "Failed to fetch section history" });
+      logger.error('Error fetching section history:', error);
+      res.status(500).json({ error: 'Failed to fetch section history' });
     }
   });
 
-  router.post("/:sectionId/rollback", adminAuth, async (req: Request, res: Response) => {
+  router.post('/:sectionId/rollback', adminAuth, async (req: Request, res: Response) => {
     try {
       const paramsValidation = sectionIdSchema.safeParse(req.params);
       if (!paramsValidation.success) {
-        return res.status(400).json({ error: "Invalid section ID" });
+        return res.status(400).json({ error: 'Invalid section ID' });
       }
 
       const bodyValidation = rollbackBodySchema.safeParse(req.body);
       if (!bodyValidation.success) {
-        return res.status(400).json({ error: "Invalid request body" });
+        return res.status(400).json({ error: 'Invalid request body' });
       }
 
       const result = await storage.rollbackSection(
@@ -362,14 +364,14 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
 
       res.json(result);
     } catch (error: any) {
-      logger.error("Error rolling back section:", error);
-      if (error.message === "Version not found") {
+      logger.error('Error rolling back section:', error);
+      if (error.message === 'Version not found') {
         return res.status(404).json({ error: error.message });
       }
-      if (error.message === "Version does not belong to this section") {
+      if (error.message === 'Version does not belong to this section') {
         return res.status(400).json({ error: error.message });
       }
-      res.status(500).json({ error: "Failed to rollback section" });
+      res.status(500).json({ error: 'Failed to rollback section' });
     }
   });
 
@@ -380,11 +382,11 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
 export function createDocsIndexRoutes(): Router {
   const router = Router();
 
-  router.get("/", async (req: Request, res: Response) => {
+  router.get('/', async (req: Request, res: Response) => {
     try {
       const { docIndexGenerator } = await import('../stream/doc-index-generator.js');
 
-      const format = req.query.format as string || 'json';
+      const format = (req.query.format as string) || 'json';
       const index = await docIndexGenerator.generateIndex();
 
       if (format === 'compact') {

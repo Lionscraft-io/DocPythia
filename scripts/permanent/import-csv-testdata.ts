@@ -32,7 +32,7 @@ async function importTestData() {
         config: {
           filePath: 'testdata.csv',
           source: 'dev-community',
-          description: 'Test data from developer community discussions'
+          description: 'Test data from developer community discussions',
         },
         enabled: true,
       },

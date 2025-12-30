@@ -1,10 +1,10 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { storage } from "../storage";
-import type { ScrapedMessage, DocumentationSection } from "../storage";
-import { getConfig } from "../config/loader";
-import { llmCache } from "../llm/llm-cache.js";
-import { PROMPT_TEMPLATES, fillTemplate } from "../stream/llm/prompt-templates.js";
-import { createLogger } from "../utils/logger.js";
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { storage } from '../storage';
+import type { ScrapedMessage, DocumentationSection } from '../storage';
+import { getConfig } from '../config/loader';
+import { llmCache } from '../llm/llm-cache.js';
+import { PROMPT_TEMPLATES, fillTemplate } from '../stream/llm/prompt-templates.js';
+import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('GeminiAnalyzer');
 
@@ -14,7 +14,7 @@ const ANSWER_MODEL = process.env.LLM_CLASSIFICATION_MODEL || 'gemini-2.5-flash';
 
 export interface AnalysisResult {
   relevant: boolean;
-  updateType?: "minor" | "major" | "add" | "delete" | null;
+  updateType?: 'minor' | 'major' | 'add' | 'delete' | null;
   sectionId?: string | null;
   summary?: string | null;
   suggestedContent?: string | null;
@@ -29,7 +29,7 @@ export class MessageAnalyzer {
 
   constructor() {
     // DON'T DELETE THIS COMMENT - Note that the newest Gemini model series is "gemini-2.5-flash" or "gemini-2.5-pro"
-    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
   }
 
   async loadDocumentation() {
@@ -44,16 +44,19 @@ export class MessageAnalyzer {
 
     const config = getConfig();
     const documentationContext = this.documentationSections
-      .map(section => `Section ID: ${section.sectionId}\nTitle: ${section.title}\nContent: ${section.content.substring(0, 500)}...`)
-      .join("\n\n");
+      .map(
+        (section) =>
+          `Section ID: ${section.sectionId}\nTitle: ${section.title}\nContent: ${section.content.substring(0, 500)}...`
+      )
+      .join('\n\n');
 
     const prompt = fillTemplate(PROMPT_TEMPLATES.messageAnalysis.prompt, {
       projectName: config.project.name,
       documentationContext,
-      topic: message.topicName || "N/A",
+      topic: message.topicName || 'N/A',
       senderName: message.senderName,
       messageTimestamp: message.messageTimestamp,
-      content: message.content
+      content: message.content,
     });
 
     try {
@@ -69,26 +72,32 @@ export class MessageAnalyzer {
         }
       }
 
-      const systemPrompt = "You are an expert technical writer analyzing community messages for documentation updates. Always respond with valid JSON.";
+      const systemPrompt =
+        'You are an expert technical writer analyzing community messages for documentation updates. Always respond with valid JSON.';
 
       const model = this.genAI.getGenerativeModel({
         model: ANALYSIS_MODEL,
         systemInstruction: systemPrompt,
         generationConfig: {
-          responseMimeType: "application/json",
+          responseMimeType: 'application/json',
           responseSchema: {
-            type: "object",
+            type: SchemaType.OBJECT,
             properties: {
-              relevant: { type: "boolean" },
-              updateType: { type: "string", enum: ["minor", "major", "add", "delete"], nullable: true },
-              sectionId: { type: "string", nullable: true },
-              summary: { type: "string", nullable: true },
-              suggestedContent: { type: "string", nullable: true },
-              reasoning: { type: "string" },
-              proposedSectionTitle: { type: "string", nullable: true },
-              proposedSectionLevel: { type: "number", nullable: true },
+              relevant: { type: SchemaType.BOOLEAN },
+              updateType: {
+                type: SchemaType.STRING,
+                format: 'enum',
+                enum: ['minor', 'major', 'add', 'delete'],
+                nullable: true,
+              },
+              sectionId: { type: SchemaType.STRING, nullable: true },
+              summary: { type: SchemaType.STRING, nullable: true },
+              suggestedContent: { type: SchemaType.STRING, nullable: true },
+              reasoning: { type: SchemaType.STRING },
+              proposedSectionTitle: { type: SchemaType.STRING, nullable: true },
+              proposedSectionLevel: { type: SchemaType.NUMBER, nullable: true },
             },
-            required: ["relevant", "reasoning"],
+            required: ['relevant', 'reasoning'],
           },
         },
       });
@@ -97,7 +106,7 @@ export class MessageAnalyzer {
 
       const rawJson = response.response.text();
       if (!rawJson) {
-        throw new Error("Empty response from Gemini");
+        throw new Error('Empty response from Gemini');
       }
 
       const result = JSON.parse(rawJson) as AnalysisResult;
@@ -109,7 +118,7 @@ export class MessageAnalyzer {
 
       return result;
     } catch (error: any) {
-      logger.error("Error analyzing message:", error.message);
+      logger.error('Error analyzing message:', error.message);
       throw new Error(`Failed to analyze message: ${error.message}`);
     }
   }
@@ -139,9 +148,9 @@ export class MessageAnalyzer {
 
         if (result.relevant && result.updateType && result.summary) {
           relevantCount++;
-          
+
           // Handle different operation types
-          if (result.updateType === "add") {
+          if (result.updateType === 'add') {
             // Adding a new section - requires proposed title and content
             if (!result.proposedSectionTitle || !result.suggestedContent) {
               logger.warn(`"add" operation missing title or content. Skipping.`);
@@ -154,10 +163,10 @@ export class MessageAnalyzer {
 
               const pendingUpdate = await storage.createPendingUpdate({
                 sectionId: proposedSectionId,
-                type: "add",
+                type: 'add',
                 summary: `Add new section: "${result.proposedSectionTitle}". ${result.summary}`,
                 source: `Zulipchat message from ${message.senderName} on ${message.messageTimestamp.toISOString()}`,
-                status: "pending", // Always requires manual review
+                status: 'pending', // Always requires manual review
                 diffBefore: null,
                 diffAfter: result.suggestedContent,
                 reviewedBy: null,
@@ -166,22 +175,24 @@ export class MessageAnalyzer {
               updatesCreated++;
               logger.info(`Created "add" update for new section: ${proposedSectionId}`);
             }
-          } else if (result.updateType === "delete") {
+          } else if (result.updateType === 'delete') {
             // Deleting an existing section
             if (!result.sectionId) {
               logger.warn(`"delete" operation missing sectionId. Skipping.`);
             } else {
-              const section = this.documentationSections.find(s => s.sectionId === result.sectionId);
+              const section = this.documentationSections.find(
+                (s) => s.sectionId === result.sectionId
+              );
 
               if (!section) {
                 logger.warn(`Cannot delete non-existent section "${result.sectionId}". Skipping.`);
               } else {
                 const pendingUpdate = await storage.createPendingUpdate({
                   sectionId: result.sectionId,
-                  type: "delete",
+                  type: 'delete',
                   summary: `Delete section: "${section.title}". ${result.summary}`,
                   source: `Zulipchat message from ${message.senderName} on ${message.messageTimestamp.toISOString()}`,
-                  status: "pending", // Always requires manual review
+                  status: 'pending', // Always requires manual review
                   diffBefore: section.content,
                   diffAfter: null,
                   reviewedBy: null,
@@ -196,36 +207,46 @@ export class MessageAnalyzer {
             if (!result.sectionId) {
               logger.warn(`Update operation missing sectionId. Skipping.`);
             } else {
-              const section = this.documentationSections.find(s => s.sectionId === result.sectionId);
+              const section = this.documentationSections.find(
+                (s) => s.sectionId === result.sectionId
+              );
 
               if (!section) {
-                logger.warn(`AI returned unknown sectionId "${result.sectionId}". Converting to major update for manual review.`);
-                result.updateType = "major";
+                logger.warn(
+                  `AI returned unknown sectionId "${result.sectionId}". Converting to major update for manual review.`
+                );
+                result.updateType = 'major';
               }
 
               const pendingUpdate = await storage.createPendingUpdate({
-                sectionId: section ? result.sectionId : this.documentationSections[0]?.sectionId || "introduction",
+                sectionId: section
+                  ? result.sectionId
+                  : this.documentationSections[0]?.sectionId || 'introduction',
                 type: result.updateType,
-                summary: section ? result.summary : `[TRIAGE] AI suggested unknown section "${result.sectionId}". ${result.summary}`,
+                summary: section
+                  ? result.summary
+                  : `[TRIAGE] AI suggested unknown section "${result.sectionId}". ${result.summary}`,
                 source: `Zulipchat message from ${message.senderName} on ${message.messageTimestamp.toISOString()}`,
-                status: result.updateType === "minor" && section ? "auto_applied" : "pending",
+                status: result.updateType === 'minor' && section ? 'auto_applied' : 'pending',
                 diffBefore: section?.content || null,
                 diffAfter: result.suggestedContent || null,
-                reviewedBy: result.updateType === "minor" && section ? "AI Auto-Approval" : null,
+                reviewedBy: result.updateType === 'minor' && section ? 'AI Auto-Approval' : null,
               });
 
               updatesCreated++;
-              logger.info(`Created ${result.updateType} update for section ${section?.sectionId || "introduction"}`);
+              logger.info(
+                `Created ${result.updateType} update for section ${section?.sectionId || 'introduction'}`
+              );
 
               // Auto-apply minor updates only if section was valid
-              if (result.updateType === "minor" && result.suggestedContent && section) {
+              if (result.updateType === 'minor' && result.suggestedContent && section) {
                 await storage.updateDocumentationSection(result.sectionId, result.suggestedContent);
 
                 // Create audit history entry for auto-applied update
                 await storage.createUpdateHistory({
                   updateId: pendingUpdate.id,
-                  action: "auto_applied",
-                  performedBy: "AI Auto-Approval",
+                  action: 'auto_applied',
+                  performedBy: 'AI Auto-Approval',
                 });
 
                 logger.info(`Auto-applied minor update with audit log`);
@@ -264,7 +285,7 @@ export class MessageAnalyzer {
 
       const config = getConfig();
       const systemPrompt = fillTemplate(PROMPT_TEMPLATES.documentationAnswer.system, {
-        projectName: config.project.name
+        projectName: config.project.name,
       });
 
       const model = this.genAI.getGenerativeModel({
@@ -280,7 +301,7 @@ export class MessageAnalyzer {
 
       const answer = response.response.text();
       if (!answer) {
-        throw new Error("Empty response from Gemini");
+        throw new Error('Empty response from Gemini');
       }
 
       // Save to cache
@@ -290,7 +311,7 @@ export class MessageAnalyzer {
 
       return answer;
     } catch (error: any) {
-      logger.error("Error generating documentation answer:", error.message);
+      logger.error('Error generating documentation answer:', error.message);
       throw new Error(`Failed to generate answer: ${error.message}`);
     }
   }
@@ -300,7 +321,7 @@ export function createAnalyzerFromEnv(): MessageAnalyzer | null {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    logger.warn("Gemini API key not found in environment variables");
+    logger.warn('Gemini API key not found in environment variables');
     return null;
   }
 

@@ -264,9 +264,7 @@ describe('MessageVectorSearch', () => {
     });
 
     it('should throw error when batch store fails', async () => {
-      mockDb.$executeRaw
-        .mockResolvedValueOnce(1)
-        .mockRejectedValueOnce(new Error('Store failed'));
+      mockDb.$executeRaw.mockResolvedValueOnce(1).mockRejectedValueOnce(new Error('Store failed'));
 
       const embeddings = [
         { messageId: 1, embedding: [0.1] },

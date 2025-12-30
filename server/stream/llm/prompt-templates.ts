@@ -89,7 +89,7 @@ CONTEXT MESSAGES (previous 24 hours, for reference only):
 ---
 
 MESSAGES TO ANALYZE (current 24-hour batch):
-{{messagesToAnalyze}}`
+{{messagesToAnalyze}}`,
   },
 
   // ============================================================================
@@ -196,7 +196,7 @@ CONVERSATION ({{messageCount}} messages in {{channel}}):
 RELEVANT DOCUMENTATION (from RAG search):
 *** YOU HAVE THE COMPLETE FILE CONTENT BELOW - THESE ARE THE ONLY PAGES YOU CAN UPDATE ***
 *** DO NOT INVENT NEW PAGES - ONLY UPDATE THE FILES PROVIDED BELOW ***
-{{ragContext}}`
+{{ragContext}}`,
   },
 
   // ============================================================================
@@ -236,14 +236,14 @@ Topic: {{topic}}
 From: {{senderName}}
 Date: {{messageTimestamp}}
 Content:
-{{content}}`
+{{content}}`,
   },
 
   // ============================================================================
   // Documentation Answer Generation
   // ============================================================================
   documentationAnswer: {
-    system: `You are a helpful AI assistant for {{projectName}} documentation. Provide clear, accurate, and helpful answers based on the documentation provided. If the documentation doesn't contain the answer, be honest about it.`
+    system: `You are a helpful AI assistant for {{projectName}} documentation. Provide clear, accurate, and helpful answers based on the documentation provided. If the documentation doesn't contain the answer, be honest about it.`,
   },
 
   // ============================================================================
@@ -294,8 +294,8 @@ PROPOSED CHANGES ({{changeCount}} changes):
 
 ---
 
-OUTPUT THE COMPLETE UPDATED FILE CONTENT:`
-  }
+OUTPUT THE COMPLETE UPDATED FILE CONTENT:`,
+  },
 };
 
 /**
@@ -308,7 +308,10 @@ export function fillTemplate(template: string, variables: Record<string, any>): 
   for (const [key, value] of Object.entries(variables)) {
     const placeholder = `{{${key}}}`;
     const replacement = value !== null && value !== undefined ? String(value) : '';
-    result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), replacement);
+    result = result.replace(
+      new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+      replacement
+    );
   }
 
   return result;
@@ -327,5 +330,5 @@ export function hasUnfilledVariables(text: string): boolean {
 export function extractVariables(template: string): string[] {
   const matches = template.match(/\{\{([^}]+)\}\}/g);
   if (!matches) return [];
-  return matches.map(match => match.slice(2, -2));
+  return matches.map((match) => match.slice(2, -2));
 }

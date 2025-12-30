@@ -87,7 +87,10 @@
       "Bash(git reset:*)",
       "Bash(npm audit:*)",
       "Bash(git rm:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npm view:*)",
+      "Bash(npm run:*)",
+      "Bash(npx husky init)"
     ],
     "deny": [],
     "ask": []

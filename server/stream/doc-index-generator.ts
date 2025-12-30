@@ -50,17 +50,27 @@ export class DocumentationIndexGenerator {
    */
   private loadConfig(): DocIndexConfig {
     try {
-      const configPath = path.join(__dirname, `../../config/${this.instanceId}/doc-index.config.json`);
+      const configPath = path.join(
+        __dirname,
+        `../../config/${this.instanceId}/doc-index.config.json`
+      );
       if (fs.existsSync(configPath)) {
         const configContent = fs.readFileSync(configPath, 'utf-8');
         const config = JSON.parse(configContent);
-        console.log(`Loaded doc-index configuration from config/${this.instanceId}/doc-index.config.json`);
+        console.log(
+          `Loaded doc-index configuration from config/${this.instanceId}/doc-index.config.json`
+        );
         return config;
       } else {
-        console.warn(`No doc-index config found for instance "${this.instanceId}" at ${configPath}`);
+        console.warn(
+          `No doc-index config found for instance "${this.instanceId}" at ${configPath}`
+        );
       }
     } catch (error) {
-      console.warn(`Failed to load doc-index config for instance "${this.instanceId}", using defaults:`, error);
+      console.warn(
+        `Failed to load doc-index config for instance "${this.instanceId}", using defaults:`,
+        error
+      );
     }
 
     // Default configuration
@@ -94,8 +104,8 @@ export class DocumentationIndexGenerator {
     try {
       const syncState = await prisma.gitSyncState.findFirst({
         where: {
-          gitUrl: process.env.DOCS_GIT_URL || ''
-        }
+          gitUrl: process.env.DOCS_GIT_URL || '',
+        },
       });
       return syncState?.lastCommitHash || null;
     } catch (error) {
@@ -114,13 +124,15 @@ export class DocumentationIndexGenerator {
           commitHash_configHash: {
             commitHash,
             configHash: this.configHash,
-          }
-        }
+          },
+        },
       });
 
       if (cached) {
-        console.log(`Loaded doc-index from database (commit: ${commitHash.substring(0, 8)}, config: ${this.configHash.substring(0, 8)})`);
-        return cached.indexData as DocumentationIndex;
+        console.log(
+          `Loaded doc-index from database (commit: ${commitHash.substring(0, 8)}, config: ${this.configHash.substring(0, 8)})`
+        );
+        return cached.indexData as unknown as DocumentationIndex;
       }
 
       return null;
@@ -142,7 +154,7 @@ export class DocumentationIndexGenerator {
           commitHash_configHash: {
             commitHash,
             configHash: this.configHash,
-          }
+          },
         },
         create: {
           commitHash,
@@ -154,10 +166,12 @@ export class DocumentationIndexGenerator {
           indexData: index as any,
           compactIndex,
           generatedAt: new Date(),
-        }
+        },
       });
 
-      console.log(`Saved doc-index to database (commit: ${commitHash.substring(0, 8)}, config: ${this.configHash.substring(0, 8)})`);
+      console.log(
+        `Saved doc-index to database (commit: ${commitHash.substring(0, 8)}, config: ${this.configHash.substring(0, 8)})`
+      );
     } catch (error) {
       console.error('Failed to save index to database:', error);
     }
@@ -192,9 +206,11 @@ export class DocumentationIndexGenerator {
     }
 
     // Check excluded titles
-    if (this.config.excludeTitles.some(excludedTitle =>
-      doc.title.toLowerCase().includes(excludedTitle.toLowerCase())
-    )) {
+    if (
+      this.config.excludeTitles.some((excludedTitle) =>
+        doc.title.toLowerCase().includes(excludedTitle.toLowerCase())
+      )
+    ) {
       return false;
     }
 
@@ -241,11 +257,13 @@ export class DocumentationIndexGenerator {
     console.log(`Found ${documents.length} documents in vector store`);
 
     // Filter documents based on configuration
-    const filteredDocuments = documents.filter(doc =>
+    const filteredDocuments = documents.filter((doc) =>
       this.shouldIncludeDocument({ filePath: doc.filePath, title: doc.title })
     );
 
-    console.log(`Filtered to ${filteredDocuments.length} documents (excluded ${documents.length - filteredDocuments.length})`);
+    console.log(
+      `Filtered to ${filteredDocuments.length} documents (excluded ${documents.length - filteredDocuments.length})`
+    );
 
     // Apply maxPages limit
     const limitedDocuments = filteredDocuments.slice(0, this.config.maxPages);
@@ -279,7 +297,9 @@ export class DocumentationIndexGenerator {
       generated_at: new Date(),
     };
 
-    console.log(`Documentation index generated: ${pages.length} pages, ${Object.keys(categories).length} categories`);
+    console.log(
+      `Documentation index generated: ${pages.length} pages, ${Object.keys(categories).length} categories`
+    );
 
     // Save to database cache if we have a commit hash
     if (commitHash) {
@@ -314,7 +334,7 @@ export class DocumentationIndexGenerator {
    */
   private generateSummary(content: string, title: string): string {
     // Extract first paragraph after title or first 200 characters
-    const lines = content.split('\n').filter(line => line.trim().length > 0);
+    const lines = content.split('\n').filter((line) => line.trim().length > 0);
 
     // Skip title line if it matches
     let startIndex = 0;
@@ -417,7 +437,8 @@ export class DocumentationIndexGenerator {
 
       if (page.sections.length > 0) {
         output += `Sections:\n`;
-        for (const section of page.sections.slice(0, 10)) { // Limit to first 10 sections
+        for (const section of page.sections.slice(0, 10)) {
+          // Limit to first 10 sections
           output += `  - ${section}\n`;
         }
         if (page.sections.length > 10) {
@@ -444,9 +465,10 @@ export class DocumentationIndexGenerator {
 
       for (const [category, pages] of Object.entries(this.config.documentationHierarchy)) {
         // Format category name (e.g., "core_concepts" -> "Core Concepts")
-        const categoryName = category.split('_').map(word =>
-          word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' ');
+        const categoryName = category
+          .split('_')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
 
         output += `${categoryName}:\n`;
         for (const page of pages) {
@@ -497,9 +519,11 @@ export class DocumentationIndexGenerator {
           where: {
             commitHash,
             configHash: this.configHash,
-          }
+          },
         });
-        console.log(`Documentation index cache invalidated for commit ${commitHash.substring(0, 8)}`);
+        console.log(
+          `Documentation index cache invalidated for commit ${commitHash.substring(0, 8)}`
+        );
       } catch (error) {
         console.error('Failed to invalidate cache:', error);
       }
@@ -511,7 +535,11 @@ export class DocumentationIndexGenerator {
   /**
    * Get cache status
    */
-  async getCacheStatus(): Promise<{ cached: boolean; commitHash: string | null; expiresAt: Date | null }> {
+  async getCacheStatus(): Promise<{
+    cached: boolean;
+    commitHash: string | null;
+    expiresAt: Date | null;
+  }> {
     const commitHash = await this.getCurrentCommitHash();
     if (!commitHash) {
       return {
@@ -527,8 +555,8 @@ export class DocumentationIndexGenerator {
           commitHash_configHash: {
             commitHash,
             configHash: this.configHash,
-          }
-        }
+          },
+        },
       });
 
       return {
@@ -550,14 +578,18 @@ export class DocumentationIndexGenerator {
 /**
  * Load or generate project context configuration
  */
-export async function loadProjectContext(generator: DocumentationIndexGenerator): Promise<ProjectContext> {
+export async function loadProjectContext(
+  generator: DocumentationIndexGenerator
+): Promise<ProjectContext> {
   const docIndex = await generator.generateIndex();
 
   return {
     project_name: process.env.PROJECT_NAME || 'DocsAI',
-    project_description: process.env.PROJECT_DESCRIPTION || 'AI-powered documentation management system',
+    project_description:
+      process.env.PROJECT_DESCRIPTION || 'AI-powered documentation management system',
     doc_purpose: process.env.DOC_PURPOSE || 'Technical documentation for developers',
-    target_audience: process.env.TARGET_AUDIENCE || 'Developers, DevOps engineers, and technical users',
+    target_audience:
+      process.env.TARGET_AUDIENCE || 'Developers, DevOps engineers, and technical users',
     style_guide: process.env.STYLE_GUIDE || 'Clear, concise, technical writing with code examples',
     doc_index: docIndex,
   };

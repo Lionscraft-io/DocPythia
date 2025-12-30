@@ -1,16 +1,30 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
-import { UpdateCard } from "@/components/UpdateCard";
-import { StatsCard } from "@/components/StatsCard";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { FileText, CheckCircle2, Clock, XCircle, MessageSquare, AlertCircle, ChevronDown } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, adminApiRequest, getQueryFn } from "@/lib/queryClient";
-import { PRPreviewModal, type PRSubmitData } from "@/components/PRPreviewModal";
+import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
+import { UpdateCard } from '@/components/UpdateCard';
+import { StatsCard } from '@/components/StatsCard';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  FileText,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  MessageSquare,
+  AlertCircle,
+  ChevronDown,
+} from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { queryClient, adminApiRequest, getQueryFn } from '@/lib/queryClient';
+import { PRPreviewModal, type PRSubmitData } from '@/components/PRPreviewModal';
 
 export default function Admin() {
   const { toast } = useToast();
@@ -21,33 +35,33 @@ export default function Admin() {
 
   // Auth check
   useEffect(() => {
-    const token = sessionStorage.getItem("admin_token");
-    const instance = sessionStorage.getItem("admin_instance");
+    const token = sessionStorage.getItem('admin_token');
+    const instance = sessionStorage.getItem('admin_instance');
     if (!token) {
       // Redirect to instance-specific login if we know the instance, otherwise generic login
-      setLocation(instance ? `/${instance}/admin/login` : "/login");
+      setLocation(instance ? `/${instance}/admin/login` : '/login');
     }
   }, [setLocation]);
 
   // Fetch all conversations (pending, approved, ignored)
-  const { data: pendingConvs, isLoading: loadingPending } = useQuery({
-    queryKey: ["/api/admin/stream/conversations?status=pending&limit=100"],
-    queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+  const { data: pendingConvs, isLoading: loadingPending } = useQuery<{ data: any[] }>({
+    queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+    queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
-  const { data: approvedConvs, isLoading: loadingApproved } = useQuery({
-    queryKey: ["/api/admin/stream/conversations?status=changeset&limit=100"],
-    queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+  const { data: approvedConvs, isLoading: loadingApproved } = useQuery<{ data: any[] }>({
+    queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+    queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
-  const { data: ignoredConvs, isLoading: loadingIgnored } = useQuery({
-    queryKey: ["/api/admin/stream/conversations?status=discarded&limit=100"],
-    queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+  const { data: ignoredConvs, isLoading: loadingIgnored } = useQuery<{ data: any[] }>({
+    queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+    queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
   const { data: batchHistory } = useQuery<any>({
-    queryKey: ["/api/admin/stream/batches?status=submitted"],
-    queryFn: getQueryFn({ on401: "throw", requiresAuth: true }),
+    queryKey: ['/api/admin/stream/batches?status=submitted'],
+    queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -58,19 +72,23 @@ export default function Admin() {
 
   // Merge conversations from all statuses, deduplicating by conversation_id and combining proposals
   const allConversationsMap = new Map();
-  [...pendingConversations, ...approvedConversations, ...ignoredConversations].forEach((conv: any) => {
-    if (!conv) return;
-    const existing = allConversationsMap.get(conv.conversation_id);
-    if (existing) {
-      // Merge proposals, avoiding duplicates
-      const existingProposalIds = new Set(existing.proposals?.map((p: any) => p.id) || []);
-      const newProposals = (conv.proposals || []).filter((p: any) => !existingProposalIds.has(p.id));
-      existing.proposals = [...(existing.proposals || []), ...newProposals];
-    } else {
-      allConversationsMap.set(conv.conversation_id, { ...conv });
+  [...pendingConversations, ...approvedConversations, ...ignoredConversations].forEach(
+    (conv: any) => {
+      if (!conv) return;
+      const existing = allConversationsMap.get(conv.conversation_id);
+      if (existing) {
+        // Merge proposals, avoiding duplicates
+        const existingProposalIds = new Set(existing.proposals?.map((p: any) => p.id) || []);
+        const newProposals = (conv.proposals || []).filter(
+          (p: any) => !existingProposalIds.has(p.id)
+        );
+        existing.proposals = [...(existing.proposals || []), ...newProposals];
+      } else {
+        allConversationsMap.set(conv.conversation_id, { ...conv });
+      }
     }
-  });
-  const allConversations = Array.from(allConversationsMap.values()).filter(conv => {
+  );
+  const allConversations = Array.from(allConversationsMap.values()).filter((conv) => {
     return conv.proposals && conv.proposals.length > 0;
   });
 
@@ -94,25 +112,31 @@ export default function Admin() {
   // Mutations (approve, reject, edit)
   const approveMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await adminApiRequest("POST", `/api/admin/stream/proposals/${id}/status`, {
-        status: "approved",
-        reviewedBy: "admin"
+      return await adminApiRequest('POST', `/api/admin/stream/proposals/${id}/status`, {
+        status: 'approved',
+        reviewedBy: 'admin',
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=pending&limit=100"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=changeset&limit=100"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=discarded&limit=100"] });
+      queryClient.invalidateQueries({
+        queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+      });
       toast({
-        title: "Update Approved",
-        description: "The proposal has been approved and added to changeset.",
+        title: 'Update Approved',
+        description: 'The proposal has been approved and added to changeset.',
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to approve update.",
-        variant: "destructive",
+        title: 'Error',
+        description: error.message || 'Failed to approve update.',
+        variant: 'destructive',
       });
     },
   });
@@ -120,72 +144,92 @@ export default function Admin() {
   const rejectMutation = useMutation({
     mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: string }) => {
       // If currently approved or ignored, reset to pending; otherwise ignore
-      const newStatus = (currentStatus === 'approved' || currentStatus === 'ignored') ? 'pending' : 'ignored';
-      return await adminApiRequest("POST", `/api/admin/stream/proposals/${id}/status`, {
+      const newStatus =
+        currentStatus === 'approved' || currentStatus === 'ignored' ? 'pending' : 'ignored';
+      return await adminApiRequest('POST', `/api/admin/stream/proposals/${id}/status`, {
         status: newStatus,
-        reviewedBy: "admin"
+        reviewedBy: 'admin',
       });
     },
     onSuccess: (data, variables) => {
       // Invalidate all conversation queries to refetch with updated proposal statuses
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=pending&limit=100"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=changeset&limit=100"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=discarded&limit=100"] });
+      queryClient.invalidateQueries({
+        queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+      });
       let title, message, variant;
 
       if (variables.currentStatus === 'approved') {
-        title = "Update Unapproved";
-        message = "The proposal has been unapproved and moved back to pending.";
-        variant = "default";
+        title = 'Update Unapproved';
+        message = 'The proposal has been unapproved and moved back to pending.';
+        variant = 'default';
       } else if (variables.currentStatus === 'ignored') {
-        title = "Update Reset";
-        message = "The ignored proposal has been reset to pending.";
-        variant = "default";
+        title = 'Update Reset';
+        message = 'The ignored proposal has been reset to pending.';
+        variant = 'default';
       } else {
-        title = "Update Rejected";
-        message = "The proposal has been ignored.";
-        variant = "destructive";
+        title = 'Update Rejected';
+        message = 'The proposal has been ignored.';
+        variant = 'destructive';
       }
 
       toast({ title, description: message, variant: variant as any });
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to update proposal.",
-        variant: "destructive",
+        title: 'Error',
+        description: error.message || 'Failed to update proposal.',
+        variant: 'destructive',
       });
     },
   });
 
   const editMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { summary?: string; diffAfter?: string } }) => {
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: { summary?: string; diffAfter?: string };
+    }) => {
       // Only update the content text, reasoning/summary is not editable in the backend
-      return await adminApiRequest("PATCH", `/api/admin/stream/proposals/${id}`, {
-        suggestedText: data.diffAfter || "",
-        editedBy: "admin"
+      return await adminApiRequest('PATCH', `/api/admin/stream/proposals/${id}`, {
+        suggestedText: data.diffAfter || '',
+        editedBy: 'admin',
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=pending&limit=100"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=changeset&limit=100"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=discarded&limit=100"] });
+      queryClient.invalidateQueries({
+        queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+      });
       toast({
-        title: "Update Edited",
-        description: "The change proposal has been updated.",
+        title: 'Update Edited',
+        description: 'The change proposal has been updated.',
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to edit update.",
-        variant: "destructive",
+        title: 'Error',
+        description: error.message || 'Failed to edit update.',
+        variant: 'destructive',
       });
     },
   });
 
   const handleApprove = (id: string) => approveMutation.mutate(id);
-  const handleReject = (id: string, currentStatus: string) => rejectMutation.mutate({ id, currentStatus });
+  const handleReject = (id: string, currentStatus: string) =>
+    rejectMutation.mutate({ id, currentStatus });
   const handleEdit = (id: string, data: { summary?: string; diffAfter?: string }) => {
     editMutation.mutate({ id, data });
   };
@@ -196,9 +240,9 @@ export default function Admin() {
   const handleGeneratePR = () => {
     if (approvedCount === 0) {
       toast({
-        title: "No Approved Changes",
-        description: "Please approve some changes before generating a PR.",
-        variant: "destructive",
+        title: 'No Approved Changes',
+        description: 'Please approve some changes before generating a PR.',
+        variant: 'destructive',
       });
       return;
     }
@@ -217,31 +261,41 @@ export default function Admin() {
 
     if (proposalIds.length === 0) {
       toast({
-        title: "No Proposals",
-        description: "No approved proposals found.",
-        variant: "destructive",
+        title: 'No Proposals',
+        description: 'No approved proposals found.',
+        variant: 'destructive',
       });
       return;
     }
 
     // Step 1: Create a draft batch
-    const batchResponse = await adminApiRequest("POST", "/api/admin/stream/batches", {
-      proposalIds
-    });
+    const batchResponse = (await adminApiRequest('POST', '/api/admin/stream/batches', {
+      proposalIds,
+    })) as unknown as { batch: { id: string } };
 
     // Step 2: Generate PR from the batch
-    await adminApiRequest("POST", `/api/admin/stream/batches/${batchResponse.batch.id}/generate-pr`, {
-      ...prData,
-      proposalIds,
-    });
+    await adminApiRequest(
+      'POST',
+      `/api/admin/stream/batches/${batchResponse.batch.id}/generate-pr`,
+      {
+        ...prData,
+        proposalIds,
+      }
+    );
 
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=pending&limit=100"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=changeset&limit=100"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/stream/conversations?status=discarded&limit=100"] });
+    queryClient.invalidateQueries({
+      queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+    });
     setPrModalOpen(false);
     toast({
-      title: "Pull Request Created",
-      description: "Your PR has been created successfully as a draft.",
+      title: 'Pull Request Created',
+      description: 'Your PR has been created successfully as a draft.',
     });
   };
 
@@ -276,12 +330,13 @@ export default function Admin() {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-2 text-gray-900" data-testid="heading-admin">
+            <h1
+              className="text-3xl font-bold tracking-tight mb-2 text-gray-900"
+              data-testid="heading-admin"
+            >
               Admin Dashboard
             </h1>
-            <p className="text-gray-600">
-              Review and manage AI-suggested documentation updates
-            </p>
+            <p className="text-gray-600">Review and manage AI-suggested documentation updates</p>
           </div>
           <div className="flex gap-3">
             <Button
@@ -295,7 +350,7 @@ export default function Admin() {
             <Button
               variant="outline"
               size="lg"
-              onClick={() => setLocation("/logout")}
+              onClick={() => setLocation('/logout')}
               className="border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               Logout
@@ -334,19 +389,39 @@ export default function Admin() {
         {/* Tabs */}
         <Tabs defaultValue="pending" className="space-y-6">
           <TabsList className="bg-gray-100 border-gray-200">
-            <TabsTrigger value="pending" data-testid="tab-pending" className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900">
+            <TabsTrigger
+              value="pending"
+              data-testid="tab-pending"
+              className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900"
+            >
               Pending ({pendingCount})
             </TabsTrigger>
-            <TabsTrigger value="approved" data-testid="tab-approved" className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900">
+            <TabsTrigger
+              value="approved"
+              data-testid="tab-approved"
+              className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900"
+            >
               Approved ({approvedCount})
             </TabsTrigger>
-            <TabsTrigger value="ignored" data-testid="tab-ignored" className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900">
+            <TabsTrigger
+              value="ignored"
+              data-testid="tab-ignored"
+              className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900"
+            >
               Ignored ({ignoredCount})
             </TabsTrigger>
-            <TabsTrigger value="all" data-testid="tab-all" className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900">
+            <TabsTrigger
+              value="all"
+              data-testid="tab-all"
+              className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900"
+            >
               All Updates ({totalCount})
             </TabsTrigger>
-            <TabsTrigger value="history" data-testid="tab-history" className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900">
+            <TabsTrigger
+              value="history"
+              data-testid="tab-history"
+              className="text-gray-700 data-[state=active]:bg-white data-[state=active]:text-gray-900"
+            >
               PR History ({batchHistory?.batches?.length || 0})
             </TabsTrigger>
           </TabsList>
@@ -360,61 +435,79 @@ export default function Admin() {
               pendingConversations
                 .map((conv: any) => ({
                   ...conv,
-                  filteredProposals: conv.proposals?.filter((p: any) => p.status === 'pending') || []
+                  filteredProposals:
+                    conv.proposals?.filter((p: any) => p.status === 'pending') || [],
                 }))
                 .filter((conv: any) => conv.filteredProposals.length > 0)
                 .map((conv: any) => (
-                <Card key={conv.conversation_id} className="bg-white border-gray-200">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-500">Conversation</span>
-                        <span className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                          {conv.conversation_id.substring(0, 8)}
-                        </span>
-                        <span className="text-xs text-gray-500">•</span>
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                          {conv.filteredProposals.length} proposal{conv.filteredProposals.length !== 1 ? 's' : ''}
-                        </span>
+                  <Card key={conv.conversation_id} className="bg-white border-gray-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-500">Conversation</span>
+                          <span className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                            {conv.conversation_id.substring(0, 8)}
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.filteredProposals.length} proposal
+                            {conv.filteredProposals.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleViewContext({
+                              conversation_id: conv.conversation_id,
+                              category: conv.category,
+                              messages: conv.messages || [],
+                            })
+                          }
+                          className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          <MessageSquare className="mr-1 h-3 w-3" />
+                          View Context
+                        </Button>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewContext({
-                          conversation_id: conv.conversation_id,
-                          category: conv.category,
-                          messages: conv.messages || []
-                        })}
-                        className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
-                      >
-                        <MessageSquare className="mr-1 h-3 w-3" />
-                        View Context
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {conv.filteredProposals.map((proposal: any) => (
-                      <UpdateCard
-                        key={proposal.id}
-                        id={proposal.id.toString()}
-                        type={proposal.update_type === 'INSERT' ? 'add' : proposal.update_type === 'DELETE' ? 'delete' : proposal.update_type === 'UPDATE' ? 'major' : 'minor'}
-                        section={proposal.page || 'Unknown section'}
-                        summary={proposal.reasoning || 'Documentation update'}
-                        source={`${conv.category || 'Chat'}`}
-                        timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
-                        status={proposal.status === 'approved' ? 'approved' : proposal.status === 'ignored' ? 'rejected' : 'pending'}
-                        diff={{
-                          before: '',
-                          after: proposal.edited_text || proposal.suggested_text || ''
-                        }}
-                        onApprove={handleApprove}
-                        onReject={(id) => handleReject(id, proposal.status)}
-                        onEdit={handleEdit}
-                      />
-                    ))}
-                  </CardContent>
-                </Card>
-              ))
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {conv.filteredProposals.map((proposal: any) => (
+                        <UpdateCard
+                          key={proposal.id}
+                          id={proposal.id.toString()}
+                          type={
+                            proposal.update_type === 'INSERT'
+                              ? 'add'
+                              : proposal.update_type === 'DELETE'
+                                ? 'delete'
+                                : proposal.update_type === 'UPDATE'
+                                  ? 'major'
+                                  : 'minor'
+                          }
+                          section={proposal.page || 'Unknown section'}
+                          summary={proposal.reasoning || 'Documentation update'}
+                          source={`${conv.category || 'Chat'}`}
+                          timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
+                          status={
+                            proposal.status === 'approved'
+                              ? 'approved'
+                              : proposal.status === 'ignored'
+                                ? 'rejected'
+                                : 'pending'
+                          }
+                          diff={{
+                            before: '',
+                            after: proposal.edited_text || proposal.suggested_text || '',
+                          }}
+                          onApprove={handleApprove}
+                          onReject={(id) => handleReject(id, proposal.status)}
+                          onEdit={handleEdit}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))
             )}
           </TabsContent>
 
@@ -427,60 +520,78 @@ export default function Admin() {
               approvedConversations
                 .map((conv: any) => ({
                   ...conv,
-                  filteredProposals: conv.proposals?.filter((p: any) => p.status === 'approved') || []
+                  filteredProposals:
+                    conv.proposals?.filter((p: any) => p.status === 'approved') || [],
                 }))
                 .filter((conv: any) => conv.filteredProposals.length > 0)
                 .map((conv: any) => (
-                <Card key={conv.conversation_id} className="bg-white border-gray-200">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-500">Conversation</span>
-                        <span className="text-xs font-mono bg-green-50 text-green-700 px-2 py-0.5 rounded">
-                          {conv.conversation_id.substring(0, 8)}
-                        </span>
-                        <span className="text-xs text-gray-500">•</span>
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                          {conv.filteredProposals.length} proposal{conv.filteredProposals.length !== 1 ? 's' : ''}
-                        </span>
+                  <Card key={conv.conversation_id} className="bg-white border-gray-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-500">Conversation</span>
+                          <span className="text-xs font-mono bg-green-50 text-green-700 px-2 py-0.5 rounded">
+                            {conv.conversation_id.substring(0, 8)}
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.filteredProposals.length} proposal
+                            {conv.filteredProposals.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleViewContext({
+                              conversation_id: conv.conversation_id,
+                              category: conv.category,
+                              messages: conv.messages || [],
+                            })
+                          }
+                          className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          <MessageSquare className="mr-1 h-3 w-3" />
+                          View Context
+                        </Button>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewContext({
-                          conversation_id: conv.conversation_id,
-                          category: conv.category,
-                          messages: conv.messages || []
-                        })}
-                        className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
-                      >
-                        <MessageSquare className="mr-1 h-3 w-3" />
-                        View Context
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {conv.filteredProposals.map((proposal: any) => (
-                      <UpdateCard
-                        key={proposal.id}
-                        id={proposal.id.toString()}
-                        type={proposal.update_type === 'INSERT' ? 'add' : proposal.update_type === 'DELETE' ? 'delete' : proposal.update_type === 'UPDATE' ? 'major' : 'minor'}
-                        section={proposal.page || 'Unknown section'}
-                        summary={proposal.reasoning || 'Documentation update'}
-                        source={`${conv.category || 'Chat'}`}
-                        timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
-                        status={proposal.status === 'approved' ? 'approved' : proposal.status === 'ignored' ? 'rejected' : 'pending'}
-                        diff={{
-                          before: '',
-                          after: proposal.edited_text || proposal.suggested_text || ''
-                        }}
-                        onEdit={handleEdit}
-                        onReject={(id) => handleReject(id, proposal.status)}
-                      />
-                    ))}
-                  </CardContent>
-                </Card>
-              ))
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {conv.filteredProposals.map((proposal: any) => (
+                        <UpdateCard
+                          key={proposal.id}
+                          id={proposal.id.toString()}
+                          type={
+                            proposal.update_type === 'INSERT'
+                              ? 'add'
+                              : proposal.update_type === 'DELETE'
+                                ? 'delete'
+                                : proposal.update_type === 'UPDATE'
+                                  ? 'major'
+                                  : 'minor'
+                          }
+                          section={proposal.page || 'Unknown section'}
+                          summary={proposal.reasoning || 'Documentation update'}
+                          source={`${conv.category || 'Chat'}`}
+                          timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
+                          status={
+                            proposal.status === 'approved'
+                              ? 'approved'
+                              : proposal.status === 'ignored'
+                                ? 'rejected'
+                                : 'pending'
+                          }
+                          diff={{
+                            before: '',
+                            after: proposal.edited_text || proposal.suggested_text || '',
+                          }}
+                          onEdit={handleEdit}
+                          onReject={(id) => handleReject(id, proposal.status)}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))
             )}
           </TabsContent>
 
@@ -493,59 +604,77 @@ export default function Admin() {
               ignoredConversations
                 .map((conv: any) => ({
                   ...conv,
-                  filteredProposals: conv.proposals?.filter((p: any) => p.status === 'ignored') || []
+                  filteredProposals:
+                    conv.proposals?.filter((p: any) => p.status === 'ignored') || [],
                 }))
                 .filter((conv: any) => conv.filteredProposals.length > 0)
                 .map((conv: any) => (
-                <Card key={conv.conversation_id} className="bg-white border-gray-200">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-500">Conversation</span>
-                        <span className="text-xs font-mono bg-gray-50 text-gray-700 px-2 py-0.5 rounded">
-                          {conv.conversation_id.substring(0, 8)}
-                        </span>
-                        <span className="text-xs text-gray-500">•</span>
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                          {conv.filteredProposals.length} proposal{conv.filteredProposals.length !== 1 ? 's' : ''}
-                        </span>
+                  <Card key={conv.conversation_id} className="bg-white border-gray-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-500">Conversation</span>
+                          <span className="text-xs font-mono bg-gray-50 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.conversation_id.substring(0, 8)}
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.filteredProposals.length} proposal
+                            {conv.filteredProposals.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleViewContext({
+                              conversation_id: conv.conversation_id,
+                              category: conv.category,
+                              messages: conv.messages || [],
+                            })
+                          }
+                          className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          <MessageSquare className="mr-1 h-3 w-3" />
+                          View Context
+                        </Button>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewContext({
-                          conversation_id: conv.conversation_id,
-                          category: conv.category,
-                          messages: conv.messages || []
-                        })}
-                        className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
-                      >
-                        <MessageSquare className="mr-1 h-3 w-3" />
-                        View Context
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {conv.filteredProposals.map((proposal: any) => (
-                      <UpdateCard
-                        key={proposal.id}
-                        id={proposal.id.toString()}
-                        type={proposal.update_type === 'INSERT' ? 'add' : proposal.update_type === 'DELETE' ? 'delete' : proposal.update_type === 'UPDATE' ? 'major' : 'minor'}
-                        section={proposal.page || 'Unknown section'}
-                        summary={proposal.reasoning || 'Documentation update'}
-                        source={`${conv.category || 'Chat'}`}
-                        timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
-                        status={proposal.status === 'approved' ? 'approved' : proposal.status === 'ignored' ? 'rejected' : 'pending'}
-                        diff={{
-                          before: '',
-                          after: proposal.edited_text || proposal.suggested_text || ''
-                        }}
-                        onReject={(id) => handleReject(id, proposal.status)}
-                      />
-                    ))}
-                  </CardContent>
-                </Card>
-              ))
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {conv.filteredProposals.map((proposal: any) => (
+                        <UpdateCard
+                          key={proposal.id}
+                          id={proposal.id.toString()}
+                          type={
+                            proposal.update_type === 'INSERT'
+                              ? 'add'
+                              : proposal.update_type === 'DELETE'
+                                ? 'delete'
+                                : proposal.update_type === 'UPDATE'
+                                  ? 'major'
+                                  : 'minor'
+                          }
+                          section={proposal.page || 'Unknown section'}
+                          summary={proposal.reasoning || 'Documentation update'}
+                          source={`${conv.category || 'Chat'}`}
+                          timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
+                          status={
+                            proposal.status === 'approved'
+                              ? 'approved'
+                              : proposal.status === 'ignored'
+                                ? 'rejected'
+                                : 'pending'
+                          }
+                          diff={{
+                            before: '',
+                            after: proposal.edited_text || proposal.suggested_text || '',
+                          }}
+                          onReject={(id) => handleReject(id, proposal.status)}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))
             )}
           </TabsContent>
 
@@ -566,17 +695,20 @@ export default function Admin() {
                         </span>
                         <span className="text-xs text-gray-500">•</span>
                         <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                          {conv.proposals?.length || 0} proposal{conv.proposals?.length !== 1 ? 's' : ''}
+                          {conv.proposals?.length || 0} proposal
+                          {conv.proposals?.length !== 1 ? 's' : ''}
                         </span>
                       </div>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleViewContext({
-                          conversation_id: conv.conversation_id,
-                          category: conv.category,
-                          messages: conv.messages || []
-                        })}
+                        onClick={() =>
+                          handleViewContext({
+                            conversation_id: conv.conversation_id,
+                            category: conv.category,
+                            messages: conv.messages || [],
+                          })
+                        }
                         className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
                       >
                         <MessageSquare className="mr-1 h-3 w-3" />
@@ -589,15 +721,29 @@ export default function Admin() {
                       <UpdateCard
                         key={proposal.id}
                         id={proposal.id.toString()}
-                        type={proposal.update_type === 'INSERT' ? 'add' : proposal.update_type === 'DELETE' ? 'delete' : proposal.update_type === 'UPDATE' ? 'major' : 'minor'}
+                        type={
+                          proposal.update_type === 'INSERT'
+                            ? 'add'
+                            : proposal.update_type === 'DELETE'
+                              ? 'delete'
+                              : proposal.update_type === 'UPDATE'
+                                ? 'major'
+                                : 'minor'
+                        }
                         section={proposal.page || 'Unknown section'}
                         summary={proposal.reasoning || 'Documentation update'}
                         source={`${conv.category || 'Chat'}`}
                         timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
-                        status={proposal.status === 'approved' ? 'approved' : proposal.status === 'ignored' ? 'rejected' : 'pending'}
+                        status={
+                          proposal.status === 'approved'
+                            ? 'approved'
+                            : proposal.status === 'ignored'
+                              ? 'rejected'
+                              : 'pending'
+                        }
                         diff={{
                           before: '',
-                          after: proposal.edited_text || proposal.suggested_text || ''
+                          after: proposal.edited_text || proposal.suggested_text || '',
                         }}
                         onApprove={proposal.status === 'pending' ? handleApprove : undefined}
                         onReject={(id) => handleReject(id, proposal.status)}
@@ -614,7 +760,9 @@ export default function Admin() {
           <TabsContent value="history" className="space-y-4">
             {!batchHistory?.batches?.length ? (
               <div className="text-center py-12">
-                <p className="text-gray-500">No pull requests generated yet. Create your first PR from the Approved tab!</p>
+                <p className="text-gray-500">
+                  No pull requests generated yet. Create your first PR from the Approved tab!
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -625,12 +773,18 @@ export default function Admin() {
                       <div className="flex items-start justify-between border-b pb-4">
                         <div className="space-y-2 flex-1">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-semibold text-gray-900">{batch.prTitle || `Batch ${batch.batchId}`}</h3>
-                            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                              batch.status === 'submitted' ? 'bg-blue-100 border border-blue-200 text-blue-800' :
-                              batch.status === 'merged' ? 'bg-green-100 border border-green-200 text-green-800' :
-                              'bg-gray-100 border border-gray-200 text-gray-800'
-                            }`}>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {batch.prTitle || `Batch ${batch.batchId}`}
+                            </h3>
+                            <span
+                              className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                                batch.status === 'submitted'
+                                  ? 'bg-blue-100 border border-blue-200 text-blue-800'
+                                  : batch.status === 'merged'
+                                    ? 'bg-green-100 border border-green-200 text-green-800'
+                                    : 'bg-gray-100 border border-gray-200 text-gray-800'
+                              }`}
+                            >
                               {batch.status.toUpperCase()}
                             </span>
                           </div>
@@ -642,8 +796,18 @@ export default function Admin() {
                               className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
                             >
                               PR #{batch.prNumber}
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              <svg
+                                className="w-3 h-3"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                />
                               </svg>
                             </a>
                           )}
@@ -657,12 +821,16 @@ export default function Admin() {
                       <div className="grid grid-cols-3 gap-4">
                         <div className="p-3 bg-blue-50 rounded-lg">
                           <div className="text-xs text-blue-700 mb-1">Total Proposals</div>
-                          <div className="text-2xl font-bold text-blue-900">{batch.totalProposals}</div>
+                          <div className="text-2xl font-bold text-blue-900">
+                            {batch.totalProposals}
+                          </div>
                         </div>
                         <div className="p-3 bg-green-50 rounded-lg">
                           <div className="text-xs text-green-700 mb-1">Applied Successfully</div>
                           <div className="text-2xl font-bold text-green-900">
-                            {batch.proposals?.filter((p: any) => p.prApplicationStatus === 'success').length || batch.totalProposals}
+                            {batch.proposals?.filter(
+                              (p: any) => p.prApplicationStatus === 'success'
+                            ).length || batch.totalProposals}
                           </div>
                         </div>
                         <div className="p-3 bg-red-50 rounded-lg">
@@ -677,7 +845,9 @@ export default function Admin() {
                       <details className="group">
                         <summary className="cursor-pointer p-3 bg-gray-50 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-gray-900">Affected Files ({batch.affectedFiles?.length || 0})</span>
+                            <span className="text-sm font-semibold text-gray-900">
+                              Affected Files ({batch.affectedFiles?.length || 0})
+                            </span>
                             <ChevronDown className="w-4 h-4 text-gray-600 group-open:rotate-180 transition-transform" />
                           </div>
                         </summary>
@@ -697,10 +867,12 @@ export default function Admin() {
                       <div className="text-xs text-gray-600 border-t pt-3">
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <span className="font-semibold">Target:</span> {batch.targetRepo || 'N/A'}
+                            <span className="font-semibold">Target:</span>{' '}
+                            {batch.targetRepo || 'N/A'}
                           </div>
                           <div>
-                            <span className="font-semibold">Branch:</span> {batch.branchName || batch.baseBranch || 'main'}
+                            <span className="font-semibold">Branch:</span>{' '}
+                            {batch.branchName || batch.baseBranch || 'main'}
                           </div>
                         </div>
                       </div>
@@ -721,7 +893,9 @@ export default function Admin() {
                                   </li>
                                 ))}
                                 {batch.failures.length > 3 && (
-                                  <li className="text-yellow-600">...and {batch.failures.length - 3} more</li>
+                                  <li className="text-yellow-600">
+                                    ...and {batch.failures.length - 3} more
+                                  </li>
                                 )}
                               </ul>
                             </div>
@@ -759,9 +933,14 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-gray-900">Messages ({selectedConversation.messages.length})</h4>
+                  <h4 className="text-sm font-semibold text-gray-900">
+                    Messages ({selectedConversation.messages.length})
+                  </h4>
                   {selectedConversation.messages.map((msg: any, idx: number) => (
-                    <div key={msg.id || idx} className="bg-gray-50 p-4 rounded border border-gray-200">
+                    <div
+                      key={msg.id || idx}
+                      className="bg-gray-50 p-4 rounded border border-gray-200"
+                    >
                       <div className="flex items-center gap-2 text-sm mb-2">
                         <span className="font-medium text-gray-900">{msg.author}</span>
                         <span className="text-gray-400">•</span>
@@ -795,7 +974,7 @@ export default function Admin() {
                     ...proposal,
                     id: proposal.id,
                     page: proposal.page,
-                    suggested_text: proposal.suggested_text || proposal.edited_text
+                    suggested_text: proposal.suggested_text || proposal.edited_text,
                   });
                 }
               });

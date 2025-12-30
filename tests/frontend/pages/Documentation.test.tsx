@@ -73,7 +73,9 @@ describe('Documentation Page', () => {
     render(<Documentation />);
 
     expect(screen.getByText('Documentation Sync Statistics')).toBeInTheDocument();
-    expect(screen.getByText('Real-time statistics for Git-synced documentation repositories')).toBeInTheDocument();
+    expect(
+      screen.getByText('Real-time statistics for Git-synced documentation repositories')
+    ).toBeInTheDocument();
   });
 
   it('should extract and display repo name', () => {

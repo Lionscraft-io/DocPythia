@@ -490,23 +490,15 @@ describe('PromptBuilder', () => {
     });
 
     it('should convert user message', () => {
-      const result = PromptBuilder.convertHistory([
-        { role: 'user', content: 'Hello' },
-      ]);
+      const result = PromptBuilder.convertHistory([{ role: 'user', content: 'Hello' }]);
 
-      expect(result).toEqual([
-        { role: 'user', content: 'Hello' },
-      ]);
+      expect(result).toEqual([{ role: 'user', content: 'Hello' }]);
     });
 
     it('should convert assistant to model role', () => {
-      const result = PromptBuilder.convertHistory([
-        { role: 'assistant', content: 'Hi there' },
-      ]);
+      const result = PromptBuilder.convertHistory([{ role: 'assistant', content: 'Hi there' }]);
 
-      expect(result).toEqual([
-        { role: 'model', content: 'Hi there' },
-      ]);
+      expect(result).toEqual([{ role: 'model', content: 'Hi there' }]);
     });
 
     it('should convert multiple messages', () => {

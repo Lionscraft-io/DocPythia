@@ -1,22 +1,29 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Check, X, Clock, Edit, MessageSquare, Eye, Code } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Check, X, Clock, Edit, MessageSquare, Eye, Code } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface UpdateCardProps {
   id: string;
-  type: "minor" | "major" | "add" | "delete";
+  type: 'minor' | 'major' | 'add' | 'delete';
   section: string;
   summary: string;
   source: string;
   timestamp: string;
-  status: "pending" | "approved" | "rejected" | "auto-applied";
+  status: 'pending' | 'approved' | 'rejected' | 'auto-applied';
   diff?: {
     before: string;
     after: string;
@@ -42,7 +49,7 @@ export function UpdateCard({
   onViewContext,
 }: UpdateCardProps) {
   const [editOpen, setEditOpen] = useState(false);
-  const [editedContent, setEditedContent] = useState(diff?.after || "");
+  const [editedContent, setEditedContent] = useState(diff?.after || '');
 
   return (
     <Card className="bg-white border-gray-200">
@@ -87,7 +94,11 @@ export function UpdateCard({
                 className="border-gray-500 text-gray-900 hover:bg-gray-100 hover:border-gray-600"
               >
                 <X className="mr-1 h-4 w-4" />
-                {status === "approved" ? "Unapprove" : status === "rejected" ? "Reset to Pending" : "Reject"}
+                {status === 'approved'
+                  ? 'Unapprove'
+                  : status === 'rejected'
+                    ? 'Reset to Pending'
+                    : 'Reject'}
               </Button>
             )}
           </div>
@@ -100,7 +111,7 @@ export function UpdateCard({
             <div className="mb-1 text-xs font-semibold text-gray-700">Proposed Change:</div>
             <div className="prose prose-sm max-w-none text-gray-900">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {diff.after || "(No content)"}
+                {diff.after || '(No content)'}
               </ReactMarkdown>
             </div>
           </div>
@@ -109,7 +120,9 @@ export function UpdateCard({
         {/* Then show the reason/summary */}
         <div>
           <div className="mb-1 text-xs font-semibold text-gray-700">Reason:</div>
-          <p className="text-sm text-gray-900" data-testid="text-summary">{summary}</p>
+          <p className="text-sm text-gray-900" data-testid="text-summary">
+            {summary}
+          </p>
           <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-gray-500">
             <span data-testid="text-source">Source: {source}</span>
             <span data-testid="text-timestamp">{timestamp}</span>
@@ -144,15 +157,21 @@ export function UpdateCard({
             {diff && (
               <div className="space-y-2">
                 <Label className="text-gray-900">
-                  {type === "delete" ? "Content to be deleted" : "Proposed Content (Markdown)"}
+                  {type === 'delete' ? 'Content to be deleted' : 'Proposed Content (Markdown)'}
                 </Label>
                 <Tabs defaultValue="edit" className="w-full">
                   <TabsList className="bg-gray-100">
-                    <TabsTrigger value="edit" className="text-gray-700 data-[state=active]:bg-white">
+                    <TabsTrigger
+                      value="edit"
+                      className="text-gray-700 data-[state=active]:bg-white"
+                    >
                       <Code className="w-4 h-4 mr-1" />
                       Edit
                     </TabsTrigger>
-                    <TabsTrigger value="preview" className="text-gray-700 data-[state=active]:bg-white">
+                    <TabsTrigger
+                      value="preview"
+                      className="text-gray-700 data-[state=active]:bg-white"
+                    >
                       <Eye className="w-4 h-4 mr-1" />
                       Preview
                     </TabsTrigger>
@@ -165,7 +184,7 @@ export function UpdateCard({
                       rows={16}
                       className="font-mono text-sm border-gray-300 text-gray-900 bg-white"
                       data-testid="textarea-edit-content"
-                      disabled={type === "delete"}
+                      disabled={type === 'delete'}
                       placeholder="Enter markdown content..."
                     />
                   </TabsContent>
@@ -173,7 +192,7 @@ export function UpdateCard({
                     <div className="min-h-[400px] p-4 border border-gray-300 rounded-md bg-white">
                       <div className="prose prose-sm max-w-none text-gray-900">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {editedContent || "*No content to preview*"}
+                          {editedContent || '*No content to preview*'}
                         </ReactMarkdown>
                       </div>
                     </div>
@@ -187,7 +206,7 @@ export function UpdateCard({
               variant="outline"
               onClick={() => {
                 setEditOpen(false);
-                setEditedContent(diff?.after || "");
+                setEditedContent(diff?.after || '');
               }}
               data-testid="button-cancel-edit"
               className="border-gray-300 text-gray-700"

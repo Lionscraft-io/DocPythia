@@ -57,8 +57,8 @@ export class ChangesetBatchService {
     const proposals = await this.prisma.docProposal.findMany({
       where: {
         id: { in: proposalIds },
-        status: 'approved'
-      }
+        status: 'approved',
+      },
     });
 
     if (proposals.length === 0) {
@@ -66,7 +66,7 @@ export class ChangesetBatchService {
     }
 
     // Group by file to get affected files list
-    const affectedFiles = [...new Set(proposals.map(p => p.page))];
+    const affectedFiles = [...new Set(proposals.map((p) => p.page))];
 
     // Generate batch ID (timestamp-based)
     const batchId = `batch-${Date.now()}`;
@@ -79,8 +79,8 @@ export class ChangesetBatchService {
         totalProposals: proposals.length,
         affectedFiles,
         prTitle: null,
-        prBody: null
-      }
+        prBody: null,
+      },
     });
 
     // Link proposals to batch via junction table
@@ -88,8 +88,8 @@ export class ChangesetBatchService {
       data: proposals.map((p, index) => ({
         batchId: batch.id,
         proposalId: p.id,
-        orderIndex: index
-      }))
+        orderIndex: index,
+      })),
     });
 
     return batch;
@@ -98,19 +98,16 @@ export class ChangesetBatchService {
   /**
    * Generate PR from a draft batch
    */
-  async generatePR(
-    batchId: number,
-    options: CreateBatchOptions
-  ): Promise<BatchResult> {
+  async generatePR(batchId: number, options: CreateBatchOptions): Promise<BatchResult> {
     // Fetch batch with proposals
     const batch = await this.prisma.changesetBatch.findUnique({
       where: { id: batchId },
       include: {
         batchProposals: {
           include: { proposal: true },
-          orderBy: { orderIndex: 'asc' }
-        }
-      }
+          orderBy: { orderIndex: 'asc' },
+        },
+      },
     });
 
     if (!batch) {
@@ -121,14 +118,14 @@ export class ChangesetBatchService {
       throw new Error(`Batch is not in draft status: ${batch.status}`);
     }
 
-    const proposals = batch.batchProposals.map(bp => bp.proposal);
+    const proposals = batch.batchProposals.map((bp) => bp.proposal);
 
     // Initialize GitHub PR service
     const githubConfig = {
       token: process.env.GITHUB_TOKEN!,
       targetRepo: options.targetRepo,
       sourceRepo: options.sourceRepo,
-      baseBranch: options.baseBranch || 'main'
+      baseBranch: options.baseBranch || 'main',
     };
 
     const githubService = new GitHubPRService(githubConfig);
@@ -168,7 +165,9 @@ export class ChangesetBatchService {
 
           // Decide whether to use LLM consolidation or mechanical application
           if (fileConsolidationService.shouldConsolidate(fileProposals, originalContent)) {
-            console.log(`\n🤖 Using LLM consolidation for ${filePath} (${fileProposals.length} proposals)`);
+            console.log(
+              `\n🤖 Using LLM consolidation for ${filePath} (${fileProposals.length} proposals)`
+            );
 
             // Use LLM to consolidate changes
             const result = await fileConsolidationService.consolidateFile(
@@ -178,7 +177,9 @@ export class ChangesetBatchService {
             );
             modifiedContent = result.consolidatedContent;
           } else {
-            console.log(`\n⚙️  Using mechanical application for ${filePath} (${fileProposals.length} proposals)`);
+            console.log(
+              `\n⚙️  Using mechanical application for ${filePath} (${fileProposals.length} proposals)`
+            );
 
             // Use traditional mechanical application
             modifiedContent = await fileService.applyProposalsToFile(filePath, fileProposals);
@@ -193,8 +194,8 @@ export class ChangesetBatchService {
               where: { id: proposal.id },
               data: {
                 prBatchId: batch.id,
-                prApplicationStatus: 'success'
-              }
+                prApplicationStatus: 'success',
+              },
             });
             appliedProposals.push(proposal.id);
           }
@@ -210,8 +211,8 @@ export class ChangesetBatchService {
                 proposalId: proposal.id,
                 failureType: errorType,
                 errorMessage: error.message || 'Unknown error',
-                filePath
-              }
+                filePath,
+              },
             });
 
             // Update proposal status
@@ -220,14 +221,14 @@ export class ChangesetBatchService {
               data: {
                 prBatchId: batch.id,
                 prApplicationStatus: 'failed',
-                prApplicationError: error.message
-              }
+                prApplicationError: error.message,
+              },
             });
 
             failedProposals.push({
               proposalId: proposal.id,
               error: error.message,
-              errorType
+              errorType,
             });
           }
         }
@@ -253,7 +254,7 @@ export class ChangesetBatchService {
         title: options.prTitle,
         body: this.generatePRBody(options.prBody, appliedProposals.length, failedProposals.length),
         branchName,
-        draft: true
+        draft: true,
       });
 
       // Update batch record
@@ -270,8 +271,8 @@ export class ChangesetBatchService {
           sourceRepo: options.sourceRepo,
           baseBranch: options.baseBranch || 'main',
           submittedAt: new Date(),
-          submittedBy: options.submittedBy
-        }
+          submittedBy: options.submittedBy,
+        },
       });
 
       // Cleanup
@@ -283,7 +284,7 @@ export class ChangesetBatchService {
         batch,
         pr,
         appliedProposals,
-        failedProposals
+        failedProposals,
       };
     } catch (error: any) {
       // Cleanup on error
@@ -304,12 +305,12 @@ export class ChangesetBatchService {
       include: {
         batchProposals: {
           include: { proposal: true },
-          orderBy: { orderIndex: 'asc' }
+          orderBy: { orderIndex: 'asc' },
         },
         failures: {
-          include: { proposal: true }
-        }
-      }
+          include: { proposal: true },
+        },
+      },
     });
   }
 
@@ -321,11 +322,11 @@ export class ChangesetBatchService {
       where: status ? { status } : undefined,
       include: {
         batchProposals: {
-          include: { proposal: true }
+          include: { proposal: true },
         },
-        failures: true
+        failures: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -334,7 +335,7 @@ export class ChangesetBatchService {
    */
   async deleteDraftBatch(batchId: number): Promise<void> {
     const batch = await this.prisma.changesetBatch.findUnique({
-      where: { id: batchId }
+      where: { id: batchId },
     });
 
     if (!batch) {
@@ -347,7 +348,7 @@ export class ChangesetBatchService {
 
     // Delete batch (cascade will remove batch_proposals)
     await this.prisma.changesetBatch.delete({
-      where: { id: batchId }
+      where: { id: batchId },
     });
   }
 

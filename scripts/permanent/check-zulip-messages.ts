@@ -17,13 +17,13 @@ async function checkZulipMessages() {
 
     // Get Zulip message count
     const zulipMessages = await db.scrapedMessage.count({
-      where: { source: 'zulipchat' }
+      where: { source: 'zulipchat' },
     });
     console.log(`🔵 Zulip Messages: ${zulipMessages}`);
 
     // Get Telegram message count
     const telegramMessages = await db.scrapedMessage.count({
-      where: { source: 'telegram' }
+      where: { source: 'telegram' },
     });
     console.log(`🔷 Telegram Messages: ${telegramMessages}`);
 
@@ -34,7 +34,7 @@ async function checkZulipMessages() {
     const zulipByChannel = await db.scrapedMessage.groupBy({
       by: ['channelName'],
       where: { source: 'zulipchat' },
-      _count: { id: true }
+      _count: { id: true },
     });
 
     if (zulipByChannel.length === 0) {
@@ -50,11 +50,11 @@ async function checkZulipMessages() {
     console.log('📊 Analysis Status (All Sources):\n');
 
     const analyzedCount = await db.scrapedMessage.count({
-      where: { analyzed: true }
+      where: { analyzed: true },
     });
 
     const unanalyzedCount = await db.scrapedMessage.count({
-      where: { analyzed: false }
+      where: { analyzed: false },
     });
 
     console.log(`   ✅ Analyzed: ${analyzedCount}`);
@@ -65,7 +65,7 @@ async function checkZulipMessages() {
     console.log('🔄 Scrape Metadata (Zulip):\n');
 
     const scrapeMetadata = await db.scrapeMetadata.findMany({
-      where: { source: 'zulipchat' }
+      where: { source: 'zulipchat' },
     });
 
     if (scrapeMetadata.length === 0) {
@@ -87,12 +87,12 @@ async function checkZulipMessages() {
 
     const oldestZulip = await db.scrapedMessage.findFirst({
       where: { source: 'zulipchat' },
-      orderBy: { messageTimestamp: 'asc' }
+      orderBy: { messageTimestamp: 'asc' },
     });
 
     const newestZulip = await db.scrapedMessage.findFirst({
       where: { source: 'zulipchat' },
-      orderBy: { messageTimestamp: 'desc' }
+      orderBy: { messageTimestamp: 'desc' },
     });
 
     if (oldestZulip && newestZulip) {
@@ -100,8 +100,8 @@ async function checkZulipMessages() {
       console.log(`   Newest: ${newestZulip.messageTimestamp.toISOString()}`);
 
       const daysDiff = Math.ceil(
-        (newestZulip.messageTimestamp.getTime() - oldestZulip.messageTimestamp.getTime())
-        / (1000 * 60 * 60 * 24)
+        (newestZulip.messageTimestamp.getTime() - oldestZulip.messageTimestamp.getTime()) /
+          (1000 * 60 * 60 * 24)
       );
       console.log(`   Span: ${daysDiff} days`);
     } else {
@@ -110,7 +110,6 @@ async function checkZulipMessages() {
 
     console.log('\n' + '='.repeat(60));
     console.log('✅ Statistics retrieved successfully\n');
-
   } catch (error) {
     console.error('❌ Error fetching message statistics:', error);
     process.exit(1);

@@ -12,8 +12,8 @@ export default function UpdateCardExample() {
         timestamp="2 hours ago"
         status="pending"
         diff={{
-          before: "Minimum 4 CPU cores required",
-          after: "Minimum 8 CPU cores recommended for optimal performance"
+          before: 'Minimum 4 CPU cores required',
+          after: 'Minimum 8 CPU cores recommended for optimal performance',
         }}
         onApprove={(id) => console.log('Approved:', id)}
         onReject={(id) => console.log('Rejected:', id)}

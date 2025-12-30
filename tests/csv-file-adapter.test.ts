@@ -140,9 +140,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should throw error for invalid config', async () => {
-      await expect(adapter.initialize({ invalid: true })).rejects.toThrow(
-        'Invalid configuration'
-      );
+      await expect(adapter.initialize({ invalid: true })).rejects.toThrow('Invalid configuration');
     });
   });
 
@@ -164,9 +162,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should process CSV files and return messages', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'test.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'test.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue(csvContent);
       vi.mocked(parse).mockReturnValue([
         { date: '2025-12-23T10:00:00Z', user: 'alice', message: 'Hello world', channel: 'general' },
@@ -199,9 +195,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should move processed file to processed directory', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'test.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'test.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       vi.mocked(parse).mockReturnValue([]);
 
@@ -214,9 +208,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should save processing report', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'test.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'test.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       vi.mocked(parse).mockReturnValue([
         { date: '2025-12-23T10:00:00Z', user: 'alice', message: 'Test', channel: 'ch1' },
@@ -255,9 +247,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should filter messages by watermark', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'test.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'test.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       vi.mocked(parse).mockReturnValue([
         { date: '2025-12-23T08:00:00Z', user: 'old', message: 'Old message', channel: 'ch1' },
@@ -289,9 +279,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should generate message ID from filename and row number', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'data.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'data.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       vi.mocked(parse).mockReturnValue([
         { date: '2025-12-23T10:00:00Z', user: 'alice', message: 'Test' },
@@ -313,9 +301,7 @@ describe('CsvFileAdapter', () => {
       const adapterWithId = new CsvFileAdapter('test-id', mockDb);
       await adapterWithId.initialize(configWithId);
 
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'data.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'data.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       vi.mocked(parse).mockReturnValue([
         { id: 'custom-123', date: '2025-12-23T10:00:00Z', user: 'alice', message: 'Test' },
@@ -337,13 +323,9 @@ describe('CsvFileAdapter', () => {
       const adapterNoTs = new CsvFileAdapter('test-nots', mockDb);
       await adapterNoTs.initialize(configNoTimestamp);
 
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'data.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'data.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
-      vi.mocked(parse).mockReturnValue([
-        { message: 'No timestamp message' },
-      ]);
+      vi.mocked(parse).mockReturnValue([{ message: 'No timestamp message' }]);
 
       const before = new Date();
       const messages = await adapterNoTs.fetchMessages();
@@ -364,13 +346,9 @@ describe('CsvFileAdapter', () => {
       const adapterNoAuthor = new CsvFileAdapter('test-noauthor', mockDb);
       await adapterNoAuthor.initialize(configNoAuthor);
 
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'data.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'data.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
-      vi.mocked(parse).mockReturnValue([
-        { message: 'Anonymous message' },
-      ]);
+      vi.mocked(parse).mockReturnValue([{ message: 'Anonymous message' }]);
 
       const messages = await adapterNoAuthor.fetchMessages();
 
@@ -378,9 +356,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should handle invalid timestamp', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'data.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'data.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       vi.mocked(parse).mockReturnValue([
         { date: 'invalid-date', user: 'alice', message: 'Test', channel: 'ch1' },
@@ -395,9 +371,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should handle missing content field', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'data.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'data.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       vi.mocked(parse).mockReturnValue([
         { date: '2025-12-23T10:00:00Z', user: 'alice' }, // Missing 'message'
@@ -412,9 +386,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should include metadata with source info', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'source.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'source.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       vi.mocked(parse).mockReturnValue([
         { date: '2025-12-23T10:00:00Z', user: 'alice', message: 'Test', channel: 'ch1' },
@@ -430,9 +402,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should store raw row data', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'data.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'data.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       const rawRow = {
         date: '2025-12-23T10:00:00Z',
@@ -455,9 +425,7 @@ describe('CsvFileAdapter', () => {
     });
 
     it('should include error details in report', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue([
-        { name: 'mixed.csv', isFile: () => true },
-      ] as any);
+      vi.mocked(fs.readdir).mockResolvedValue([{ name: 'mixed.csv', isFile: () => true }] as any);
       vi.mocked(fs.readFile).mockResolvedValue('');
       vi.mocked(parse).mockReturnValue([
         { date: 'bad-date', user: 'alice', message: 'Test1', channel: 'ch1' },

@@ -126,7 +126,7 @@ export class GitFetcher {
    */
   async getStoredCommitHash(): Promise<string | null> {
     const syncState = await this.db.gitSyncState.findUnique({
-      where: { gitUrl: this.gitUrl }
+      where: { gitUrl: this.gitUrl },
     });
     return syncState?.lastCommitHash || null;
   }
@@ -140,15 +140,15 @@ export class GitFetcher {
       update: {
         lastCommitHash: hash,
         lastSyncAt: new Date(),
-        syncStatus: 'success'
+        syncStatus: 'success',
       },
       create: {
         gitUrl: this.gitUrl,
         branch: this.branch,
         lastCommitHash: hash,
         lastSyncAt: new Date(),
-        syncStatus: 'success'
-      }
+        syncStatus: 'success',
+      },
     });
     console.log(`[${this.instanceId}] Updated commit hash to: ${hash}`);
   }
@@ -169,19 +169,19 @@ export class GitFetcher {
       const diff = await this.git.diff([storedHash, currentHash, '--name-only']);
       changedFiles = diff
         .split('\n')
-        .filter(file => file.endsWith('.md') || file.endsWith('.mdx'))
-        .filter(file => file.length > 0);
+        .filter((file) => file.endsWith('.md') || file.endsWith('.mdx'))
+        .filter((file) => file.length > 0);
     } else if (!storedHash) {
       // First sync, get all markdown files
       const files = await this.git.raw(['ls-files', '*.md', '*.mdx']);
-      changedFiles = files.split('\n').filter(file => file.length > 0);
+      changedFiles = files.split('\n').filter((file) => file.length > 0);
     }
 
     return {
       hasUpdates: storedHash !== currentHash,
       currentHash,
       storedHash,
-      changedFiles
+      changedFiles,
     };
   }
 
@@ -199,7 +199,7 @@ export class GitFetcher {
     if (fromHash === 'HEAD~1' || !fromHash) {
       // First sync or single commit back
       const files = await this.git.raw(['ls-files', '*.md', '*.mdx']);
-      const fileList = files.split('\n').filter(file => file.length > 0);
+      const fileList = files.split('\n').filter((file) => file.length > 0);
 
       for (const filePath of fileList) {
         const fullPath = path.join(this.repoPath, filePath);
@@ -212,14 +212,14 @@ export class GitFetcher {
             content,
             lastModified: stat.mtime,
             commitHash: toHash,
-            changeType: 'added'
+            changeType: 'added',
           });
         }
       }
     } else {
       // Get diff with name and status
       const diff = await this.git.raw(['diff', '--name-status', fromHash, toHash]);
-      const lines = diff.split('\n').filter(line => line.length > 0);
+      const lines = diff.split('\n').filter((line) => line.length > 0);
 
       for (const line of lines) {
         const [status, ...pathParts] = line.split(/\s+/);
@@ -252,7 +252,7 @@ export class GitFetcher {
             content: '',
             lastModified: new Date(),
             commitHash: toHash,
-            changeType
+            changeType,
           });
         } else {
           const fullPath = path.join(this.repoPath, filePath);
@@ -265,7 +265,7 @@ export class GitFetcher {
               content,
               lastModified: stat.mtime,
               commitHash: toHash,
-              changeType
+              changeType,
             });
           }
         }
@@ -279,21 +279,24 @@ export class GitFetcher {
   /**
    * Update sync status in database
    */
-  async updateSyncStatus(status: 'idle' | 'syncing' | 'success' | 'error', errorMessage?: string): Promise<void> {
+  async updateSyncStatus(
+    status: 'idle' | 'syncing' | 'success' | 'error',
+    errorMessage?: string
+  ): Promise<void> {
     await this.db.gitSyncState.upsert({
       where: { gitUrl: this.gitUrl },
       update: {
         syncStatus: status,
         errorMessage: errorMessage || null,
-        lastSyncAt: new Date()
+        lastSyncAt: new Date(),
       },
       create: {
         gitUrl: this.gitUrl,
         branch: this.branch,
         syncStatus: status,
         errorMessage: errorMessage || null,
-        lastSyncAt: new Date()
-      }
+        lastSyncAt: new Date(),
+      },
     });
     console.log(`[${this.instanceId}] Sync status updated to: ${status}`);
   }

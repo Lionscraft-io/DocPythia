@@ -32,7 +32,7 @@ async function main() {
 
       // Get current watermark for this stream
       const currentWatermark = await db.processingWatermark.findUnique({
-        where: { streamId: sid }
+        where: { streamId: sid },
       });
 
       console.log(`Stream: ${sid}`);
@@ -45,7 +45,7 @@ async function main() {
       // Get oldest unprocessed message for this stream
       const oldestMessage = await db.unifiedMessage.findFirst({
         where: { streamId: sid, processingStatus: 'PENDING' },
-        orderBy: { timestamp: 'asc' }
+        orderBy: { timestamp: 'asc' },
       });
 
       if (!oldestMessage) {
@@ -62,13 +62,13 @@ async function main() {
         where: { streamId: sid },
         update: {
           watermarkTime: newWatermarkTime,
-          lastProcessedBatch: null
+          lastProcessedBatch: null,
         },
         create: {
           streamId: sid,
           watermarkTime: newWatermarkTime,
-          lastProcessedBatch: null
-        }
+          lastProcessedBatch: null,
+        },
       });
 
       console.log(`  ✅ Reset to: ${newWatermarkTime.toISOString()}\n`);
@@ -78,7 +78,6 @@ async function main() {
     console.log('  1. Restart your server (if needed)');
     console.log('  2. Click "Process Messages" in the admin dashboard');
     console.log('  3. Each stream will process its pending messages independently\n');
-
   } catch (error) {
     console.error('❌ Error:', error);
     process.exit(1);

@@ -118,9 +118,7 @@ describe('EditProposalModal', () => {
   });
 
   it('should return null when proposal is null', () => {
-    const { container } = render(
-      <EditProposalModal {...defaultProps} proposal={null} />
-    );
+    const { container } = render(<EditProposalModal {...defaultProps} proposal={null} />);
 
     expect(container.firstChild).toBeNull();
   });

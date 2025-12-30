@@ -1,12 +1,12 @@
-import type { Request, Response, NextFunction } from "express";
-import { InstanceConfigLoader } from "../config/instance-loader.js";
-import { verifyPasswordSync } from "../auth/password.js";
+import type { Request, Response, NextFunction } from 'express';
+import { InstanceConfigLoader } from '../config/instance-loader.js';
+import { verifyPassword } from '../auth/password.js';
 
 /**
  * Multi-instance admin authentication middleware
  * Validates admin token against instance-specific password hashes
  */
-export const multiInstanceAdminAuth = (req: Request, res: Response, next: NextFunction) => {
+export const multiInstanceAdminAuth = async (req: Request, res: Response, next: NextFunction) => {
   // Check if admin auth is disabled (for development)
   const disableAuth = process.env.DISABLE_ADMIN_AUTH?.toLowerCase() === 'true';
 
@@ -17,8 +17,8 @@ export const multiInstanceAdminAuth = (req: Request, res: Response, next: NextFu
 
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
   }
 
   const token = authHeader.substring(7); // Remove "Bearer " prefix
@@ -33,7 +33,7 @@ export const multiInstanceAdminAuth = (req: Request, res: Response, next: NextFu
         ? InstanceConfigLoader.get(instanceId)
         : InstanceConfigLoader.load(instanceId);
 
-      if (verifyPasswordSync(token, config.admin.passwordHash)) {
+      if (await verifyPassword(token, config.admin.passwordHash)) {
         authenticated = true;
         // Store the authenticated instance in the request for later use
         (req as any).adminInstance = instanceId;
@@ -46,7 +46,7 @@ export const multiInstanceAdminAuth = (req: Request, res: Response, next: NextFu
   }
 
   if (!authenticated) {
-    return res.status(403).json({ error: "Forbidden: Invalid admin token" });
+    return res.status(403).json({ error: 'Forbidden: Invalid admin token' });
   }
 
   next();

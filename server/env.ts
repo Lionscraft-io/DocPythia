@@ -1,5 +1,5 @@
 // Load environment variables as early as possible
-import dotenv from "dotenv";
+import dotenv from 'dotenv';
 
 // Load .env file
 dotenv.config();

@@ -10,7 +10,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { InstanceConfigLoader } from './config/instance-loader';
-import pg from 'pg';
+import pg, { Pool as PoolType } from 'pg';
 const { Pool } = pg;
 
 export interface DocumentPage {
@@ -38,7 +38,7 @@ export interface VectorStore {
 }
 
 export class PgVectorStore implements VectorStore {
-  private pool: Pool;
+  private pool: PoolType;
   private db: PrismaClient;
   private instanceId: string;
 
@@ -67,9 +67,7 @@ export class PgVectorStore implements VectorStore {
    * Convert number array to pgvector format string
    */
   private vectorToString(embedding: number[]): string {
-    return `[${embedding.join(',')
-
-}]`;
+    return `[${embedding.join(',')}]`;
   }
 
   /**
@@ -78,7 +76,7 @@ export class PgVectorStore implements VectorStore {
   private stringToVector(vectorString: string): number[] {
     // Remove brackets and parse
     const cleaned = vectorString.replace(/^\[|\]$/g, '');
-    return cleaned.split(',').map(v => parseFloat(v.trim()));
+    return cleaned.split(',').map((v) => parseFloat(v.trim()));
   }
 
   /**
@@ -90,7 +88,7 @@ export class PgVectorStore implements VectorStore {
 
       // First, check if a document with this filePath already exists
       const existing = await this.db.documentPage.findFirst({
-        where: { filePath: doc.filePath }
+        where: { filePath: doc.filePath },
       });
 
       if (existing) {
@@ -100,7 +98,14 @@ export class PgVectorStore implements VectorStore {
            SET title = $1, content = $2, commit_hash = $3, git_url = $4,
                embedding = $5::vector, updated_at = NOW()
            WHERE file_path = $6`,
-          [doc.title, doc.content, doc.gitHash, doc.gitUrl, this.vectorToString(doc.embedding), doc.filePath]
+          [
+            doc.title,
+            doc.content,
+            doc.gitHash,
+            doc.gitUrl,
+            this.vectorToString(doc.embedding),
+            doc.filePath,
+          ]
         );
         console.log(`[${this.instanceId}] Updated document: ${doc.filePath}`);
       } else {
@@ -108,7 +113,14 @@ export class PgVectorStore implements VectorStore {
         await this.pool.query(
           `INSERT INTO document_pages (file_path, title, content, commit_hash, git_url, embedding, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6::vector, NOW(), NOW())`,
-          [doc.filePath, doc.title, doc.content, doc.gitHash, doc.gitUrl, this.vectorToString(doc.embedding)]
+          [
+            doc.filePath,
+            doc.title,
+            doc.content,
+            doc.gitHash,
+            doc.gitUrl,
+            this.vectorToString(doc.embedding),
+          ]
         );
         console.log(`[${this.instanceId}] Inserted new document: ${doc.filePath}`);
       }
@@ -126,7 +138,7 @@ export class PgVectorStore implements VectorStore {
       console.log(`[${this.instanceId}] Deleting document: ${filePath}`);
 
       await this.db.documentPage.deleteMany({
-        where: { filePath }
+        where: { filePath },
       });
 
       console.log(`[${this.instanceId}] Deleted document: ${filePath}`);
@@ -162,12 +174,12 @@ export class PgVectorStore implements VectorStore {
         [vectorString, topK]
       );
 
-      const searchResults: SearchResult[] = result.rows.map(row => ({
+      const searchResults: SearchResult[] = result.rows.map((row: any) => ({
         pageId: row.pageId,
         filePath: row.filePath,
         title: row.title,
         content: row.content,
-        similarity: parseFloat(row.similarity)
+        similarity: parseFloat(row.similarity),
       }));
 
       console.log(`Found ${searchResults.length} similar documents`);
@@ -209,7 +221,7 @@ export class PgVectorStore implements VectorStore {
         content: row.content,
         gitHash: row.gitHash,
         gitUrl: row.gitUrl,
-        embedding: row.embedding ? this.stringToVector(row.embedding) : []
+        embedding: row.embedding ? this.stringToVector(row.embedding) : [],
       };
     } catch (error) {
       console.error(`Error getting document ${filePath}:`, error);
@@ -248,7 +260,7 @@ export class PgVectorStore implements VectorStore {
         content: row.content,
         gitHash: row.gitHash,
         gitUrl: row.gitUrl,
-        embedding: row.embedding ? this.stringToVector(row.embedding) : []
+        embedding: row.embedding ? this.stringToVector(row.embedding) : [],
       };
     } catch (error) {
       console.error(`Error getting document ${filePath} for commit ${commitHash}:`, error);
@@ -270,7 +282,7 @@ export class PgVectorStore implements VectorStore {
 
       return {
         totalDocuments: parseInt(result.rows[0].total),
-        documentsWithEmbeddings: parseInt(result.rows[0].with_embeddings)
+        documentsWithEmbeddings: parseInt(result.rows[0].with_embeddings),
       };
     } catch (error) {
       console.error('Error getting vector store stats:', error);

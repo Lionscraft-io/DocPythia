@@ -14,4 +14,4 @@
  * - admin-panel-routes.ts  - Admin operations (updates, messages, cache)
  */
 
-export { registerRoutes } from "./routes/index.js";
+export { registerRoutes } from './routes/index.js';

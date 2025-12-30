@@ -46,7 +46,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
    * Fetch messages since the last watermark
    * Must be implemented by concrete adapters
    */
-  abstract fetchMessages(watermark?: StreamWatermark): Promise<StreamMessage[]>;
+  abstract fetchMessages(watermark?: StreamWatermark, batchSize?: number): Promise<StreamMessage[]>;
 
   /**
    * Validate adapter configuration
@@ -65,11 +65,11 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
   /**
    * Get current watermark from database
    */
-  protected async getWatermark(): Promise<StreamWatermark> {
+  public async getWatermark(): Promise<StreamWatermark> {
     const watermark = await this.db.importWatermark.findFirst({
       where: {
         streamId: this.streamId,
-        resourceId: null
+        resourceId: null,
       },
     });
 
@@ -91,7 +91,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
   /**
    * Update watermark in database
    */
-  protected async updateWatermark(
+  public async updateWatermark(
     lastProcessedTime: Date,
     lastProcessedId: string,
     messagesProcessed: number
@@ -99,7 +99,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
     await this.db.importWatermark.updateMany({
       where: {
         streamId: this.streamId,
-        resourceId: null
+        resourceId: null,
       },
       data: {
         lastImportedTime: lastProcessedTime,
@@ -151,7 +151,7 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
     const existing = await this.db.importWatermark.findFirst({
       where: {
         streamId: this.streamId,
-        resourceId: null
+        resourceId: null,
       },
     });
 

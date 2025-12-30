@@ -81,7 +81,9 @@ export class CsvFileAdapter extends BaseStreamAdapter {
     await fs.mkdir(this.csvConfig.inboxDir, { recursive: true });
     await fs.mkdir(this.csvConfig.processedDir, { recursive: true });
 
-    console.log(`CsvFileAdapter initialized: inbox=${this.csvConfig.inboxDir}, processed=${this.csvConfig.processedDir}`);
+    console.log(
+      `CsvFileAdapter initialized: inbox=${this.csvConfig.inboxDir}, processed=${this.csvConfig.processedDir}`
+    );
   }
 
   /**
@@ -113,7 +115,9 @@ export class CsvFileAdapter extends BaseStreamAdapter {
 
         allMessages.push(...messages);
 
-        console.log(`Processed ${file}: ${report.successfulRows}/${report.totalRows} rows successful`);
+        console.log(
+          `Processed ${file}: ${report.successfulRows}/${report.totalRows} rows successful`
+        );
       } catch (error) {
         console.error(`Error processing file ${file}:`, error);
         // Continue with next file
@@ -123,10 +127,10 @@ export class CsvFileAdapter extends BaseStreamAdapter {
     // Filter messages based on watermark
     let messagesToProcess = allMessages;
     if (watermark?.lastProcessedTime) {
-      messagesToProcess = allMessages.filter(
-        (msg) => msg.timestamp > watermark.lastProcessedTime!
+      messagesToProcess = allMessages.filter((msg) => msg.timestamp > watermark.lastProcessedTime!);
+      console.log(
+        `Filtered ${allMessages.length} messages to ${messagesToProcess.length} based on watermark`
       );
-      console.log(`Filtered ${allMessages.length} messages to ${messagesToProcess.length} based on watermark`);
     }
 
     // Save messages to database before returning
@@ -223,19 +227,16 @@ export class CsvFileAdapter extends BaseStreamAdapter {
     }
 
     // Extract author
-    const author = mapping.author && row[mapping.author]
-      ? row[mapping.author]
-      : 'unknown';
+    const author = mapping.author && row[mapping.author] ? row[mapping.author] : 'unknown';
 
     // Extract channel
-    const channel = mapping.channel && row[mapping.channel]
-      ? row[mapping.channel]
-      : undefined;
+    const channel = mapping.channel && row[mapping.channel] ? row[mapping.channel] : undefined;
 
     // Extract or generate message ID
-    const messageId = mapping.messageId && row[mapping.messageId]
-      ? row[mapping.messageId]
-      : `${fileName}-row-${rowNumber}`;
+    const messageId =
+      mapping.messageId && row[mapping.messageId]
+        ? row[mapping.messageId]
+        : `${fileName}-row-${rowNumber}`;
 
     return {
       messageId,
@@ -271,7 +272,10 @@ export class CsvFileAdapter extends BaseStreamAdapter {
   private async saveProcessingReport(filePath: string, report: ProcessingReport): Promise<void> {
     const fileName = path.basename(filePath, '.csv');
     const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-    const reportPath = path.join(this.csvConfig.processedDir, `${timestamp}_${fileName}_report.json`);
+    const reportPath = path.join(
+      this.csvConfig.processedDir,
+      `${timestamp}_${fileName}_report.json`
+    );
 
     await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
     console.log(`Saved processing report to ${reportPath}`);

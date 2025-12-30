@@ -96,19 +96,21 @@ describe('DocumentationIndexGenerator', () => {
 
     it('should load config from file when exists', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-        includePatterns: ['**/*.mdx'],
-        excludePatterns: ['**/test/**'],
-        excludeTitles: ['Test'],
-        maxPages: 100,
-        maxSectionsPerPage: 10,
-        maxSummaryLength: 200,
-        compactFormat: {
-          includeSummaries: true,
-          includeSections: true,
-          maxSectionsInCompact: 5,
-        },
-      }));
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({
+          includePatterns: ['**/*.mdx'],
+          excludePatterns: ['**/test/**'],
+          excludeTitles: ['Test'],
+          maxPages: 100,
+          maxSectionsPerPage: 10,
+          maxSummaryLength: 200,
+          compactFormat: {
+            includeSummaries: true,
+            includeSections: true,
+            maxSectionsInCompact: 5,
+          },
+        })
+      );
 
       const gen = new DocumentationIndexGenerator('config-test');
 
@@ -139,14 +141,16 @@ describe('DocumentationIndexGenerator', () => {
         id: 1,
         filePath: 'docs/getting-started.md',
         title: 'Getting Started',
-        content: '# Getting Started\n\nThis is the getting started guide.\n\n## Installation\n\nRun npm install.\n\n## Configuration\n\nCreate a config file.',
+        content:
+          '# Getting Started\n\nThis is the getting started guide.\n\n## Installation\n\nRun npm install.\n\n## Configuration\n\nCreate a config file.',
         updatedAt: new Date('2025-12-23T10:00:00Z'),
       },
       {
         id: 2,
         filePath: 'docs/api/endpoints.md',
         title: 'API Endpoints',
-        content: '# API Endpoints\n\nList of available endpoints.\n\n## GET /users\n\nReturns all users.\n\n## POST /users\n\nCreate a new user.',
+        content:
+          '# API Endpoints\n\nList of available endpoints.\n\n## GET /users\n\nReturns all users.\n\n## POST /users\n\nCreate a new user.',
         updatedAt: new Date('2025-12-23T11:00:00Z'),
       },
     ];
@@ -170,7 +174,15 @@ describe('DocumentationIndexGenerator', () => {
 
     it('should return cached index when available', async () => {
       const cachedIndex: DocumentationIndex = {
-        pages: [{ title: 'Cached', path: 'cached.md', sections: [], summary: 'Cached page', last_updated: new Date() }],
+        pages: [
+          {
+            title: 'Cached',
+            path: 'cached.md',
+            sections: [],
+            summary: 'Cached page',
+            last_updated: new Date(),
+          },
+        ],
         categories: { root: ['cached.md'] },
         generated_at: new Date('2025-12-20T10:00:00Z'),
       };
@@ -207,7 +219,7 @@ describe('DocumentationIndexGenerator', () => {
 
       const index = await generator.generateIndex();
 
-      const gettingStarted = index.pages.find(p => p.title === 'Getting Started');
+      const gettingStarted = index.pages.find((p) => p.title === 'Getting Started');
       expect(gettingStarted?.sections).toContain('Getting Started');
       expect(gettingStarted?.sections).toContain('  Installation');
       expect(gettingStarted?.sections).toContain('  Configuration');
@@ -231,7 +243,7 @@ describe('DocumentationIndexGenerator', () => {
       const index = await generator.generateIndex();
 
       // The file with exact path 'node_modules' should be excluded
-      expect(index.pages.some(p => p.path === 'node_modules')).toBe(false);
+      expect(index.pages.some((p) => p.path === 'node_modules')).toBe(false);
       // Other documents should still be included
       expect(index.pages.length).toBe(2);
     });
@@ -253,7 +265,7 @@ describe('DocumentationIndexGenerator', () => {
 
       const index = await generator.generateIndex();
 
-      expect(index.pages.some(p => p.title.includes('Skip'))).toBe(false);
+      expect(index.pages.some((p) => p.title.includes('Skip'))).toBe(false);
     });
 
     it('should categorize pages by directory', async () => {
@@ -376,13 +388,15 @@ describe('DocumentationIndexGenerator', () => {
 
     it('should limit sections to 10', () => {
       const indexWithManySections: DocumentationIndex = {
-        pages: [{
-          title: 'Many Sections',
-          path: 'many.md',
-          sections: Array.from({ length: 15 }, (_, i) => `Section ${i + 1}`),
-          summary: 'Summary',
-          last_updated: new Date(),
-        }],
+        pages: [
+          {
+            title: 'Many Sections',
+            path: 'many.md',
+            sections: Array.from({ length: 15 }, (_, i) => `Section ${i + 1}`),
+            summary: 'Summary',
+            last_updated: new Date(),
+          },
+        ],
         categories: {},
         generated_at: new Date(),
       };
@@ -418,23 +432,25 @@ describe('DocumentationIndexGenerator', () => {
 
     it('should use static hierarchy when no pages', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({
-        includePatterns: ['**/*.md'],
-        excludePatterns: [],
-        excludeTitles: [],
-        maxPages: 50,
-        maxSectionsPerPage: 5,
-        maxSummaryLength: 150,
-        compactFormat: {
-          includeSummaries: false,
-          includeSections: true,
-          maxSectionsInCompact: 3,
-        },
-        documentationHierarchy: {
-          core_concepts: ['Introduction', 'Architecture'],
-          guides: ['Quick Start', 'Advanced Usage'],
-        },
-      }));
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        JSON.stringify({
+          includePatterns: ['**/*.md'],
+          excludePatterns: [],
+          excludeTitles: [],
+          maxPages: 50,
+          maxSectionsPerPage: 5,
+          maxSummaryLength: 150,
+          compactFormat: {
+            includeSummaries: false,
+            includeSections: true,
+            maxSectionsInCompact: 3,
+          },
+          documentationHierarchy: {
+            core_concepts: ['Introduction', 'Architecture'],
+            guides: ['Quick Start', 'Advanced Usage'],
+          },
+        })
+      );
 
       const genWithHierarchy = new DocumentationIndexGenerator('hierarchy-test');
 
@@ -565,13 +581,16 @@ describe('DocumentationIndexGenerator', () => {
     it('should generate summary from first substantive paragraph', async () => {
       mockPrisma.gitSyncState.findFirst.mockResolvedValue({ lastCommitHash: 'test' });
       mockPrisma.docIndexCache.findUnique.mockResolvedValue(null);
-      mockPrisma.documentPage.findMany.mockResolvedValue([{
-        id: 1,
-        filePath: 'docs/test.md',
-        title: 'Test Title',
-        content: '# Test Title\n\nThis is a substantive paragraph that should be used as the summary for this document.',
-        updatedAt: new Date(),
-      }]);
+      mockPrisma.documentPage.findMany.mockResolvedValue([
+        {
+          id: 1,
+          filePath: 'docs/test.md',
+          title: 'Test Title',
+          content:
+            '# Test Title\n\nThis is a substantive paragraph that should be used as the summary for this document.',
+          updatedAt: new Date(),
+        },
+      ]);
       mockPrisma.docIndexCache.upsert.mockResolvedValue({});
 
       const index = await generator.generateIndex();
@@ -582,13 +601,16 @@ describe('DocumentationIndexGenerator', () => {
     it('should clean markdown formatting from summary', async () => {
       mockPrisma.gitSyncState.findFirst.mockResolvedValue({ lastCommitHash: 'test' });
       mockPrisma.docIndexCache.findUnique.mockResolvedValue(null);
-      mockPrisma.documentPage.findMany.mockResolvedValue([{
-        id: 1,
-        filePath: 'docs/test.md',
-        title: 'Test',
-        content: '# Test\n\nThis has [a link](http://example.com) and `code` and **bold** text in the paragraph.',
-        updatedAt: new Date(),
-      }]);
+      mockPrisma.documentPage.findMany.mockResolvedValue([
+        {
+          id: 1,
+          filePath: 'docs/test.md',
+          title: 'Test',
+          content:
+            '# Test\n\nThis has [a link](http://example.com) and `code` and **bold** text in the paragraph.',
+          updatedAt: new Date(),
+        },
+      ]);
       mockPrisma.docIndexCache.upsert.mockResolvedValue({});
 
       const index = await generator.generateIndex();
@@ -601,13 +623,15 @@ describe('DocumentationIndexGenerator', () => {
     it('should truncate long summaries', async () => {
       mockPrisma.gitSyncState.findFirst.mockResolvedValue({ lastCommitHash: 'test' });
       mockPrisma.docIndexCache.findUnique.mockResolvedValue(null);
-      mockPrisma.documentPage.findMany.mockResolvedValue([{
-        id: 1,
-        filePath: 'docs/test.md',
-        title: 'Test',
-        content: '# Test\n\n' + 'A'.repeat(300) + ' end of long text.',
-        updatedAt: new Date(),
-      }]);
+      mockPrisma.documentPage.findMany.mockResolvedValue([
+        {
+          id: 1,
+          filePath: 'docs/test.md',
+          title: 'Test',
+          content: '# Test\n\n' + 'A'.repeat(300) + ' end of long text.',
+          updatedAt: new Date(),
+        },
+      ]);
       mockPrisma.docIndexCache.upsert.mockResolvedValue({});
 
       const index = await generator.generateIndex();

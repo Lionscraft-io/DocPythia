@@ -246,7 +246,9 @@ export class LLMService {
 
     // Save to cache if purpose is provided
     if (cachePurpose) {
-      console.log(`[DEBUG] llm-service.ts: Calling llmCache.set() with purpose: ${cachePurpose}, messageId: ${messageId}`);
+      console.log(
+        `[DEBUG] llm-service.ts: Calling llmCache.set() with purpose: ${cachePurpose}, messageId: ${messageId}`
+      );
       this.cache.set(prompt, result.text, cachePurpose, {
         model: llmResponse.modelUsed,
         tokensUsed: llmResponse.tokensUsed,
@@ -314,11 +316,10 @@ export class LLMService {
    * Calculate cost estimate (USD)
    */
   static estimateCost(modelType: LLMModel, inputTokens: number, outputTokens: number): number {
-    // Pricing for Gemini 2.5 models (PRO and PRO_2 are now both gemini-2.5-pro)
-    const pricing = {
-      [LLMModel.FLASH]: { input: 0.075 / 1_000_000, output: 0.30 / 1_000_000 },
-      [LLMModel.PRO]: { input: 1.25 / 1_000_000, output: 5.00 / 1_000_000 },
-      [LLMModel.PRO_2]: { input: 1.25 / 1_000_000, output: 5.00 / 1_000_000 },  // Same as PRO (consolidated)
+    // Pricing for Gemini 2.5 models
+    const pricing: Record<string, { input: number; output: number }> = {
+      [LLMModel.FLASH]: { input: 0.075 / 1_000_000, output: 0.3 / 1_000_000 },
+      [LLMModel.PRO]: { input: 1.25 / 1_000_000, output: 5.0 / 1_000_000 },
     };
 
     const rates = pricing[modelType];

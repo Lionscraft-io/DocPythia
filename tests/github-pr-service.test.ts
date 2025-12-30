@@ -8,43 +8,37 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Use vi.hoisted for mocks that need to be available before imports
-const {
-  mockExecAsync,
-  mockFsRm,
-  mockFsMkdir,
-  mockOctokitPullsCreate,
-  MockOctokit,
-  mockGetConfig,
-} = vi.hoisted(() => {
-  const mockExecAsync = vi.fn();
-  const mockFsRm = vi.fn();
-  const mockFsMkdir = vi.fn();
-  const mockOctokitPullsCreate = vi.fn();
+const { mockExecAsync, mockFsRm, mockFsMkdir, mockOctokitPullsCreate, MockOctokit, mockGetConfig } =
+  vi.hoisted(() => {
+    const mockExecAsync = vi.fn();
+    const mockFsRm = vi.fn();
+    const mockFsMkdir = vi.fn();
+    const mockOctokitPullsCreate = vi.fn();
 
-  class MockOctokit {
-    pulls = {
-      create: mockOctokitPullsCreate,
+    class MockOctokit {
+      pulls = {
+        create: mockOctokitPullsCreate,
+      };
+      constructor(_opts: any) {}
+    }
+
+    const mockGetConfig = vi.fn().mockReturnValue({
+      project: {
+        name: 'Test Project',
+        shortName: 'test',
+        domain: 'test.com',
+      },
+    });
+
+    return {
+      mockExecAsync,
+      mockFsRm,
+      mockFsMkdir,
+      mockOctokitPullsCreate,
+      MockOctokit,
+      mockGetConfig,
     };
-    constructor(_opts: any) {}
-  }
-
-  const mockGetConfig = vi.fn().mockReturnValue({
-    project: {
-      name: 'Test Project',
-      shortName: 'test',
-      domain: 'test.com',
-    },
   });
-
-  return {
-    mockExecAsync,
-    mockFsRm,
-    mockFsMkdir,
-    mockOctokitPullsCreate,
-    MockOctokit,
-    mockGetConfig,
-  };
-});
 
 vi.mock('util', () => ({
   promisify: () => mockExecAsync,
@@ -211,10 +205,9 @@ describe('GitHubPRService', () => {
       expect(mockExecAsync).toHaveBeenCalledWith('git status --porcelain', {
         cwd: '/path/to/repo',
       });
-      expect(mockExecAsync).toHaveBeenCalledWith(
-        expect.stringContaining('git commit -m'),
-        { cwd: '/path/to/repo' }
-      );
+      expect(mockExecAsync).toHaveBeenCalledWith(expect.stringContaining('git commit -m'), {
+        cwd: '/path/to/repo',
+      });
     });
 
     it('should not commit if no changes', async () => {

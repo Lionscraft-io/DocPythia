@@ -5,9 +5,9 @@
  * The CLI entry points (analyze-messages.ts, full-scrape.ts) use these functions.
  */
 
-import { createAnalyzerFromEnv } from "../analyzer/gemini-analyzer";
-import { createZulipchatScraperFromEnv } from "../scraper/zulipchat";
-import { storage } from "../storage";
+import { createAnalyzerFromEnv } from '../analyzer/gemini-analyzer';
+import { createZulipchatScraperFromEnv } from '../scraper/zulipchat';
+import { storage } from '../storage';
 
 export interface AnalyzeMessagesOptions {
   limit: number;
@@ -36,7 +36,9 @@ export interface FullScrapeResult {
 /**
  * Core logic for analyzing messages
  */
-export async function runAnalyzeMessages(options: AnalyzeMessagesOptions): Promise<AnalyzeMessagesResult> {
+export async function runAnalyzeMessages(
+  options: AnalyzeMessagesOptions
+): Promise<AnalyzeMessagesResult> {
   const { limit } = options;
 
   const analyzer = createAnalyzerFromEnv();
@@ -48,7 +50,7 @@ export async function runAnalyzeMessages(options: AnalyzeMessagesOptions): Promi
       relevant: 0,
       updatesCreated: 0,
       remaining: 0,
-      error: "Gemini API key not configured. Please set GEMINI_API_KEY environment variable.",
+      error: 'Gemini API key not configured. Please set GEMINI_API_KEY environment variable.',
     };
   }
 
@@ -90,7 +92,8 @@ export async function runFullScrape(options: FullScrapeOptions): Promise<FullScr
     return {
       success: false,
       totalMessages: 0,
-      error: "Zulipchat credentials not configured. Please set ZULIP_BOT_EMAIL and ZULIP_API_KEY environment variables.",
+      error:
+        'Zulipchat credentials not configured. Please set ZULIP_BOT_EMAIL and ZULIP_API_KEY environment variables.',
     };
   }
 
@@ -100,7 +103,8 @@ export async function runFullScrape(options: FullScrapeOptions): Promise<FullScr
     return {
       success: false,
       totalMessages: 0,
-      error: "Could not connect to Zulipchat. Please check your credentials and network connection.",
+      error:
+        'Could not connect to Zulipchat. Please check your credentials and network connection.',
     };
   }
 
@@ -124,7 +128,7 @@ export async function runFullScrape(options: FullScrapeOptions): Promise<FullScr
  * Parse analyze-messages command line arguments
  */
 export function parseAnalyzeMessagesArgs(argv: string[]): AnalyzeMessagesOptions {
-  const limit = parseInt(argv[2] || "100", 10);
+  const limit = parseInt(argv[2] || '100', 10);
   return { limit };
 }
 
@@ -132,8 +136,8 @@ export function parseAnalyzeMessagesArgs(argv: string[]): AnalyzeMessagesOptions
  * Parse full-scrape command line arguments
  */
 export function parseFullScrapeArgs(argv: string[], env: NodeJS.ProcessEnv): FullScrapeOptions {
-  const channelName = argv[2] || env.ZULIP_CHANNEL || "community-support";
-  const batchSize = parseInt(argv[3] || "1000", 10);
+  const channelName = argv[2] || env.ZULIP_CHANNEL || 'community-support';
+  const batchSize = parseInt(argv[3] || '1000', 10);
   return { channelName, batchSize };
 }
 
@@ -142,10 +146,10 @@ export function parseFullScrapeArgs(argv: string[], env: NodeJS.ProcessEnv): Ful
  */
 export function formatHeader(title: string): string {
   const width = 50;
-  const top = "╔" + "═".repeat(width - 2) + "╗";
+  const top = '╔' + '═'.repeat(width - 2) + '╗';
   const paddedTitle = title.padStart(Math.floor((width - 2 + title.length) / 2)).padEnd(width - 2);
-  const middle = "║" + paddedTitle + "║";
-  const bottom = "╚" + "═".repeat(width - 2) + "╝";
+  const middle = '║' + paddedTitle + '║';
+  const bottom = '╚' + '═'.repeat(width - 2) + '╝';
   return `${top}\n${middle}\n${bottom}`;
 }
 

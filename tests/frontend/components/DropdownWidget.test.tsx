@@ -51,7 +51,7 @@ describe('DropdownWidget', () => {
     // Close using the X button in header (there are 2 X buttons, get the one in the header)
     const closeButtons = screen.getAllByRole('button');
     // The close button in the header should have the X icon
-    const headerCloseButton = closeButtons.find(btn => btn.classList.contains('h-8'));
+    const headerCloseButton = closeButtons.find((btn) => btn.classList.contains('h-8'));
     if (headerCloseButton) {
       fireEvent.click(headerCloseButton);
     }

@@ -29,7 +29,14 @@ declare global {
  */
 export function instanceMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
-    console.log('[Instance Middleware] Hit! req.url:', req.url, 'req.path:', req.path, 'req.params:', req.params);
+    console.log(
+      '[Instance Middleware] Hit! req.url:',
+      req.url,
+      'req.path:',
+      req.path,
+      'req.params:',
+      req.params
+    );
 
     // Extract instance ID from route parameters (set by Express mount point)
     const instanceId = req.params.instance?.toLowerCase();

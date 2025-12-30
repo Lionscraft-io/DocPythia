@@ -175,9 +175,7 @@ class ConfigStorage {
     }
 
     const entries = fs.readdirSync(configDir, { withFileTypes: true });
-    return entries
-      .filter(entry => entry.isDirectory())
-      .map(entry => entry.name);
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   }
 
   /**

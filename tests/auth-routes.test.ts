@@ -43,9 +43,17 @@ vi.mock('../server/utils/logger.js', () => ({
 }));
 
 // Import mocked modules
-import { authenticateAnyInstance, authenticateInstance } from '../server/auth/multi-instance-auth.js';
+import {
+  authenticateAnyInstance,
+  authenticateInstance,
+} from '../server/auth/multi-instance-auth.js';
 import { InstanceConfigLoader } from '../server/config/instance-loader.js';
-import { setSessionCookies, clearSessionCookies, getSessionFromRequest, generateCsrfToken } from '../server/auth/session.js';
+import {
+  setSessionCookies,
+  clearSessionCookies,
+  getSessionFromRequest,
+  generateCsrfToken,
+} from '../server/auth/session.js';
 import authRouter from '../server/routes/auth-routes.js';
 
 const mockedAuthenticateAnyInstance = vi.mocked(authenticateAnyInstance);
@@ -78,9 +86,7 @@ describe('Auth Routes', () => {
 
   describe('POST /api/auth/login', () => {
     it('should return 400 if password is missing', async () => {
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send({});
+      const response = await request(app).post('/api/auth/login').send({});
 
       expect(response.status).toBe(400);
       expect(response.body).toEqual({
@@ -178,8 +184,7 @@ describe('Auth Routes', () => {
 
   describe('POST /api/auth/logout', () => {
     it('should clear session cookies on logout', async () => {
-      const response = await request(app)
-        .post('/api/auth/logout');
+      const response = await request(app).post('/api/auth/logout');
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
@@ -292,9 +297,7 @@ describe('Auth Routes', () => {
 
   describe('POST /api/auth/verify', () => {
     it('should return 400 if password is missing', async () => {
-      const response = await request(app)
-        .post('/api/auth/verify')
-        .send({ instanceId: 'projecta' });
+      const response = await request(app).post('/api/auth/verify').send({ instanceId: 'projecta' });
 
       expect(response.status).toBe(400);
       expect(response.body).toEqual({

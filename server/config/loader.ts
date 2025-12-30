@@ -67,7 +67,9 @@ export class ConfigLoader {
         _source: source,
       };
 
-      console.log(`✅ Configuration loaded: ${this.config.project.name} (${this.config.project.shortName})`);
+      console.log(
+        `✅ Configuration loaded: ${this.config.project.name} (${this.config.project.shortName})`
+      );
       console.log(`   Documentation: ${this.config.documentation.gitUrl}`);
       console.log(`   RAG Enabled: ${this.config.features.ragEnabled}`);
       console.log(`   Widget Enabled: ${this.config.widget.enabled}`);
@@ -75,7 +77,9 @@ export class ConfigLoader {
       return this.config;
     } catch (error) {
       console.error('❌ Configuration validation failed:', error);
-      throw new Error(`Invalid configuration: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Invalid configuration: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -111,7 +115,9 @@ export class ConfigLoader {
       const content = fs.readFileSync(configPath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      console.error(`⚠️  Failed to parse config file: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(
+        `⚠️  Failed to parse config file: ${error instanceof Error ? error.message : String(error)}`
+      );
       return null;
     }
   }
@@ -142,7 +148,9 @@ export class ConfigLoader {
         ...(env.BRANDING_PRIMARY_COLOR && { primaryColor: env.BRANDING_PRIMARY_COLOR }),
         ...(env.BRANDING_SECONDARY_COLOR && { secondaryColor: env.BRANDING_SECONDARY_COLOR }),
         ...(env.BRANDING_ACCENT_COLOR && { accentColor: env.BRANDING_ACCENT_COLOR }),
-        ...(env.BRANDING_DARK_MODE_PRIMARY_COLOR && { darkModePrimaryColor: env.BRANDING_DARK_MODE_PRIMARY_COLOR }),
+        ...(env.BRANDING_DARK_MODE_PRIMARY_COLOR && {
+          darkModePrimaryColor: env.BRANDING_DARK_MODE_PRIMARY_COLOR,
+        }),
         ...(env.BRANDING_PROJECT_URL && { projectUrl: env.BRANDING_PROJECT_URL }),
       } as any;
     }
@@ -175,10 +183,16 @@ export class ConfigLoader {
     if (env.RAG_ENABLED || env.SCHEDULER_ENABLED || env.CHAT_ENABLED) {
       envConfig.features = {
         ...(env.RAG_ENABLED !== undefined && { ragEnabled: env.RAG_ENABLED === 'true' }),
-        ...(env.SCHEDULER_ENABLED !== undefined && { schedulerEnabled: env.SCHEDULER_ENABLED === 'true' }),
+        ...(env.SCHEDULER_ENABLED !== undefined && {
+          schedulerEnabled: env.SCHEDULER_ENABLED === 'true',
+        }),
         ...(env.CHAT_ENABLED !== undefined && { chatEnabled: env.CHAT_ENABLED === 'true' }),
-        ...(env.ANALYTICS_ENABLED !== undefined && { analyticsEnabled: env.ANALYTICS_ENABLED === 'true' }),
-        ...(env.VERSION_HISTORY_ENABLED !== undefined && { versionHistoryEnabled: env.VERSION_HISTORY_ENABLED === 'true' }),
+        ...(env.ANALYTICS_ENABLED !== undefined && {
+          analyticsEnabled: env.ANALYTICS_ENABLED === 'true',
+        }),
+        ...(env.VERSION_HISTORY_ENABLED !== undefined && {
+          versionHistoryEnabled: env.VERSION_HISTORY_ENABLED === 'true',
+        }),
       } as any;
     }
 

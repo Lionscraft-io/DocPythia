@@ -41,7 +41,6 @@ export class FileConsolidationService {
     originalContent: string,
     proposals: DocProposal[]
   ): Promise<ConsolidationResult> {
-
     if (proposals.length === 0) {
       return { consolidatedContent: originalContent };
     }
@@ -88,7 +87,7 @@ ${text}
     console.log('='.repeat(80));
     console.log(`Original file length: ${originalContent.length} characters`);
     console.log(`Number of proposals: ${proposals.length}`);
-    console.log(`Update types: ${proposals.map(p => p.updateType).join(', ')}`);
+    console.log(`Update types: ${proposals.map((p) => p.updateType).join(', ')}`);
     console.log('='.repeat(80) + '\n');
 
     try {
@@ -153,7 +152,7 @@ ${text}
     }
 
     // Always consolidate if there are UPDATE operations (to avoid replacement issue)
-    const hasUpdate = proposals.some(p => p.updateType === 'UPDATE');
+    const hasUpdate = proposals.some((p) => p.updateType === 'UPDATE');
     if (hasUpdate) {
       return true;
     }

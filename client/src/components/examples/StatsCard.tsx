@@ -9,7 +9,7 @@ export default function StatsCardExample() {
         value={142}
         icon={FileText}
         description="This month"
-        trend={{ value: "12%", positive: true }}
+        trend={{ value: '12%', positive: true }}
       />
     </div>
   );

@@ -49,7 +49,9 @@ describe('AdminLogin Page', () => {
     render(<AdminLogin />);
 
     expect(screen.getByText('Lionscraft AI Docs')).toBeInTheDocument();
-    expect(screen.getByText('Enter your password to access the admin dashboard')).toBeInTheDocument();
+    expect(
+      screen.getByText('Enter your password to access the admin dashboard')
+    ).toBeInTheDocument();
   });
 
   it('should render password input', () => {
@@ -106,19 +108,29 @@ describe('AdminLogin Page', () => {
     fireEvent.submit(form!);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: 'testpassword' }),
-      }));
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/login',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: 'testpassword' }),
+        })
+      );
     });
   });
 
   it('should show loading state during authentication', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(() =>
-      new Promise((resolve) => setTimeout(() => resolve({
-        json: () => Promise.resolve({ success: false }),
-      }), 100))
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                json: () => Promise.resolve({ success: false }),
+              }),
+            100
+          )
+        )
     );
 
     render(<AdminLogin />);
@@ -136,11 +148,12 @@ describe('AdminLogin Page', () => {
 
   it('should handle successful login', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      json: () => Promise.resolve({
-        success: true,
-        instanceId: 'projecta',
-        redirectUrl: '/projecta/admin',
-      }),
+      json: () =>
+        Promise.resolve({
+          success: true,
+          instanceId: 'projecta',
+          redirectUrl: '/projecta/admin',
+        }),
     });
 
     render(<AdminLogin />);
@@ -152,9 +165,11 @@ describe('AdminLogin Page', () => {
     fireEvent.submit(form!);
 
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Login successful',
-      }));
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Login successful',
+        })
+      );
     });
 
     // Session-based auth stores admin_token for hybrid auth support

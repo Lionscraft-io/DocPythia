@@ -18,8 +18,12 @@ async function main() {
   const cacheStatus = await docIndexGenerator.getCacheStatus();
   console.log('\nCache Status:');
   console.log(`  Cached: ${cacheStatus.cached}`);
-  console.log(`  Commit Hash: ${cacheStatus.commitHash ? cacheStatus.commitHash.substring(0, 8) : 'N/A'}`);
-  console.log(`  Generated At: ${cacheStatus.expiresAt ? cacheStatus.expiresAt.toISOString() : 'N/A'}`);
+  console.log(
+    `  Commit Hash: ${cacheStatus.commitHash ? cacheStatus.commitHash.substring(0, 8) : 'N/A'}`
+  );
+  console.log(
+    `  Generated At: ${cacheStatus.expiresAt ? cacheStatus.expiresAt.toISOString() : 'N/A'}`
+  );
 
   console.log('\nGenerating index...\n');
 

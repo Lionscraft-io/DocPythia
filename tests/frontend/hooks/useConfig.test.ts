@@ -63,9 +63,8 @@ describe('useConfig', () => {
     queryClient.clear();
   });
 
-  const wrapper = ({ children }: { children: React.ReactNode }) => (
-    React.createElement(QueryClientProvider, { client: queryClient }, children)
-  );
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client: queryClient }, children);
 
   it('should fetch config successfully', async () => {
     mockFetch.mockResolvedValueOnce({

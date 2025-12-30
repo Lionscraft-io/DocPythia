@@ -99,7 +99,7 @@ describe('LLMService', () => {
         const cost = LLMService.estimateCost(LLMModel.FLASH, 1000, 500);
         // FLASH: input: 0.075/1M, output: 0.30/1M
         const expectedInput = 1000 * (0.075 / 1_000_000);
-        const expectedOutput = 500 * (0.30 / 1_000_000);
+        const expectedOutput = 500 * (0.3 / 1_000_000);
         expect(cost).toBeCloseTo(expectedInput + expectedOutput, 10);
       });
 
@@ -107,7 +107,7 @@ describe('LLMService', () => {
         const cost = LLMService.estimateCost(LLMModel.PRO, 1000, 500);
         // PRO: input: 1.25/1M, output: 5.00/1M
         const expectedInput = 1000 * (1.25 / 1_000_000);
-        const expectedOutput = 500 * (5.00 / 1_000_000);
+        const expectedOutput = 500 * (5.0 / 1_000_000);
         expect(cost).toBeCloseTo(expectedInput + expectedOutput, 10);
       });
 
@@ -115,7 +115,7 @@ describe('LLMService', () => {
         const cost = LLMService.estimateCost(LLMModel.PRO_2, 1000, 500);
         // PRO_2 is now same as PRO (both gemini-2.5-pro): input: 1.25/1M, output: 5.00/1M
         const expectedInput = 1000 * (1.25 / 1_000_000);
-        const expectedOutput = 500 * (5.00 / 1_000_000);
+        const expectedOutput = 500 * (5.0 / 1_000_000);
         expect(cost).toBeCloseTo(expectedInput + expectedOutput, 10);
       });
 
@@ -127,7 +127,7 @@ describe('LLMService', () => {
       it('should handle large token counts', () => {
         const cost = LLMService.estimateCost(LLMModel.FLASH, 1_000_000, 1_000_000);
         // FLASH: input: 0.075, output: 0.30
-        expect(cost).toBeCloseTo(0.075 + 0.30, 5);
+        expect(cost).toBeCloseTo(0.075 + 0.3, 5);
       });
 
       it('should show PRO_2 same cost as PRO (consolidated models)', () => {
@@ -297,10 +297,13 @@ describe('LLMService Instance Methods', () => {
         test: z.string(),
       });
 
-      const result = await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Return JSON',
-      }, schema);
+      const result = await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'Return JSON',
+        },
+        schema
+      );
 
       expect(result).toBeDefined();
       expect(result.data).toEqual({ test: 'response' });
@@ -323,10 +326,14 @@ describe('LLMService Instance Methods', () => {
         cached: z.string(),
       });
 
-      const result = await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Cached prompt',
-      }, schema, CachePurpose.analysis);
+      const result = await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'Cached prompt',
+        },
+        schema,
+        CachePurpose.analysis
+      );
 
       expect(result.data).toEqual({ cached: 'value' });
       expect(result.response.finishReason).toBe('CACHED');
@@ -345,10 +352,14 @@ describe('LLMService Instance Methods', () => {
         test: z.string(),
       });
 
-      await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'New prompt',
-      }, schema, CachePurpose.analysis);
+      await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'New prompt',
+        },
+        schema,
+        CachePurpose.analysis
+      );
 
       expect(mockedCache.set).toHaveBeenCalled();
     });
@@ -362,14 +373,17 @@ describe('LLMService Instance Methods', () => {
         test: z.string(),
       });
 
-      const result = await service.requestJSON({
-        model: LLMModel.FLASH,
-        userPrompt: 'Follow-up question',
-        history: [
-          { role: 'user', content: 'Previous question' },
-          { role: 'assistant', content: 'Previous answer' },
-        ],
-      }, schema);
+      const result = await service.requestJSON(
+        {
+          model: LLMModel.FLASH,
+          userPrompt: 'Follow-up question',
+          history: [
+            { role: 'user', content: 'Previous question' },
+            { role: 'assistant', content: 'Previous answer' },
+          ],
+        },
+        schema
+      );
 
       expect(result).toBeDefined();
       expect(result.data).toEqual({ test: 'response' });
@@ -516,10 +530,13 @@ describe('LLMService JSON Parsing', () => {
       test: z.string(),
     });
 
-    const result = await service.requestJSON({
-      model: LLMModel.FLASH,
-      userPrompt: 'Return JSON',
-    }, schema);
+    const result = await service.requestJSON(
+      {
+        model: LLMModel.FLASH,
+        userPrompt: 'Return JSON',
+      },
+      schema
+    );
 
     expect(result.data).toBeDefined();
   });
@@ -533,10 +550,13 @@ describe('LLMService JSON Parsing', () => {
       test: z.string(),
     });
 
-    const result = await service.requestJSON({
-      model: LLMModel.FLASH,
-      userPrompt: 'Return JSON',
-    }, schema);
+    const result = await service.requestJSON(
+      {
+        model: LLMModel.FLASH,
+        userPrompt: 'Return JSON',
+      },
+      schema
+    );
 
     expect(result.data.test).toBe('response');
   });

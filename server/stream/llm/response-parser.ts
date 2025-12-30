@@ -69,7 +69,10 @@ export class ResponseParser {
   /**
    * Validate parsed data against a Zod schema
    */
-  static validate<T>(data: unknown, schema: { safeParse: (data: unknown) => { success: boolean; data?: T; error?: any } }): ParseResult<T> {
+  static validate<T>(
+    data: unknown,
+    schema: { safeParse: (data: unknown) => { success: boolean; data?: T; error?: any } }
+  ): ParseResult<T> {
     const result = schema.safeParse(data);
 
     if (result.success) {

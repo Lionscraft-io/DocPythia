@@ -43,8 +43,11 @@ describe('Logout Page', () => {
     render(<Logout />);
 
     // The redirect happens after 100ms timeout
-    await waitFor(() => {
-      expect(mockSetLocation).toHaveBeenCalledWith('/login');
-    }, { timeout: 500 });
+    await waitFor(
+      () => {
+        expect(mockSetLocation).toHaveBeenCalledWith('/login');
+      },
+      { timeout: 500 }
+    );
   });
 });

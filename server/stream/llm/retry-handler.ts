@@ -31,10 +31,7 @@ export class RetryHandler {
   private config: RetryConfig;
   private delayFn: (ms: number) => Promise<void>;
 
-  constructor(
-    config: Partial<RetryConfig> = {},
-    delayFn?: (ms: number) => Promise<void>
-  ) {
+  constructor(config: Partial<RetryConfig> = {}, delayFn?: (ms: number) => Promise<void>) {
     this.config = { ...DEFAULT_RETRY_CONFIG, ...config };
     this.delayFn = delayFn || RetryHandler.defaultDelay;
   }
@@ -86,7 +83,7 @@ export class RetryHandler {
    * Default delay implementation using setTimeout
    */
   static defaultDelay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**

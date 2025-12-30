@@ -104,17 +104,19 @@ export class MessageVectorSearch {
         LIMIT $3
       `;
 
-      const results = await this.db.$queryRawUnsafe<Array<{
-        id: number;
-        content: string;
-        author: string;
-        timestamp: Date;
-        channel: string | null;
-        distance: number;
-      }>>(query, vectorString, minSimilarity, limit);
+      const results = await this.db.$queryRawUnsafe<
+        Array<{
+          id: number;
+          content: string;
+          author: string;
+          timestamp: Date;
+          channel: string | null;
+          distance: number;
+        }>
+      >(query, vectorString, minSimilarity, limit);
 
       // Transform results to SimilarMessage format
-      return results.map(row => ({
+      return results.map((row) => ({
         id: row.id,
         content: row.content,
         author: row.author,
@@ -189,7 +191,9 @@ export class MessageVectorSearch {
   /**
    * Batch store embeddings for multiple messages
    */
-  async batchStoreEmbeddings(embeddings: Array<{ messageId: number; embedding: number[] }>): Promise<void> {
+  async batchStoreEmbeddings(
+    embeddings: Array<{ messageId: number; embedding: number[] }>
+  ): Promise<void> {
     try {
       for (const { messageId, embedding } of embeddings) {
         await this.storeEmbedding(messageId, embedding);
@@ -207,13 +211,18 @@ export class MessageVectorSearch {
    * @param queryText - The text to search for (will be embedded)
    * @param limit - Maximum number of documentation results to return
    */
-  async searchSimilarDocs(queryText: string, limit: number = 5): Promise<Array<{
-    id: number;
-    title: string;
-    file_path: string;
-    content: string;
-    distance: number;
-  }>> {
+  async searchSimilarDocs(
+    queryText: string,
+    limit: number = 5
+  ): Promise<
+    Array<{
+      id: number;
+      title: string;
+      file_path: string;
+      content: string;
+      distance: number;
+    }>
+  > {
     try {
       console.log(`Searching for top ${limit} similar documentation pages...`);
 
@@ -224,7 +233,7 @@ export class MessageVectorSearch {
       const results = await this.vectorStore.searchSimilar(queryEmbedding, limit);
 
       // Transform results to expected format
-      return results.map(doc => ({
+      return results.map((doc) => ({
         id: doc.pageId,
         title: doc.title,
         file_path: doc.filePath,

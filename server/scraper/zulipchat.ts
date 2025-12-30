@@ -1,4 +1,4 @@
-import { storage } from "../storage";
+import { storage } from '../storage';
 import https from 'https';
 
 export interface ZulipConfig {
@@ -16,7 +16,7 @@ export interface ZulipMessage {
   content: string;
   display_recipient: string | Array<{ id: number; email: string; full_name: string }>;
   subject: string;
-  type: "stream" | "private";
+  type: 'stream' | 'private';
 }
 
 export interface ZulipMessagesResponse {
@@ -56,7 +56,7 @@ export class ZulipchatScraper {
         path: urlObj.pathname + urlObj.search,
         method: 'GET',
         headers: {
-          'Authorization': this.getAuthHeader(),
+          Authorization: this.getAuthHeader(),
           'Content-Type': 'application/json',
         },
         agent: this.agent,
@@ -101,23 +101,23 @@ export class ZulipchatScraper {
   async fetchMessages(
     channelName: string,
     numBefore: number = 100,
-    anchor: string | number = "newest"
+    anchor: string | number = 'newest'
   ): Promise<ZulipMessage[]> {
     // Use "stream" operator (not "channel") per Zulip API docs
-    const narrow = [{ operator: "stream", operand: channelName }];
+    const narrow = [{ operator: 'stream', operand: channelName }];
     const params = new URLSearchParams({
       anchor: anchor.toString(),
       num_before: numBefore.toString(),
-      num_after: "0",
+      num_after: '0',
       narrow: JSON.stringify(narrow),
-      apply_markdown: "false", // Get raw content for AI analysis
+      apply_markdown: 'false', // Get raw content for AI analysis
     });
 
     const url = `${this.config.site}/api/v1/messages?${params.toString()}`;
 
     const data: ZulipMessagesResponse = await this.makeRequest(url);
 
-    if (data.result !== "success") {
+    if (data.result !== 'success') {
       throw new Error(`Zulipchat API error: ${data.msg}`);
     }
 
@@ -130,30 +130,30 @@ export class ZulipchatScraper {
     incremental: boolean = true
   ): Promise<number> {
     console.log(`Scraping messages from channel: ${channelName} (incremental: ${incremental})`);
-    
+
     let messages: ZulipMessage[];
-    let metadata = await storage.getScrapeMetadata("zulipchat", channelName);
-    
+    const metadata = await storage.getScrapeMetadata('zulipchat', channelName);
+
     if (incremental && metadata?.lastMessageId) {
       // Incremental scrape: fetch messages since last scrape using message ID
       console.log(`  Last message ID: ${metadata.lastMessageId}`);
       console.log(`  Fetching newer messages...`);
-      
+
       // Use message ID as anchor and fetch messages after it
-      const narrow = [{ operator: "stream", operand: channelName }];
+      const narrow = [{ operator: 'stream', operand: channelName }];
       const params = new URLSearchParams({
         anchor: metadata.lastMessageId,
-        num_before: "0",
+        num_before: '0',
         num_after: numMessages.toString(),
         narrow: JSON.stringify(narrow),
-        apply_markdown: "false",
+        apply_markdown: 'false',
       });
 
       const url = `${this.config.site}/api/v1/messages?${params.toString()}`;
       const data: ZulipMessagesResponse = await this.makeRequest(url);
 
       // Filter out the anchor message itself
-      messages = data.messages.filter(msg => msg.id.toString() !== metadata.lastMessageId);
+      messages = data.messages.filter((msg) => msg.id.toString() !== metadata.lastMessageId);
     } else {
       // Full scrape: fetch all messages (paginated)
       console.log(`  Performing full scrape (${numMessages} messages)...`);
@@ -167,10 +167,10 @@ export class ZulipchatScraper {
 
     for (const message of messages) {
       const msgTimestamp = new Date(message.timestamp * 1000);
-      
+
       // Check if message already exists
       const existing = await storage.getMessageByMessageId(message.id.toString());
-      
+
       if (existing) {
         skippedCount++;
         continue;
@@ -179,7 +179,7 @@ export class ZulipchatScraper {
       // Store message
       await storage.createScrapedMessage({
         messageId: message.id.toString(),
-        source: "zulipchat",
+        source: 'zulipchat',
         channelName: channelName,
         topicName: message.subject,
         senderEmail: message.sender_email,
@@ -197,12 +197,12 @@ export class ZulipchatScraper {
     for (const message of messages) {
       const msgTimestamp = new Date(message.timestamp * 1000);
       const msgId = message.id.toString();
-      
+
       // Track latest timestamp
       if (!latestTimestamp || msgTimestamp > latestTimestamp) {
         latestTimestamp = msgTimestamp;
       }
-      
+
       // Track maximum message ID (Zulip IDs are sequential)
       if (!latestMessageId || parseInt(msgId) > parseInt(latestMessageId)) {
         latestMessageId = msgId;
@@ -213,7 +213,7 @@ export class ZulipchatScraper {
     // Even if storedCount is 0, we want to record that we checked
     if (messages.length > 0 || !metadata) {
       await storage.createOrUpdateScrapeMetadata({
-        source: "zulipchat",
+        source: 'zulipchat',
         channelName: channelName,
         lastMessageId: latestMessageId,
         lastScrapeTimestamp: latestTimestamp,
@@ -221,27 +221,30 @@ export class ZulipchatScraper {
       });
     }
 
-    console.log(`Scraping complete: ${storedCount} new messages stored, ${skippedCount} already existed`);
+    console.log(
+      `Scraping complete: ${storedCount} new messages stored, ${skippedCount} already existed`
+    );
     return storedCount;
   }
 
   async performFullScrape(channelName: string, batchSize: number = 1000): Promise<number> {
     console.log(`\n=== FULL SCRAPE ===`);
     console.log(`Fetching ALL messages from channel: ${channelName}`);
-    
+
     let totalStored = 0;
-    let anchor: string | number = "newest";
+    let anchor: string | number = 'newest';
     let hasMore = true;
     let batchCount = 0;
     let latestMessageId: string | null = null;
     let latestTimestamp: Date | null = null;
 
-    while (hasMore && batchCount < 100) { // Safety limit of 100 batches
+    while (hasMore && batchCount < 100) {
+      // Safety limit of 100 batches
       batchCount++;
       console.log(`\nBatch ${batchCount}: Fetching ${batchSize} messages (anchor: ${anchor})...`);
-      
+
       const messages = await this.fetchMessages(channelName, batchSize, anchor);
-      
+
       if (messages.length === 0) {
         hasMore = false;
         break;
@@ -253,13 +256,13 @@ export class ZulipchatScraper {
 
       for (const message of messages) {
         const msgTimestamp = new Date(message.timestamp * 1000);
-        
+
         const existing = await storage.getMessageByMessageId(message.id.toString());
         if (existing) continue;
 
         await storage.createScrapedMessage({
           messageId: message.id.toString(),
-          source: "zulipchat",
+          source: 'zulipchat',
           channelName: channelName,
           topicName: message.subject,
           senderEmail: message.sender_email,
@@ -305,7 +308,7 @@ export class ZulipchatScraper {
       // Update metadata after each batch with new messages
       if (storedCount > 0) {
         await storage.createOrUpdateScrapeMetadata({
-          source: "zulipchat",
+          source: 'zulipchat',
           channelName: channelName,
           lastMessageId: latestMessageId,
           lastScrapeTimestamp: latestTimestamp,
@@ -325,7 +328,7 @@ export class ZulipchatScraper {
       await this.makeRequest(url);
       return true;
     } catch (error) {
-      console.error("Zulipchat connection test failed:", error);
+      console.error('Zulipchat connection test failed:', error);
       return false;
     }
   }
@@ -337,12 +340,12 @@ export function createZulipchatScraperFromEnv(): ZulipchatScraper | null {
   const site = process.env.ZULIP_SITE;
 
   if (!email || !apiKey) {
-    console.warn("Zulipchat credentials not found in environment variables");
+    console.warn('Zulipchat credentials not found in environment variables');
     return null;
   }
 
   if (!site) {
-    console.warn("ZULIP_SITE environment variable not set");
+    console.warn('ZULIP_SITE environment variable not set');
     return null;
   }
 

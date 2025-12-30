@@ -102,12 +102,8 @@ describe('ZulipchatScraper', () => {
 
       await scraper.fetchMessages('general');
 
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        expect.stringContaining('num_before=100')
-      );
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        expect.stringContaining('anchor=newest')
-      );
+      expect(makeRequestSpy).toHaveBeenCalledWith(expect.stringContaining('num_before=100'));
+      expect(makeRequestSpy).toHaveBeenCalledWith(expect.stringContaining('anchor=newest'));
     });
   });
 
@@ -202,12 +198,8 @@ describe('ZulipchatScraper', () => {
       await scraper.scrapeAndStoreMessages('general', 100, true);
 
       // Should use num_after instead of num_before for incremental
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        expect.stringContaining('num_before=0')
-      );
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        expect.stringContaining('num_after=100')
-      );
+      expect(makeRequestSpy).toHaveBeenCalledWith(expect.stringContaining('num_before=0'));
+      expect(makeRequestSpy).toHaveBeenCalledWith(expect.stringContaining('num_after=100'));
     });
 
     it('should filter out anchor message in incremental scrape', async () => {

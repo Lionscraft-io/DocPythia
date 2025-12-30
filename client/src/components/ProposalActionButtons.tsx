@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { Edit, CheckCircle, XCircle, Undo } from "lucide-react";
+import { Button } from '@/components/ui/button';
+import { Edit, CheckCircle, XCircle, Undo } from 'lucide-react';
 
 interface ProposalActionButtonsProps {
   proposalId: number;

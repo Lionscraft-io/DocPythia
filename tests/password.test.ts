@@ -9,100 +9,80 @@ import { describe, it, expect } from 'vitest';
 import {
   hashPassword,
   verifyPassword,
-  hashPasswordSync,
-  verifyPasswordSync,
   generatePassword,
   isLegacyHash,
 } from '../server/auth/password.js';
+import crypto from 'crypto';
 
 describe('Password Utilities', () => {
-  describe('hashPasswordSync', () => {
-    it('should hash a password to a bcrypt format string', () => {
+  describe('hashPassword', () => {
+    it('should hash a password to a bcrypt format string', async () => {
       const password = 'testPassword123';
-      const hash = hashPasswordSync(password);
+      const hash = await hashPassword(password);
 
       // Bcrypt hashes start with $2a$ or $2b$ and are 60 characters
       expect(hash).toMatch(/^\$2[ab]\$\d{2}\$.{53}$/);
     });
 
-    it('should produce different hashes for the same password (salted)', () => {
+    it('should produce different hashes for the same password (salted)', async () => {
       const password = 'consistentPassword';
-      const hash1 = hashPasswordSync(password);
-      const hash2 = hashPasswordSync(password);
+      const hash1 = await hashPassword(password);
+      const hash2 = await hashPassword(password);
 
       // Bcrypt uses random salt, so hashes should differ
       expect(hash1).not.toBe(hash2);
     });
 
-    it('should handle empty string', () => {
-      const hash = hashPasswordSync('');
+    it('should handle empty string', async () => {
+      const hash = await hashPassword('');
 
       expect(hash).toMatch(/^\$2[ab]\$\d{2}\$.{53}$/);
     });
 
-    it('should handle special characters', () => {
+    it('should handle special characters', async () => {
       const password = '!@#$%^&*()_+-=[]{}|;:,.<>?';
-      const hash = hashPasswordSync(password);
+      const hash = await hashPassword(password);
 
       expect(hash).toMatch(/^\$2[ab]\$\d{2}\$.{53}$/);
     });
 
-    it('should handle unicode characters', () => {
+    it('should handle unicode characters', async () => {
       const password = '密码123';
-      const hash = hashPasswordSync(password);
-
-      expect(hash).toMatch(/^\$2[ab]\$\d{2}\$.{53}$/);
-    });
-  });
-
-  describe('hashPassword (async)', () => {
-    it('should hash a password asynchronously', async () => {
-      const password = 'testPassword123';
       const hash = await hashPassword(password);
 
       expect(hash).toMatch(/^\$2[ab]\$\d{2}\$.{53}$/);
     });
   });
 
-  describe('verifyPasswordSync', () => {
-    it('should return true for correct password', () => {
+  describe('verifyPassword', () => {
+    it('should return true for correct password', async () => {
       const password = 'correctPassword';
-      const hash = hashPasswordSync(password);
-
-      expect(verifyPasswordSync(password, hash)).toBe(true);
-    });
-
-    it('should return false for incorrect password', () => {
-      const password = 'correctPassword';
-      const hash = hashPasswordSync(password);
-
-      expect(verifyPasswordSync('wrongPassword', hash)).toBe(false);
-    });
-
-    it('should return false for similar but different passwords', () => {
-      const password = 'Password123';
-      const hash = hashPasswordSync(password);
-
-      expect(verifyPasswordSync('password123', hash)).toBe(false); // Case difference
-      expect(verifyPasswordSync('Password123 ', hash)).toBe(false); // Extra space
-      expect(verifyPasswordSync('Password124', hash)).toBe(false); // One digit different
-    });
-
-    it('should handle empty password verification', () => {
-      const hash = hashPasswordSync('');
-
-      expect(verifyPasswordSync('', hash)).toBe(true);
-      expect(verifyPasswordSync('anything', hash)).toBe(false);
-    });
-  });
-
-  describe('verifyPassword (async)', () => {
-    it('should verify password asynchronously', async () => {
-      const password = 'asyncPassword';
       const hash = await hashPassword(password);
 
       expect(await verifyPassword(password, hash)).toBe(true);
-      expect(await verifyPassword('wrong', hash)).toBe(false);
+    });
+
+    it('should return false for incorrect password', async () => {
+      const password = 'correctPassword';
+      const hash = await hashPassword(password);
+
+      expect(await verifyPassword('wrongPassword', hash)).toBe(false);
+    });
+
+    it('should return false for similar but different passwords', async () => {
+      const password = 'Password123';
+      const hash = await hashPassword(password);
+
+      expect(await verifyPassword('password123', hash)).toBe(false); // Case difference
+      expect(await verifyPassword('Password123 ', hash)).toBe(false); // Extra space
+      expect(await verifyPassword('Password124', hash)).toBe(false); // One digit different
+    });
+
+    it('should handle empty password verification', async () => {
+      const hash = await hashPassword('');
+
+      expect(await verifyPassword('', hash)).toBe(true);
+      expect(await verifyPassword('anything', hash)).toBe(false);
     });
   });
 
@@ -113,19 +93,18 @@ describe('Password Utilities', () => {
       expect(isLegacyHash(legacyHash)).toBe(true);
     });
 
-    it('should identify bcrypt hash as non-legacy', () => {
-      const bcryptHash = hashPasswordSync('test');
+    it('should identify bcrypt hash as non-legacy', async () => {
+      const bcryptHash = await hashPassword('test');
       expect(isLegacyHash(bcryptHash)).toBe(false);
     });
 
-    it('should verify password against legacy SHA256 hash', () => {
+    it('should verify password against legacy SHA256 hash', async () => {
       // Create a real SHA256 hash of "testPassword"
-      const crypto = require('crypto');
       const password = 'testPassword';
       const legacyHash = crypto.createHash('sha256').update(password).digest('hex');
 
-      expect(verifyPasswordSync(password, legacyHash)).toBe(true);
-      expect(verifyPasswordSync('wrongPassword', legacyHash)).toBe(false);
+      expect(await verifyPassword(password, legacyHash)).toBe(true);
+      expect(await verifyPassword('wrongPassword', legacyHash)).toBe(false);
     });
   });
 

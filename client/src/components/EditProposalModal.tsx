@@ -1,7 +1,14 @@
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 
 interface EditProposalModalProps {
   proposal: {
@@ -24,12 +31,12 @@ export function EditProposalModal({
   onSave,
   isSaving = false,
 }: EditProposalModalProps) {
-  const [editedText, setEditedText] = useState("");
+  const [editedText, setEditedText] = useState('');
 
   useEffect(() => {
     if (proposal) {
       // Use edited_text if available, otherwise use suggested_text
-      setEditedText(proposal.edited_text || proposal.suggested_text || "");
+      setEditedText(proposal.edited_text || proposal.suggested_text || '');
     }
   }, [proposal]);
 
@@ -43,7 +50,7 @@ export function EditProposalModal({
     onClose();
     // Reset to original text
     if (proposal) {
-      setEditedText(proposal.edited_text || proposal.suggested_text || "");
+      setEditedText(proposal.edited_text || proposal.suggested_text || '');
     }
   };
 
@@ -56,7 +63,12 @@ export function EditProposalModal({
           <DialogTitle>Edit Proposal Text</DialogTitle>
           <DialogDescription>
             Editing proposal for <strong>{proposal.page}</strong>
-            {proposal.section && <> &gt; <strong>{proposal.section}</strong></>}
+            {proposal.section && (
+              <>
+                {' '}
+                &gt; <strong>{proposal.section}</strong>
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -79,11 +91,7 @@ export function EditProposalModal({
         </div>
 
         <DialogFooter>
-          <Button
-            onClick={handleCancel}
-            variant="outline"
-            disabled={isSaving}
-          >
+          <Button onClick={handleCancel} variant="outline" disabled={isSaving}>
             Cancel
           </Button>
           <Button

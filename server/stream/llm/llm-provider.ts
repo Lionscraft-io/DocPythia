@@ -58,26 +58,22 @@ export interface ILLMProvider {
 /**
  * Model configuration mapping
  */
-export const MODEL_MAP: Record<LLMModel, string> = {
+// Note: PRO_2 maps to same model as PRO (consolidated after gemini-exp-1206 deprecation)
+export const MODEL_MAP: Record<string, string> = {
   [LLMModel.FLASH]: 'gemini-2.5-flash',
   [LLMModel.PRO]: 'gemini-2.5-pro',
-  [LLMModel.PRO_2]: 'gemini-2.5-pro',  // Consolidated to 2.5-pro (gemini-exp-1206 deprecated)
 };
 
 /**
  * Default generation configs per model tier
  */
-export const DEFAULT_CONFIGS: Record<LLMModel, Partial<GenerationConfig>> = {
+export const DEFAULT_CONFIGS: Record<string, Partial<GenerationConfig>> = {
   [LLMModel.FLASH]: {
     temperature: 0.2,
     maxOutputTokens: 2048,
   },
   [LLMModel.PRO]: {
     temperature: 0.4,
-    maxOutputTokens: 4096,
-  },
-  [LLMModel.PRO_2]: {
-    temperature: 0.3,
     maxOutputTokens: 4096,
   },
 };
@@ -111,7 +107,7 @@ export class GeminiProvider implements ILLMProvider {
     const model = this.getModel(options);
 
     const contents = [
-      ...history.map(msg => ({
+      ...history.map((msg) => ({
         role: msg.role === 'model' ? 'model' : 'user',
         parts: [{ text: msg.content }],
       })),
@@ -131,17 +127,16 @@ export class GeminiProvider implements ILLMProvider {
   }
 
   private getModel(options: GenerationOptions): GenerativeModel {
-    const modelName = typeof options.model === 'string'
-      ? options.model
-      : MODEL_MAP[options.model];
+    const modelName = typeof options.model === 'string' ? options.model : MODEL_MAP[options.model];
 
     if (!modelName) {
       throw new Error(`Model name is empty or undefined. modelType: ${options.model}`);
     }
 
-    const defaultConfig = typeof options.model === 'string'
-      ? DEFAULT_CONFIGS[LLMModel.FLASH]
-      : DEFAULT_CONFIGS[options.model];
+    const defaultConfig =
+      typeof options.model === 'string'
+        ? DEFAULT_CONFIGS[LLMModel.FLASH]
+        : DEFAULT_CONFIGS[options.model];
 
     const generationConfig: GenerationConfig = {
       ...defaultConfig,

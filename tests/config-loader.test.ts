@@ -15,7 +15,7 @@ const mockFs = vi.hoisted(() => ({
 }));
 
 vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal() as object;
+  const actual = (await importOriginal()) as object;
   return {
     ...actual,
     default: {
@@ -234,7 +234,10 @@ describe('ConfigLoader', () => {
 
       expect(config._source.env).toBe(true);
       expect(config.admin.passwordHash).toBe('test-hash-123');
-      expect(config.admin.allowedOrigins).toEqual(['http://localhost:3000', 'http://localhost:5000']);
+      expect(config.admin.allowedOrigins).toEqual([
+        'http://localhost:3000',
+        'http://localhost:5000',
+      ]);
     });
 
     it('should load Zulip community config from environment', async () => {

@@ -89,8 +89,8 @@ describe('useToast reducer', () => {
         toastId: '1',
       });
 
-      expect(result.toasts.find(t => t.id === '1')?.open).toBe(false);
-      expect(result.toasts.find(t => t.id === '2')?.open).toBe(true);
+      expect(result.toasts.find((t) => t.id === '1')?.open).toBe(false);
+      expect(result.toasts.find((t) => t.id === '2')?.open).toBe(true);
     });
 
     it('should dismiss all toasts when no toastId provided', () => {
@@ -101,7 +101,7 @@ describe('useToast reducer', () => {
         type: 'DISMISS_TOAST',
       });
 
-      expect(result.toasts.every(t => t.open === false)).toBe(true);
+      expect(result.toasts.every((t) => t.open === false)).toBe(true);
     });
   });
 
@@ -187,7 +187,7 @@ describe('toast function', () => {
     });
 
     // Toast should be set to open: false or removed
-    const foundToast = result.current.toasts.find(t => t.id === toastResult.id);
+    const foundToast = result.current.toasts.find((t) => t.id === toastResult.id);
     if (foundToast) {
       expect(foundToast.open).toBe(false);
     }

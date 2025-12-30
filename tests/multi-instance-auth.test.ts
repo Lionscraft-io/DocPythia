@@ -5,8 +5,8 @@
  * Date: 2025-12-23
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { hashPasswordSync } from '../server/auth/password.js';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { hashPassword } from '../server/auth/password.js';
 
 // Mock the InstanceConfigLoader
 vi.mock('../server/config/instance-loader.js', () => ({
@@ -26,13 +26,26 @@ import {
 
 describe('Multi-Instance Authentication', () => {
   const testPassword = 'testPassword123';
-  const testPasswordHash = hashPasswordSync(testPassword);
+  let testPasswordHash: string;
+  let mockConfig: { admin: { passwordHash: string } };
+  let wrongPasswordHash: string;
+  let wrongConfig: { admin: { passwordHash: string } };
 
-  const mockConfig = {
-    admin: {
-      passwordHash: testPasswordHash,
-    },
-  };
+  beforeAll(async () => {
+    // Pre-compute hashes once for all tests
+    testPasswordHash = await hashPassword(testPassword);
+    wrongPasswordHash = await hashPassword('wrongPassword');
+    mockConfig = {
+      admin: {
+        passwordHash: testPasswordHash,
+      },
+    };
+    wrongConfig = {
+      admin: {
+        passwordHash: wrongPasswordHash,
+      },
+    };
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,12 +76,6 @@ describe('Multi-Instance Authentication', () => {
     });
 
     it('should try all instances until match found', async () => {
-      const wrongConfig = {
-        admin: {
-          passwordHash: hashPasswordSync('wrongPassword'),
-        },
-      };
-
       vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
         'wrong1',
         'wrong2',
@@ -87,12 +94,6 @@ describe('Multi-Instance Authentication', () => {
     });
 
     it('should return error when no instance matches', async () => {
-      const wrongConfig = {
-        admin: {
-          passwordHash: hashPasswordSync('wrongPassword'),
-        },
-      };
-
       vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
         'instance1',
         'instance2',
@@ -107,9 +108,7 @@ describe('Multi-Instance Authentication', () => {
     });
 
     it('should load config if not cached', async () => {
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-        'uncached',
-      ]);
+      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['uncached']);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
       vi.mocked(InstanceConfigLoader.load).mockReturnValue(mockConfig as any);
 
@@ -120,10 +119,7 @@ describe('Multi-Instance Authentication', () => {
     });
 
     it('should continue to next instance on config load error', async () => {
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
-        'broken',
-        'working',
-      ]);
+      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['broken', 'working']);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
       vi.mocked(InstanceConfigLoader.load).mockImplementation((id: string) => {
         if (id === 'broken') throw new Error('Config not found');
@@ -138,41 +134,41 @@ describe('Multi-Instance Authentication', () => {
   });
 
   describe('authenticateInstance', () => {
-    it('should return true for valid password', () => {
+    it('should return true for valid password', async () => {
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
       vi.mocked(InstanceConfigLoader.get).mockReturnValue(mockConfig as any);
 
-      const result = authenticateInstance(testPassword, 'test');
+      const result = await authenticateInstance(testPassword, 'test');
 
       expect(result).toBe(true);
     });
 
-    it('should return false for invalid password', () => {
+    it('should return false for invalid password', async () => {
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
       vi.mocked(InstanceConfigLoader.get).mockReturnValue(mockConfig as any);
 
-      const result = authenticateInstance('wrongPassword', 'test');
+      const result = await authenticateInstance('wrongPassword', 'test');
 
       expect(result).toBe(false);
     });
 
-    it('should load config if not cached', () => {
+    it('should load config if not cached', async () => {
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
       vi.mocked(InstanceConfigLoader.load).mockReturnValue(mockConfig as any);
 
-      const result = authenticateInstance(testPassword, 'test');
+      const result = await authenticateInstance(testPassword, 'test');
 
       expect(InstanceConfigLoader.load).toHaveBeenCalledWith('test');
       expect(result).toBe(true);
     });
 
-    it('should return false on config error', () => {
+    it('should return false on config error', async () => {
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
       vi.mocked(InstanceConfigLoader.load).mockImplementation(() => {
         throw new Error('Config not found');
       });
 
-      const result = authenticateInstance(testPassword, 'nonexistent');
+      const result = await authenticateInstance(testPassword, 'nonexistent');
 
       expect(result).toBe(false);
     });

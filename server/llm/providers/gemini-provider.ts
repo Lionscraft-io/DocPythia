@@ -51,15 +51,15 @@ export class GeminiLLMProvider implements ILLMProvider {
         };
       }
 
-      const contents = options?.systemPrompt
-        ? [
-            { role: 'user' as const, parts: [{ text: options.systemPrompt }] },
-            { role: 'model' as const, parts: [{ text: 'Understood.' }] },
-            { role: 'user' as const, parts: [{ text: prompt }] },
-          ]
-        : prompt;
-
-      const result = await model.generateContent(contents);
+      const result = options?.systemPrompt
+        ? await model.generateContent({
+            contents: [
+              { role: 'user', parts: [{ text: options.systemPrompt }] },
+              { role: 'model', parts: [{ text: 'Understood.' }] },
+              { role: 'user', parts: [{ text: prompt }] },
+            ],
+          })
+        : await model.generateContent(prompt);
       const text = result.response.text();
 
       // Cache the response
@@ -93,7 +93,7 @@ export class GeminiLLMProvider implements ILLMProvider {
               { role: 'model' as const, parts: [{ text: 'Understood.' }] },
             ]
           : []),
-        ...history.map(msg => ({
+        ...history.map((msg) => ({
           role: msg.role === 'assistant' ? ('model' as const) : ('user' as const),
           parts: [{ text: msg.content }],
         })),
@@ -136,15 +136,15 @@ Respond with valid JSON only. No markdown code blocks, just the raw JSON object.
     });
 
     try {
-      const contents = options?.systemPrompt
-        ? [
-            { role: 'user' as const, parts: [{ text: options.systemPrompt }] },
-            { role: 'model' as const, parts: [{ text: 'Understood.' }] },
-            { role: 'user' as const, parts: [{ text: structuredPrompt }] },
-          ]
-        : structuredPrompt;
-
-      const result = await model.generateContent(contents);
+      const result = options?.systemPrompt
+        ? await model.generateContent({
+            contents: [
+              { role: 'user', parts: [{ text: options.systemPrompt }] },
+              { role: 'model', parts: [{ text: 'Understood.' }] },
+              { role: 'user', parts: [{ text: structuredPrompt }] },
+            ],
+          })
+        : await model.generateContent(structuredPrompt);
       const text = result.response.text();
 
       // Parse and validate with Zod
@@ -238,7 +238,9 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
       }
     }
 
-    throw new Error(`Failed to generate embedding after ${this.MAX_RETRIES} attempts: ${lastError?.message}`);
+    throw new Error(
+      `Failed to generate embedding after ${this.MAX_RETRIES} attempts: ${lastError?.message}`
+    );
   }
 
   async embedBatch(texts: string[]): Promise<number[][]> {
@@ -263,6 +265,6 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

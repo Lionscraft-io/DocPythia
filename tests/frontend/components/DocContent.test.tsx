@@ -33,12 +33,14 @@ describe('DocContent', () => {
   });
 
   it('should render content with markdown', () => {
-    const sections = [{
-      id: 'test',
-      title: 'Test',
-      content: 'This is **bold** text',
-      level: 2,
-    }];
+    const sections = [
+      {
+        id: 'test',
+        title: 'Test',
+        content: 'This is **bold** text',
+        level: 2,
+      },
+    ];
     render(<DocContent sections={sections} />);
 
     const content = screen.getByTestId('content-test');
@@ -48,12 +50,14 @@ describe('DocContent', () => {
   });
 
   it('should render info alert for info type', () => {
-    const sections = [{
-      id: 'info',
-      title: 'Information',
-      content: 'Some info here',
-      type: 'info' as const,
-    }];
+    const sections = [
+      {
+        id: 'info',
+        title: 'Information',
+        content: 'Some info here',
+        type: 'info' as const,
+      },
+    ];
     render(<DocContent sections={sections} />);
 
     expect(screen.getByText('Information')).toBeInTheDocument();
@@ -61,12 +65,14 @@ describe('DocContent', () => {
   });
 
   it('should render warning alert for warning type', () => {
-    const sections = [{
-      id: 'warning',
-      title: 'Warning',
-      content: 'Be careful!',
-      type: 'warning' as const,
-    }];
+    const sections = [
+      {
+        id: 'warning',
+        title: 'Warning',
+        content: 'Be careful!',
+        type: 'warning' as const,
+      },
+    ];
     render(<DocContent sections={sections} />);
 
     expect(screen.getByText('Warning')).toBeInTheDocument();
@@ -74,12 +80,14 @@ describe('DocContent', () => {
   });
 
   it('should render success alert for success type', () => {
-    const sections = [{
-      id: 'success',
-      title: 'Success',
-      content: 'Operation completed',
-      type: 'success' as const,
-    }];
+    const sections = [
+      {
+        id: 'success',
+        title: 'Success',
+        content: 'Operation completed',
+        type: 'success' as const,
+      },
+    ];
     render(<DocContent sections={sections} />);
 
     expect(screen.getByText('Success')).toBeInTheDocument();

@@ -30,7 +30,7 @@ export class PromptBuilder {
       return [];
     }
 
-    return history.map(msg => ({
+    return history.map((msg) => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       content: msg.content,
     })) as ConversationMessage[];
