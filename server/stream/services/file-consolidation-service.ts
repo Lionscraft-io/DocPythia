@@ -6,16 +6,26 @@
  *
  * @author Wayne
  * @created 2025-11-11
+ * @updated 2025-12-30 - Refactored to use PromptRegistry for externalized prompts
  */
 
 import { DocProposal } from '@prisma/client';
 import { llmService } from '../llm/llm-service.js';
-import { PROMPT_TEMPLATES, fillTemplate } from '../llm/prompt-templates.js';
 import { getConfig } from '../../config/loader.js';
+import { createPromptRegistry, PromptRegistry } from '../../pipeline/prompts/PromptRegistry.js';
+import { createLogger } from '../../utils/logger.js';
 import { z } from 'zod';
+
+const logger = createLogger('FileConsolidationService');
 
 // Consolidation model - configurable via env var, defaults to gemini-2.5-flash
 const CONSOLIDATION_MODEL = process.env.LLM_CONSOLIDATION_MODEL || 'gemini-2.5-flash';
+
+// Config base path - defaults to ./config
+const CONFIG_BASE_PATH = process.env.CONFIG_PATH || './config';
+
+// Prompt ID for file consolidation
+const FILE_CONSOLIDATION_PROMPT_ID = 'file-consolidation';
 
 // Schema for the LLM response (just the raw file content)
 const FileConsolidationResponseSchema = z.object({
@@ -28,6 +38,31 @@ interface ConsolidationResult {
 }
 
 export class FileConsolidationService {
+  private promptRegistry: PromptRegistry | null = null;
+  private promptRegistryLoading: Promise<void> | null = null;
+
+  /**
+   * Get or initialize the prompt registry (lazy loading with singleton pattern)
+   */
+  private async getPromptRegistry(): Promise<PromptRegistry> {
+    if (this.promptRegistry) {
+      return this.promptRegistry;
+    }
+
+    // Prevent multiple simultaneous initialization attempts
+    if (!this.promptRegistryLoading) {
+      this.promptRegistryLoading = (async () => {
+        const registry = createPromptRegistry(CONFIG_BASE_PATH);
+        await registry.load();
+        this.promptRegistry = registry;
+        logger.info('PromptRegistry initialized for FileConsolidationService');
+      })();
+    }
+
+    await this.promptRegistryLoading;
+    return this.promptRegistry!;
+  }
+
   /**
    * Consolidate multiple proposals for a single file using LLM
    *
@@ -69,18 +104,18 @@ ${text}
     // Get project configuration
     const config = getConfig();
 
-    // Build the prompt using template
-    const systemPrompt = fillTemplate(PROMPT_TEMPLATES.fileConsolidation.system, {
-      projectName: config.project.name,
-    });
-
-    const userPrompt = fillTemplate(PROMPT_TEMPLATES.fileConsolidation.user, {
+    // Get prompts from registry
+    const registry = await this.getPromptRegistry();
+    const rendered = registry.render(FILE_CONSOLIDATION_PROMPT_ID, {
       projectName: config.project.name,
       filePath,
       originalContent,
       changeCount: proposals.length,
       proposedChanges,
     });
+
+    const systemPrompt = rendered.system;
+    const userPrompt = rendered.user;
 
     console.log('\n' + '='.repeat(80));
     console.log(`🔧 CONSOLIDATING FILE: ${filePath}`);

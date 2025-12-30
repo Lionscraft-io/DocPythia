@@ -25,21 +25,19 @@ vi.mock('../server/config/loader.js', () => ({
   })),
 }));
 
-// Mock the prompt templates
-vi.mock('../server/stream/llm/prompt-templates.js', () => ({
-  PROMPT_TEMPLATES: {
-    fileConsolidation: {
-      system: 'System prompt for {{projectName}}',
-      user: 'User prompt for {{projectName}}: {{filePath}}',
-    },
-  },
-  fillTemplate: vi.fn((template: string, vars: Record<string, any>) => {
-    let result = template;
-    for (const [key, value] of Object.entries(vars)) {
-      result = result.replace(`{{${key}}}`, String(value));
-    }
-    return result;
-  }),
+// Mock the PromptRegistry
+const mockPromptRegistry = {
+  load: vi.fn().mockResolvedValue(undefined),
+  render: vi.fn((promptId: string, variables: Record<string, unknown>) => ({
+    system: `System prompt for ${variables.projectName}`,
+    user: `User prompt for ${variables.projectName}: ${variables.filePath} with ${variables.changeCount} changes`,
+    variables,
+  })),
+};
+
+vi.mock('../server/pipeline/prompts/PromptRegistry.js', () => ({
+  createPromptRegistry: vi.fn(() => mockPromptRegistry),
+  PromptRegistry: vi.fn(),
 }));
 
 import { llmService } from '../server/stream/llm/llm-service.js';

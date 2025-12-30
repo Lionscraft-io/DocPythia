@@ -220,22 +220,8 @@ describe('PROMPT_TEMPLATES', () => {
     });
   });
 
-  describe('fileConsolidation', () => {
-    it('should have system and user prompts', () => {
-      expect(PROMPT_TEMPLATES.fileConsolidation.system).toBeDefined();
-      expect(PROMPT_TEMPLATES.fileConsolidation.user).toBeDefined();
-    });
-
-    it('should contain expected placeholders in user', () => {
-      const vars = extractVariables(PROMPT_TEMPLATES.fileConsolidation.user);
-
-      expect(vars).toContain('projectName');
-      expect(vars).toContain('filePath');
-      expect(vars).toContain('originalContent');
-      expect(vars).toContain('changeCount');
-      expect(vars).toContain('proposedChanges');
-    });
-  });
+  // NOTE: fileConsolidation tests removed - template moved to PromptRegistry
+  // Tests for the new externalized template are in tests/file-consolidation-service.test.ts
 
   describe('template filling', () => {
     it('should fill threadClassification user template', () => {

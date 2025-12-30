@@ -17,7 +17,7 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3,
 };
 
-class Logger {
+export class Logger {
   private minLevel: number;
   private prefix: string;
 
@@ -77,6 +77,28 @@ export const logger = new Logger();
 // Factory function for creating named loggers
 export function createLogger(name: string): Logger {
   return new Logger({ prefix: name });
+}
+
+/**
+ * Safely extract error message from an unknown error
+ * Useful for catch blocks where error type is unknown
+ */
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'Unknown error';
+}
+
+/**
+ * Check if an error has a specific message
+ * Useful for catch blocks that need to check error.message
+ */
+export function hasErrorMessage(error: unknown, message: string): boolean {
+  return error instanceof Error && error.message === message;
 }
 
 export default logger;

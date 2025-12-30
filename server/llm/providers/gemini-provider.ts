@@ -14,7 +14,7 @@ import type {
   ConversationMessage,
   LLMProviderType,
 } from './types.js';
-import { createLogger } from '../../utils/logger.js';
+import { createLogger, getErrorMessage } from '../../utils/logger.js';
 import { llmCache } from '../llm-cache.js';
 
 const logger = createLogger('GeminiProvider');
@@ -71,9 +71,9 @@ export class GeminiLLMProvider implements ILLMProvider {
         finishReason: result.response.candidates?.[0]?.finishReason,
         model: modelName,
       };
-    } catch (error: any) {
-      logger.error('Generation failed:', error.message);
-      throw new Error(`Gemini generation failed: ${error.message}`);
+    } catch (error) {
+      logger.error('Generation failed:', getErrorMessage(error));
+      throw new Error(`Gemini generation failed: ${getErrorMessage(error)}`);
     }
   }
 
@@ -108,9 +108,9 @@ export class GeminiLLMProvider implements ILLMProvider {
         finishReason: result.response.candidates?.[0]?.finishReason,
         model: modelName,
       };
-    } catch (error: any) {
-      logger.error('Generation with history failed:', error.message);
-      throw new Error(`Gemini generation failed: ${error.message}`);
+    } catch (error) {
+      logger.error('Generation with history failed:', getErrorMessage(error));
+      throw new Error(`Gemini generation failed: ${getErrorMessage(error)}`);
     }
   }
 
@@ -150,13 +150,13 @@ Respond with valid JSON only. No markdown code blocks, just the raw JSON object.
       // Parse and validate with Zod
       const parsed = JSON.parse(text);
       return schema.parse(parsed);
-    } catch (error: any) {
-      if (error.name === 'ZodError') {
-        logger.error('Schema validation failed:', error.errors);
-        throw new Error(`Response did not match expected schema: ${error.message}`);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'ZodError') {
+        logger.error('Schema validation failed:', (error as { errors?: unknown }).errors);
+        throw new Error(`Response did not match expected schema: ${getErrorMessage(error)}`);
       }
-      logger.error('Structured generation failed:', error.message);
-      throw new Error(`Gemini structured generation failed: ${error.message}`);
+      logger.error('Structured generation failed:', getErrorMessage(error));
+      throw new Error(`Gemini structured generation failed: ${getErrorMessage(error)}`);
     }
   }
 
@@ -227,9 +227,9 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
         });
 
         return embedding;
-      } catch (error: any) {
-        lastError = error;
-        logger.warn(`Embedding attempt ${attempt + 1} failed:`, error.message);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(getErrorMessage(error));
+        logger.warn(`Embedding attempt ${attempt + 1} failed:`, getErrorMessage(error));
 
         if (attempt < this.MAX_RETRIES - 1) {
           const delay = this.RETRY_DELAY * Math.pow(2, attempt);
