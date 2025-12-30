@@ -9,11 +9,11 @@
 
 import { LLMModel, LLMRequest, LLMResponse } from '../types.js';
 import { llmCache as defaultLlmCache, CachePurpose, ILLMCache } from '../../llm/llm-cache.js';
-import { ILLMProvider, GeminiProvider, MODEL_MAP, DEFAULT_CONFIGS } from './llm-provider.js';
+import { ILLMProvider, GeminiProvider } from './llm-provider.js';
 import { SchemaConverter } from './schema-converter.js';
 import { ResponseParser } from './response-parser.js';
 import { PromptBuilder } from './prompt-builder.js';
-import { RetryHandler, RetryConfig, DEFAULT_RETRY_CONFIG } from './retry-handler.js';
+import { RetryHandler, RetryConfig } from './retry-handler.js';
 
 /**
  * Configuration options for LLMService
@@ -299,7 +299,7 @@ export class LLMService {
       case 'proposal':
         return LLMModel.PRO;
       case 'review':
-        return LLMModel.PRO_2;
+        return LLMModel.PRO;
       default:
         return LLMModel.PRO;
     }

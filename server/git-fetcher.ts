@@ -193,9 +193,6 @@ export class GitFetcher {
 
     const changedFiles: DocFile[] = [];
 
-    // Get diff with status
-    let diffResult;
-
     if (fromHash === 'HEAD~1' || !fromHash) {
       // First sync or single commit back
       const files = await this.git.raw(['ls-files', '*.md', '*.mdx']);

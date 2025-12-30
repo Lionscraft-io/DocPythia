@@ -194,7 +194,7 @@ router.get('/instances', (req: Request, res: Response) => {
   try {
     const instances = InstanceConfigLoader.getAvailableInstances();
     res.json({ instances });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get instances' });
   }
 });

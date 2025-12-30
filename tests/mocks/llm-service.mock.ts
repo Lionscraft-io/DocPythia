@@ -63,7 +63,7 @@ export const resetLLMServiceMocks = () => {
 
 // Setup default mock behavior
 export const setupLLMServiceMocks = () => {
-  mockLLMService.requestJSON.mockImplementation(async (request, schema, purpose, messageId) => {
+  mockLLMService.requestJSON.mockImplementation(async (request, schema, purpose, _messageId) => {
     if (purpose === 'analysis') {
       // Batch classification
       return createMockLLMResponse(mockBatchClassificationResponse);

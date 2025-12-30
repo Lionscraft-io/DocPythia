@@ -4,7 +4,6 @@
  */
 
 import https from 'https';
-import http from 'http';
 import dns from 'dns';
 import { promisify } from 'util';
 
@@ -109,11 +108,7 @@ async function testHTTPSNoVerify(): Promise<boolean> {
       },
       (res) => {
         const duration = Date.now() - startTime;
-        let data = '';
-
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
+        res.on('data', () => {});
 
         res.on('end', () => {
           console.log('✅ HTTPS (no verify): SUCCESS');
@@ -159,11 +154,7 @@ async function testDirectIP(ip: string): Promise<boolean> {
 
     const req = https.get(options, (res) => {
       const duration = Date.now() - startTime;
-      let data = '';
-
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
+      res.on('data', () => {});
 
       res.on('end', () => {
         console.log('✅ Direct IP: SUCCESS');

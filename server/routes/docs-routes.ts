@@ -25,7 +25,7 @@ const rollbackBodySchema = z.object({
 let vectorStore: PgVectorStore;
 try {
   vectorStore = new PgVectorStore('default', prisma);
-} catch (error) {
+} catch {
   logger.warn('Failed to initialize default vectorStore');
 }
 

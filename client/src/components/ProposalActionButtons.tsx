@@ -12,7 +12,7 @@ interface ProposalActionButtonsProps {
 }
 
 export function ProposalActionButtons({
-  proposalId,
+  proposalId: _proposalId,
   status,
   onEdit,
   onApprove,

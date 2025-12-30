@@ -18,6 +18,7 @@ export {
  */
 export function initializeStorage(): void {
   // Import s3Storage to initialize it
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { s3Storage } = require('./s3-client');
   s3Storage.initializeFromEnv();
 }

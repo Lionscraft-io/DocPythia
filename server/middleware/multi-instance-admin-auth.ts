@@ -39,7 +39,7 @@ export const multiInstanceAdminAuth = async (req: Request, res: Response, next: 
         (req as any).adminInstance = instanceId;
         break;
       }
-    } catch (error) {
+    } catch {
       // Continue checking other instances
       continue;
     }

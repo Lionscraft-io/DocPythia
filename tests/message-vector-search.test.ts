@@ -5,7 +5,7 @@
  * Date: 2025-12-23
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Use vi.hoisted to define mocks before vi.mock is hoisted
 const { mockEmbedText, mockSearchSimilar, MockPgVectorStore } = vi.hoisted(() => {

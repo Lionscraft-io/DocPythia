@@ -43,7 +43,6 @@ vi.mock('../server/stream/llm/prompt-templates.js', () => ({
 }));
 
 import { llmService } from '../server/stream/llm/llm-service.js';
-import { getConfig } from '../server/config/loader.js';
 
 // Helper to create mock proposals
 function createMockProposal(overrides: Partial<DocProposal> = {}): DocProposal {

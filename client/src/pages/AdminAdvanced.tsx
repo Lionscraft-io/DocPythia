@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
-import { UpdateCard } from '@/components/UpdateCard';
-import { VersionHistoryCard } from '@/components/VersionHistoryCard';
 import { StatsCard } from '@/components/StatsCard';
 import { ProposalActionButtons } from '@/components/ProposalActionButtons';
 import { EditProposalModal } from '@/components/EditProposalModal';
@@ -9,15 +7,11 @@ import { PRPreviewModal, type PRSubmitData } from '@/components/PRPreviewModal';
 import {
   FileText,
   CheckCircle2,
-  Clock,
-  History,
-  RefreshCw,
   Database,
   Trash2,
   Search,
   ChevronDown,
   ChevronUp,
-  MessageSquare,
   Eye,
   EyeOff,
   AlertCircle,
@@ -40,10 +34,9 @@ import type { PendingUpdate, DocumentationSection, SectionVersion } from '@share
 export default function AdminAdvanced() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [selectedSection, setSelectedSection] = useState<string>('');
-  const [authDisabled, setAuthDisabled] = useState(false);
+  const [selectedSection] = useState<string>('');
+  const [, setAuthDisabled] = useState(false);
   const [proposalsPage, setProposalsPage] = useState(1);
-  const [conversationsPage, setConversationsPage] = useState(1);
   const [changesetPage, setChangesetPage] = useState(1);
   const [discardedPage, setDiscardedPage] = useState(1);
   const [unprocessedPage, setUnprocessedPage] = useState(1);
@@ -91,20 +84,16 @@ export default function AdminAdvanced() {
       });
   }, [setLocation]);
 
-  const {
-    data: updates = [],
-    isLoading,
-    error,
-  } = useQuery<PendingUpdate[]>({
+  const { isLoading, error } = useQuery<PendingUpdate[]>({
     queryKey: ['/api/updates'],
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
-  const { data: sections = [] } = useQuery<DocumentationSection[]>({
+  useQuery<DocumentationSection[]>({
     queryKey: ['/api/docs'],
   });
 
-  const { data: history = [] } = useQuery<SectionVersion[]>({
+  useQuery<SectionVersion[]>({
     queryKey: [`/api/sections/${selectedSection}/history`],
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
     enabled: !!selectedSection,
@@ -172,7 +161,8 @@ export default function AdminAdvanced() {
     }
   }, [error, setLocation]);
 
-  const approveMutation = useMutation({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _approveMutation = useMutation({
     mutationFn: async (id: string) => {
       return await adminApiRequest('POST', `/api/updates/${id}/approve`, {});
     },
@@ -197,7 +187,8 @@ export default function AdminAdvanced() {
     },
   });
 
-  const rejectMutation = useMutation({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _rejectMutation = useMutation({
     mutationFn: async (id: string) => {
       return await adminApiRequest('POST', `/api/updates/${id}/reject`, {});
     },
@@ -223,7 +214,8 @@ export default function AdminAdvanced() {
     },
   });
 
-  const editMutation = useMutation({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _editMutation = useMutation({
     mutationFn: async ({
       id,
       data,
@@ -253,50 +245,6 @@ export default function AdminAdvanced() {
       }
     },
   });
-
-  const handleApprove = (id: string) => {
-    approveMutation.mutate(id);
-  };
-
-  const handleReject = (id: string) => {
-    rejectMutation.mutate(id);
-  };
-
-  const handleEdit = (id: string, data: { summary?: string; diffAfter?: string }) => {
-    editMutation.mutate({ id, data });
-  };
-
-  const rollbackMutation = useMutation({
-    mutationFn: async ({ sectionId, versionId }: { sectionId: string; versionId: string }) => {
-      return await adminApiRequest('POST', `/api/sections/${sectionId}/rollback`, { versionId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/docs'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/sections/${selectedSection}/history`] });
-      toast({
-        title: 'Version Restored',
-        description: 'The documentation section has been rolled back successfully.',
-      });
-    },
-    onError: (error: any) => {
-      if (error.message.includes('401') || error.message.includes('403')) {
-        sessionStorage.removeItem('admin_token');
-        setLocation('/admin/login');
-      } else {
-        toast({
-          title: 'Error',
-          description: 'Failed to rollback section.',
-          variant: 'destructive',
-        });
-      }
-    },
-  });
-
-  const handleRevert = (versionId: string) => {
-    if (selectedSection) {
-      rollbackMutation.mutate({ sectionId: selectedSection, versionId });
-    }
-  };
 
   const syncDocsMutation = useMutation({
     mutationFn: async (force: boolean = false) => {
@@ -618,19 +566,6 @@ export default function AdminAdvanced() {
     });
   };
 
-  const formatTimestamp = (timestamp: Date | string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
-    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
-    return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -831,7 +766,7 @@ export default function AdminAdvanced() {
                       <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
                         Messages
                       </h4>
-                      {conv.messages.map((msg: any, idx: number) => (
+                      {conv.messages.map((msg: any, _idx: number) => (
                         <div
                           key={msg.id}
                           className="rounded-md bg-gray-50 border border-gray-100 p-4 space-y-2"
@@ -1163,7 +1098,7 @@ export default function AdminAdvanced() {
                         <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
                           Messages
                         </h4>
-                        {conv.messages.map((msg: any, idx: number) => (
+                        {conv.messages.map((msg: any, _idx: number) => (
                           <div
                             key={msg.id}
                             className="rounded-md bg-gray-50 border border-gray-100 p-4 space-y-2"
@@ -1475,7 +1410,7 @@ export default function AdminAdvanced() {
                         <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
                           Messages
                         </h4>
-                        {conv.messages.map((msg: any, idx: number) => (
+                        {conv.messages.map((msg: any, _idx: number) => (
                           <div
                             key={msg.id}
                             className="rounded-md bg-gray-50 border border-gray-100 p-4 space-y-2"
@@ -1568,7 +1503,6 @@ export default function AdminAdvanced() {
                         {conv.proposals
                           .filter((p: any) => p.status === 'ignored')
                           .map((proposal: any) => {
-                            const isNone = proposal.update_type === 'NONE';
                             const cardClass = 'bg-red-50 border-red-200';
                             const textClass = 'text-gray-700';
                             const headingClass = 'text-gray-900';

@@ -1,6 +1,5 @@
 // Database migration and initialization - Prisma
 // Migrated from Drizzle ORM - Wayne (2025-10-29)
-import { db } from './db';
 import { InstanceConfigLoader } from './config/instance-loader';
 import { getInstanceDb } from './db/instance-db';
 import fs from 'fs';
@@ -72,7 +71,7 @@ export async function initializeDatabase() {
           await pushSchema(instanceDbUrl);
           await seedInitialDataIfNeeded(instanceId);
           console.log(`✅ Schema pushed for ${instanceId}`);
-        } catch (pushError) {
+        } catch {
           console.error(`❌ All attempts failed for instance "${instanceId}"`);
           // Continue to next instance
         }

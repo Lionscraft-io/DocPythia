@@ -36,7 +36,7 @@ router.get('/', async (req: Request, res: Response) => {
         const { InstanceConfigLoader } = await import('../config/instance-loader.js');
         config = InstanceConfigLoader.get(instanceId);
         logger.debug(`Loaded config for instance "${instanceId}"`);
-      } catch (error) {
+      } catch {
         logger.warn(`Instance "${instanceId}" not found, falling back to default`);
         config = getConfig();
       }

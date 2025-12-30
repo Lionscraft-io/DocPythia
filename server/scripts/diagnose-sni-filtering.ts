@@ -226,7 +226,7 @@ async function compareCurl() {
 
   try {
     // Test curl with verbose output
-    const { stdout, stderr } = await execAsync(
+    const { stdout } = await execAsync(
       `curl -v -4 --max-time 5 "https://${HOST}${PATH}" 2>&1 | grep -E "(Trying|Connected|Server certificate|issuer)"`,
       { encoding: 'utf8' }
     );
@@ -265,7 +265,7 @@ async function testWithDebug() {
           .join('\n')
       );
     }
-  } catch (err: any) {
+  } catch {
     console.log(`   ⏱️  Timed out or failed (expected if connection blocked)`);
   }
 }
@@ -278,7 +278,7 @@ async function runDiagnostics() {
   const ipv6Works = await testForceIPv6();
 
   if (dnsResult?.address) {
-    const directIPWorks = await testDirectIP(dnsResult.address);
+    await testDirectIP(dnsResult.address);
     const directIPNoSNIWorks = await testDirectIPNoSNI(dnsResult.address);
 
     // Diagnosis logic

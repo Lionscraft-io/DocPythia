@@ -18,12 +18,12 @@ class TestAdapter extends BaseStreamAdapter {
     super(streamId, 'test', db);
   }
 
-  async fetchMessages(watermark?: StreamWatermark): Promise<StreamMessage[]> {
+  async fetchMessages(_watermark?: StreamWatermark): Promise<StreamMessage[]> {
     this.ensureInitialized();
     return this.messagesToReturn;
   }
 
-  validateConfig(config: any): boolean {
+  validateConfig(_config: any): boolean {
     return this.configValid;
   }
 

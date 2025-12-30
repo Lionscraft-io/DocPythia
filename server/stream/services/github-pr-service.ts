@@ -62,7 +62,7 @@ export class GitHubPRService {
     // Remove existing directory if it exists
     try {
       await fs.rm(repoPath, { recursive: true, force: true });
-    } catch (error) {
+    } catch {
       // Directory doesn't exist, ignore
     }
 

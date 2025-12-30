@@ -403,7 +403,7 @@ describe('LLMService with Dependency Injection', () => {
     it('getRecommendedModel should return appropriate models', () => {
       expect(LLMService.getRecommendedModel('classification')).toBe(LLMModel.FLASH);
       expect(LLMService.getRecommendedModel('proposal')).toBe(LLMModel.PRO);
-      expect(LLMService.getRecommendedModel('review')).toBe(LLMModel.PRO_2);
+      expect(LLMService.getRecommendedModel('review')).toBe(LLMModel.PRO);
     });
 
     it('estimateTokenCount should calculate tokens', () => {
@@ -415,11 +415,8 @@ describe('LLMService with Dependency Injection', () => {
     it('estimateCost should calculate costs correctly', () => {
       const flashCost = LLMService.estimateCost(LLMModel.FLASH, 1000, 500);
       const proCost = LLMService.estimateCost(LLMModel.PRO, 1000, 500);
-      const pro2Cost = LLMService.estimateCost(LLMModel.PRO_2, 1000, 500);
 
       expect(flashCost).toBeLessThan(proCost);
-      // PRO and PRO_2 are now consolidated to same model (gemini-2.5-pro)
-      expect(proCost).toEqual(pro2Cost);
     });
   });
 

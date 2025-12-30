@@ -90,8 +90,9 @@ vi.mock('../server/stream/stream-manager.js', () => ({
 // Import after mocks are set up
 let app: Express;
 
-// Middleware to inject admin instance for non-instance routes
-const injectAdminInstance = (req: Request, res: Response, next: NextFunction) => {
+// Middleware to inject admin instance for non-instance routes (kept for future use)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _injectAdminInstance = (req: Request, res: Response, next: NextFunction) => {
   (req as any).adminInstance = 'test-instance';
   next();
 };

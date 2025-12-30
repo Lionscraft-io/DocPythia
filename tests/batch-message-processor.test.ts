@@ -172,7 +172,6 @@ const setupDefaultMocks = () => {
 
 describe('BatchMessageProcessor', () => {
   let processor: BatchMessageProcessor;
-  const testStreamId = 'test-stream';
 
   beforeEach(() => {
     resetAllMocks();

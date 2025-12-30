@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '../test-utils';
+import { render, screen, fireEvent } from '../test-utils';
 import Admin from '../../../client/src/pages/Admin';
 
 // Hoist mock functions

@@ -52,7 +52,6 @@ import {
   setSessionCookies,
   clearSessionCookies,
   getSessionFromRequest,
-  generateCsrfToken,
 } from '../server/auth/session.js';
 import authRouter from '../server/routes/auth-routes.js';
 
@@ -62,7 +61,6 @@ const mockedGetAvailableInstances = vi.mocked(InstanceConfigLoader.getAvailableI
 const mockedSetSessionCookies = vi.mocked(setSessionCookies);
 const mockedClearSessionCookies = vi.mocked(clearSessionCookies);
 const mockedGetSessionFromRequest = vi.mocked(getSessionFromRequest);
-const mockedGenerateCsrfToken = vi.mocked(generateCsrfToken);
 
 describe('Auth Routes', () => {
   let app: Express;

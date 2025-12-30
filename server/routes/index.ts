@@ -5,7 +5,7 @@
  * Each route module handles a specific domain of functionality.
  */
 
-import type { Express, RequestHandler } from 'express';
+import type { Express } from 'express';
 import { createServer, type Server } from 'http';
 import swaggerUi from 'swagger-ui-express';
 import { multiInstanceAdminAuth as adminAuth } from '../middleware/multi-instance-admin-auth.js';

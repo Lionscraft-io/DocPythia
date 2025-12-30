@@ -1,7 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { createLogger } from '../utils/logger.js';
 
-const logger = createLogger('WidgetEmbedRoutes');
 const router = Router();
 
 // Widget JavaScript library

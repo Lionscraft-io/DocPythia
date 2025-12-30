@@ -252,6 +252,7 @@ export class BatchMessageProcessor {
           let totalProposalsGenerated = 0;
           let anyMessagesFailed = false;
           let iteration = 0;
+          void batchNumber; // Used for logging context
 
           while (true) {
             iteration++;
@@ -558,7 +559,7 @@ export class BatchMessageProcessor {
   private async classifyBatch(
     messages: any[],
     contextMessages: any[],
-    batchId: string
+    _batchId: string
   ): Promise<BatchClassificationResult> {
     // Build reply chain map for this batch
     const replyChainMap = this.buildReplyChainMap(messages);
@@ -586,7 +587,7 @@ export class BatchMessageProcessor {
 
     const contextText = contextMessages.map(formatMessage).join('\n');
     const messagesToAnalyze = messages
-      .map((msg, idx) => {
+      .map((msg) => {
         return `[MSG_${msg.id}] ${formatMessage(msg)}`;
       })
       .join('\n\n');
@@ -742,7 +743,7 @@ export class BatchMessageProcessor {
       ragSearchCriteria: { keywords: string[]; semanticQuery: string };
     }>,
     allMessages: any[],
-    batchId: string
+    _batchId: string
   ): Promise<ConversationGroup[]> {
     if (threads.length === 0) {
       return [];

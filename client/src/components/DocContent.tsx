@@ -1,4 +1,3 @@
-import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';

@@ -52,7 +52,7 @@ describe('Watermark System', () => {
     });
 
     it('should advance watermark by batch window (24 hours)', async () => {
-      const currentWatermark = new Date('2025-10-30T00:00:00Z');
+      // currentWatermark would be 2025-10-30, advancing to new watermark
       const newWatermark = new Date('2025-10-31T00:00:00Z');
 
       mockPrismaClient.processingWatermark.upsert.mockResolvedValue(

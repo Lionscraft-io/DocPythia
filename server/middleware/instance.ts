@@ -12,6 +12,7 @@ import type { PrismaClient } from '@prisma/client';
 
 // Extend Express Request type
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       instance?: {
@@ -65,7 +66,7 @@ export function instanceMiddleware(req: Request, res: Response, next: NextFuncti
       } else {
         config = InstanceConfigLoader.get(instanceId);
       }
-    } catch (error) {
+    } catch {
       return res.status(404).json({
         error: 'Instance not found',
         message: `Configuration not found for instance "${instanceId}"`,

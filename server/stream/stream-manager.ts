@@ -15,7 +15,6 @@ import { ZulipBotAdapter } from './adapters/zulip-bot-adapter.js';
 import { InstanceConfigLoader } from '../config/instance-loader.js';
 import { getInstanceDb } from '../db/instance-db.js';
 import { createLogger } from '../utils/logger.js';
-import type { StreamMessage } from './types.js';
 
 const logger = createLogger('StreamManager');
 
@@ -188,7 +187,7 @@ export class StreamManager {
     const instanceUpper = instanceId.toUpperCase();
 
     switch (adapterType) {
-      case 'telegram-bot':
+      case 'telegram-bot': {
         // Check for bot token in order of precedence:
         // 1. Instance-specific: PROJECTA_TELEGRAM_BOT_TOKEN
         // 2. Generic: TELEGRAM_BOT_TOKEN
@@ -243,8 +242,9 @@ export class StreamManager {
           config.saveRawUpdates = process.env.TELEGRAM_SAVE_RAW_UPDATES === 'true';
         }
         break;
+      }
 
-      case 'zulipchat':
+      case 'zulipchat': {
         // Check for credentials in order of precedence
         const instanceEmailKey = `${instanceUpper}_ZULIP_BOT_EMAIL`;
         const instanceApiKeyKey = `${instanceUpper}_ZULIP_API_KEY`;
@@ -290,9 +290,10 @@ export class StreamManager {
           config.ignoreOldMessages = process.env.ZULIP_IGNORE_OLD_MESSAGES === 'true';
         }
         break;
+      }
 
       // Add more adapter types here as needed
-      case 'discord':
+      case 'discord': {
         const discordTokenKey = `${instanceUpper}_DISCORD_BOT_TOKEN`;
         if (process.env[discordTokenKey]) {
           config.botToken = process.env[discordTokenKey];
@@ -302,6 +303,7 @@ export class StreamManager {
           logger.debug(`Using Discord bot token from DISCORD_BOT_TOKEN (env)`);
         }
         break;
+      }
     }
 
     return config;

@@ -4,14 +4,14 @@
  * Owner: Wayne
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LLMModel } from '../server/stream/types.js';
 
 // Mock the GoogleGenerativeAI before importing LLMService
 vi.mock('@google/generative-ai', () => {
   return {
     GoogleGenerativeAI: class MockGoogleGenerativeAI {
-      constructor(apiKey: string) {
+      constructor(_apiKey: string) {
         // Constructor mock
       }
       getGenerativeModel() {
@@ -59,9 +59,9 @@ describe('LLMService', () => {
         expect(model).toBe(LLMModel.PRO);
       });
 
-      it('should return PRO_2 for review tasks', () => {
+      it('should return PRO for review tasks', () => {
         const model = LLMService.getRecommendedModel('review');
-        expect(model).toBe(LLMModel.PRO_2);
+        expect(model).toBe(LLMModel.PRO);
       });
 
       it('should return PRO as default for unknown tasks', () => {
@@ -111,14 +111,6 @@ describe('LLMService', () => {
         expect(cost).toBeCloseTo(expectedInput + expectedOutput, 10);
       });
 
-      it('should calculate cost for PRO_2 model (same as PRO - consolidated)', () => {
-        const cost = LLMService.estimateCost(LLMModel.PRO_2, 1000, 500);
-        // PRO_2 is now same as PRO (both gemini-2.5-pro): input: 1.25/1M, output: 5.00/1M
-        const expectedInput = 1000 * (1.25 / 1_000_000);
-        const expectedOutput = 500 * (5.0 / 1_000_000);
-        expect(cost).toBeCloseTo(expectedInput + expectedOutput, 10);
-      });
-
       it('should return 0 for 0 tokens', () => {
         const cost = LLMService.estimateCost(LLMModel.FLASH, 0, 0);
         expect(cost).toBe(0);
@@ -128,12 +120,6 @@ describe('LLMService', () => {
         const cost = LLMService.estimateCost(LLMModel.FLASH, 1_000_000, 1_000_000);
         // FLASH: input: 0.075, output: 0.30
         expect(cost).toBeCloseTo(0.075 + 0.3, 5);
-      });
-
-      it('should show PRO_2 same cost as PRO (consolidated models)', () => {
-        const costPro = LLMService.estimateCost(LLMModel.PRO, 1000, 500);
-        const costPro2 = LLMService.estimateCost(LLMModel.PRO_2, 1000, 500);
-        expect(costPro2).toEqual(costPro);
       });
 
       it('should show PRO is more expensive than FLASH', () => {
@@ -192,14 +178,10 @@ describe('LLMService', () => {
       // Verify the model types exist
       expect(LLMModel.FLASH).toBeDefined();
       expect(LLMModel.PRO).toBeDefined();
-      expect(LLMModel.PRO_2).toBeDefined();
     });
 
-    it('should have FLASH distinct from PRO models', () => {
+    it('should have FLASH distinct from PRO model', () => {
       expect(LLMModel.FLASH).not.toBe(LLMModel.PRO);
-      expect(LLMModel.FLASH).not.toBe(LLMModel.PRO_2);
-      // PRO and PRO_2 are now consolidated to same model (gemini-2.5-pro)
-      expect(LLMModel.PRO).toBe(LLMModel.PRO_2);
     });
   });
 
@@ -239,10 +221,6 @@ describe('LLMModel Enum', () => {
   it('should have PRO model mapped to gemini-2.5-pro', () => {
     expect(LLMModel.PRO).toBe('gemini-2.5-pro');
   });
-
-  it('should have PRO_2 model mapped to gemini-2.5-pro', () => {
-    expect(LLMModel.PRO_2).toBe('gemini-2.5-pro');
-  });
 });
 
 describe('LLMService Instance Methods', () => {
@@ -280,7 +258,7 @@ describe('LLMService Instance Methods', () => {
 
     it('should use temperature and maxTokens config', async () => {
       const result = await service.request({
-        model: LLMModel.PRO_2,
+        model: LLMModel.PRO,
         userPrompt: 'Test prompt',
         temperature: 0.5,
         maxTokens: 1024,
@@ -434,7 +412,7 @@ describe('LLMService Error Handling', () => {
     vi.doMock('@google/generative-ai', () => {
       return {
         GoogleGenerativeAI: class MockGoogleGenerativeAI {
-          constructor(apiKey: string) {}
+          constructor(_apiKey: string) {}
           getGenerativeModel() {
             return {
               generateContent: vi.fn().mockResolvedValue({
@@ -456,7 +434,7 @@ describe('LLMService Error Handling', () => {
     vi.doMock('@google/generative-ai', () => {
       return {
         GoogleGenerativeAI: class MockGoogleGenerativeAI {
-          constructor(apiKey: string) {}
+          constructor(_apiKey: string) {}
           getGenerativeModel() {
             return {
               generateContent: vi.fn().mockRejectedValue(new Error('API rate limit exceeded')),
@@ -493,18 +471,6 @@ describe('LLMService Model Selection', () => {
 
     const result = await service.request({
       model: LLMModel.PRO,
-      userPrompt: 'Test prompt',
-    });
-
-    expect(result.modelUsed).toBe('gemini-2.5-pro');
-  });
-
-  it('should handle PRO_2 model', async () => {
-    process.env.GEMINI_API_KEY = 'test-key';
-    const service = new LLMService();
-
-    const result = await service.request({
-      model: LLMModel.PRO_2,
       userPrompt: 'Test prompt',
     });
 

@@ -5,7 +5,7 @@
  * Date: 2025-12-23
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { SchemaConverter } from '../server/stream/llm/schema-converter.js';
 import { ResponseParser } from '../server/stream/llm/response-parser.js';

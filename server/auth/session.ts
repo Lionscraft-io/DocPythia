@@ -75,7 +75,7 @@ export function createRefreshToken(payload: SessionPayload): string {
 export function verifyAccessToken(token: string): DecodedSession | null {
   try {
     return jwt.verify(token, JWT_SECRET) as DecodedSession;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -86,7 +86,7 @@ export function verifyAccessToken(token: string): DecodedSession | null {
 export function verifyRefreshToken(token: string): DecodedSession | null {
   try {
     return jwt.verify(token, JWT_REFRESH_SECRET) as DecodedSession;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

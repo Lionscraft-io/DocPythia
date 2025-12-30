@@ -5,7 +5,7 @@
  * Date: 2025-12-23
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock fs first
 vi.mock('fs', () => ({
@@ -47,7 +47,7 @@ import {
   DocumentationIndexGenerator,
   loadProjectContext,
 } from '../server/stream/doc-index-generator';
-import { DocumentationIndex, DocumentationPageIndex } from '../server/stream/types';
+import { DocumentationIndex } from '../server/stream/types';
 
 // Working test config that bypasses the glob-to-regex bug
 const workingTestConfig = JSON.stringify({
@@ -112,7 +112,7 @@ describe('DocumentationIndexGenerator', () => {
         })
       );
 
-      const gen = new DocumentationIndexGenerator('config-test');
+      new DocumentationIndexGenerator('config-test');
 
       expect(fs.readFileSync).toHaveBeenCalled();
     });

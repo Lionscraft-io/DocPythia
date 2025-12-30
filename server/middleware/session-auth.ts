@@ -6,12 +6,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import {
-  getSessionFromRequest,
-  verifyCsrfToken,
-  refreshSession,
-  COOKIE_NAMES,
-} from '../auth/session.js';
+import { getSessionFromRequest, verifyCsrfToken, refreshSession } from '../auth/session.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('SessionAuth');
@@ -137,6 +132,7 @@ export function hybridAuth(req: Request, res: Response, next: NextFunction): voi
   if (authHeader?.startsWith('Bearer ')) {
     // Delegate to the existing multi-instance auth middleware
     // This maintains backwards compatibility
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { multiInstanceAdminAuth } = require('./multi-instance-admin-auth.js');
     return multiInstanceAdminAuth(req, res, next);
   }

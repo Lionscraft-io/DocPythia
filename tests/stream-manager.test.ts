@@ -363,7 +363,7 @@ describe('StreamManager - Scheduling', () => {
 
   it('should not schedule when scheduling disabled', () => {
     process.env.STREAM_SCHEDULING_ENABLED = 'false';
-    const manager = new StreamManager();
+    new StreamManager();
     expect(cron.schedule).not.toHaveBeenCalled();
   });
 
@@ -558,11 +558,9 @@ describe('StreamManager - Registered Adapters', () => {
 
     await manager.registerStream(streamConfig, 'test-instance', mockDb);
 
-    expect(cron.schedule).toHaveBeenCalledWith(
-      '* * * * *',
-      expect.any(Function),
-      { timezone: 'UTC' }
-    );
+    expect(cron.schedule).toHaveBeenCalledWith('* * * * *', expect.any(Function), {
+      timezone: 'UTC',
+    });
   });
 
   it('should not schedule when scheduling is disabled', async () => {

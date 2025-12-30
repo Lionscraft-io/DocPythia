@@ -6,7 +6,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import path from 'path';
 
 // Mock fs module
 const mockFs = vi.hoisted(() => ({

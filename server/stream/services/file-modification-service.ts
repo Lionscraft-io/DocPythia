@@ -41,7 +41,7 @@ export class FileModificationService {
     // Check if file exists
     try {
       await fs.access(fullPath);
-    } catch (error) {
+    } catch {
       throw new Error(`File not found: ${filePath}`);
     }
 
@@ -267,7 +267,7 @@ export class FileModificationService {
       // Check if file exists
       try {
         await fs.access(fullPath);
-      } catch (error) {
+      } catch {
         return {
           success: false,
           error: `File not found: ${filePath}`,

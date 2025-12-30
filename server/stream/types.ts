@@ -138,7 +138,7 @@ export interface DocProposal {
 export enum LLMModel {
   FLASH = 'gemini-2.5-flash',
   PRO = 'gemini-2.5-pro',
-  PRO_2 = 'gemini-2.5-pro', // Consolidated to 2.5-pro (gemini-exp-1206 deprecated)
+  // PRO_2 removed - was duplicate of PRO (gemini-exp-1206 deprecated, consolidated to 2.5-pro)
 }
 
 export interface LLMRequest {

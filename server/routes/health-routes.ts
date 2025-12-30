@@ -1,8 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
-import { createLogger } from '../utils/logger.js';
 
-const logger = createLogger('HealthRoutes');
 const router = Router();
 
 // Health check endpoint

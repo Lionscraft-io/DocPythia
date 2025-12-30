@@ -5,7 +5,7 @@
  * Date: 2025-12-23
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ResponseParser } from '../server/stream/llm/response-parser';
 import { SchemaConverter } from '../server/stream/llm/schema-converter';
 import { RetryHandler, DEFAULT_RETRY_CONFIG } from '../server/stream/llm/retry-handler';

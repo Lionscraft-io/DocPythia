@@ -1,3 +1,5 @@
+/* global process, console */
+/* eslint-disable no-console */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 
@@ -12,7 +14,7 @@ async function test() {
   try {
     console.log('Testing text generation...');
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-    const result = await model.generateContent('Hello, just testing!');
+    await model.generateContent('Hello, just testing!');
     console.log('Text generation works');
 
     console.log('\nTesting embedding generation...');

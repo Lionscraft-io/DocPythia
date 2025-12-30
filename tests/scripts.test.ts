@@ -162,24 +162,28 @@ describe('Server Scripts Dependencies', () => {
     });
 
     it('should use default when argument is undefined', () => {
-      const limit = parseInt(undefined || '100', 10);
+      const argValue: string | undefined = undefined;
+      const limit = parseInt(argValue ?? '100', 10);
       expect(limit).toBe(100);
     });
 
     it('should parse channel name from argv', () => {
-      const channelName = 'community-support' || process.env.ZULIP_CHANNEL || 'default';
+      const argChannel: string | undefined = 'community-support';
+      const channelName = argChannel ?? process.env.ZULIP_CHANNEL ?? 'default';
       expect(channelName).toBe('community-support');
     });
 
     it('should fall back to env var for channel', () => {
       process.env.ZULIP_CHANNEL = 'env-channel';
-      const channelName = undefined || process.env.ZULIP_CHANNEL || 'default';
+      const argChannel: string | undefined = undefined;
+      const channelName = argChannel ?? process.env.ZULIP_CHANNEL ?? 'default';
       expect(channelName).toBe('env-channel');
     });
 
     it('should fall back to default channel', () => {
       delete process.env.ZULIP_CHANNEL;
-      const channelName = undefined || process.env.ZULIP_CHANNEL || 'default';
+      const argChannel: string | undefined = undefined;
+      const channelName = argChannel ?? process.env.ZULIP_CHANNEL ?? 'default';
       expect(channelName).toBe('default');
     });
   });
@@ -375,15 +379,18 @@ describe('full-scrape.ts main function logic', () => {
 
   it('should parse channel and batch size from arguments', () => {
     // Channel parsing
-    const channelFromArg = 'my-channel' || process.env.ZULIP_CHANNEL || 'community-support';
+    const argChannel: string | undefined = 'my-channel';
+    const channelFromArg = argChannel ?? process.env.ZULIP_CHANNEL ?? 'community-support';
     expect(channelFromArg).toBe('my-channel');
 
     // Batch size parsing
-    const batchSize = parseInt('500' || '1000', 10);
+    const argBatchSize: string | undefined = '500';
+    const batchSize = parseInt(argBatchSize ?? '1000', 10);
     expect(batchSize).toBe(500);
 
     // Defaults
-    const defaultBatch = parseInt(undefined || '1000', 10);
+    const undefinedArg: string | undefined = undefined;
+    const defaultBatch = parseInt(undefinedArg ?? '1000', 10);
     expect(defaultBatch).toBe(1000);
   });
 });

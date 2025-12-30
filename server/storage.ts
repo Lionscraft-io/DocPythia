@@ -8,7 +8,6 @@ import type {
   ScrapedMessage,
   ScrapeMetadata,
   SectionVersion,
-  Prisma,
 } from '@prisma/client';
 
 // Insert types - simplified versions without relations

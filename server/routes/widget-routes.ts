@@ -12,7 +12,7 @@ const logger = createLogger('WidgetRoutes');
 let vectorStore: PgVectorStore;
 try {
   vectorStore = new PgVectorStore('default', prisma);
-} catch (error) {
+} catch {
   logger.warn('Failed to initialize default vectorStore');
 }
 
@@ -21,8 +21,7 @@ const router = Router();
 // Widget HTML endpoint
 router.get('/:expertId', (req: Request, res: Response) => {
   const { expertId } = req.params;
-  const { theme = 'light', embedded = 'false' } = req.query;
-  const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
+  const { theme = 'light' } = req.query;
 
   // Configurable widget content
   const projectName = process.env.PROJECT_NAME || 'DocsAI';

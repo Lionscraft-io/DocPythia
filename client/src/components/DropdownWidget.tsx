@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronUp, X, MessageCircle } from 'lucide-react';
+import { X, MessageCircle } from 'lucide-react';
 import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
 interface DropdownWidgetProps {
   title?: string;

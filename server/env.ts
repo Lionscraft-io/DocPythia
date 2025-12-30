@@ -21,7 +21,7 @@ if (process.env.DATABASE_URL) {
   try {
     // Try to parse the URL - if it fails, we need to fix the encoding
     new URL(process.env.DATABASE_URL);
-  } catch (error) {
+  } catch {
     // URL parsing failed, likely due to special characters in password
     console.log('⚠️  DATABASE_URL contains special characters, fixing encoding...');
 

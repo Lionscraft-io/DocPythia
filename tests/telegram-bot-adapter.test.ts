@@ -699,7 +699,7 @@ describe('TelegramBotAdapter', () => {
 
       await messageHandler[1](mockCtx);
 
-      expect((adapter as any).saveMessages || vi.fn()).not.toHaveBeenCalled;
+      expect((adapter as any).saveMessages).not.toHaveBeenCalled();
     });
 
     it('should ignore messages from non-whitelisted chats', async () => {

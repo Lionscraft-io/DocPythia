@@ -49,7 +49,6 @@ import {
   getInstanceConfig,
   loadInstanceConfigAsync,
 } from '../server/config/instance-loader';
-import { s3Storage } from '../server/storage/s3-client';
 
 describe('InstanceConfigLoader', () => {
   const originalEnv = process.env;

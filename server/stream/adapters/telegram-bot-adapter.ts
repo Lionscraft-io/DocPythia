@@ -13,7 +13,6 @@ import { StreamMessage, StreamWatermark } from '../types.js';
 import { PrismaClient } from '@prisma/client';
 import prisma from '../../db.js';
 import https from 'https';
-import dns from 'dns';
 
 export interface TelegramBotConfig {
   botToken: string; // Telegram bot token from @BotFather
@@ -231,7 +230,7 @@ export class TelegramBotAdapter extends BaseStreamAdapter {
    * This method exists to satisfy StreamAdapter interface
    * Messages are received via handleMessage() instead
    */
-  async fetchMessages(watermark?: StreamWatermark): Promise<StreamMessage[]> {
+  async fetchMessages(_watermark?: StreamWatermark): Promise<StreamMessage[]> {
     // Telegram bot is push-based, not pull-based
     // Messages are automatically processed via webhooks/polling
     console.log('TelegramBotAdapter: fetchMessages() is not used (push-based bot)');

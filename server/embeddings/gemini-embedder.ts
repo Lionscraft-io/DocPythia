@@ -50,7 +50,7 @@ export class GeminiEmbedder implements EmbeddingService {
         const embedding = JSON.parse(cached.response) as number[];
         console.log(`Using cached embedding (${embedding.length} dimensions)`);
         return embedding;
-      } catch (error) {
+      } catch {
         console.warn('Failed to parse cached embedding, will regenerate');
       }
     }

@@ -156,7 +156,6 @@ export class LLMCache implements ILLMCache {
     if (!this.enabled) return false;
 
     if (this.backend === 's3') {
-      const key = this.getS3CacheKey(prompt, purpose);
       return cacheStorage.has(`llm/${purpose}`, this.hashPrompt(prompt));
     }
 
@@ -423,7 +422,7 @@ export class LLMCache implements ILLMCache {
           try {
             const stats = fs.statSync(filePath);
             totalSizeBytes += stats.size;
-          } catch (error) {
+          } catch {
             // Ignore errors
           }
         }

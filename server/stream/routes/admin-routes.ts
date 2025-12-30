@@ -14,11 +14,9 @@ import { BatchMessageProcessor } from '../processors/batch-message-processor.js'
 import { instanceMiddleware } from '../../middleware/instance.js';
 import { getInstanceDb } from '../../db/instance-db.js';
 import { createLogger } from '../../utils/logger.js';
-import pg from 'pg';
 import multer from 'multer';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-const { Pool } = pg;
 
 const logger = createLogger('AdminStreamRoutes');
 
@@ -76,20 +74,17 @@ const processRequestSchema = z.object({
   batchSize: z.number().int().min(1).max(500).optional(),
 });
 
-const approveProposalSchema = z.object({
-  proposalId: z.number().int(),
-  approved: z.boolean(),
-  reviewedBy: z.string(),
-});
+// Schema for approving proposals (reserved for future use)
+// const approveProposalSchema = z.object({
+//   proposalId: z.number().int(),
+//   approved: z.boolean(),
+//   reviewedBy: z.string(),
+// });
 
 /**
  * Register multi-stream scanner admin routes
  */
 export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-
   /**
    * GET /api/admin/stream/stats
    * Get processing statistics
@@ -294,8 +289,6 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/process', adminAuth, async (req: Request, res: Response) => {
     try {
-      const db = getDb(req);
-
       const { streamId, batchSize } = processRequestSchema.parse(req.body);
 
       // Import streamManager here to avoid circular dependency
@@ -798,7 +791,9 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         if (req.file?.path) {
           try {
             await fs.unlink(req.file.path);
-          } catch {}
+          } catch {
+            // Ignore cleanup errors - file may already be removed
+          }
         }
         res.status(500).json({ error: 'Failed to upload CSV file', details: error.message });
       }
@@ -1298,8 +1293,6 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
    */
   app.post('/api/admin/stream/telegram-webhook', async (req: Request, res: Response) => {
     try {
-      const db = getDb(req);
-
       // Import streamManager here to avoid circular dependency
       const { streamManager } = await import('../stream-manager.js');
       const { TelegramBotAdapter } = await import('../adapters/telegram-bot-adapter.js');

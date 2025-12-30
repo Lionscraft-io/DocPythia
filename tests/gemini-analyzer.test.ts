@@ -383,7 +383,7 @@ describe('MessageAnalyzer', () => {
 
       vi.mocked(storage.createPendingUpdate).mockResolvedValue({ id: 1 } as any);
 
-      const result = await analyzer.analyzeUnanalyzedMessages();
+      await analyzer.analyzeUnanalyzedMessages();
 
       expect(storage.createPendingUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -409,7 +409,7 @@ describe('MessageAnalyzer', () => {
         },
       });
 
-      const result = await analyzer.analyzeUnanalyzedMessages();
+      await analyzer.analyzeUnanalyzedMessages();
 
       expect(storage.createPendingUpdate).not.toHaveBeenCalled();
     });

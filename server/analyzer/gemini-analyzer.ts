@@ -67,7 +67,7 @@ export class MessageAnalyzer {
           const result = JSON.parse(cached.response) as AnalysisResult;
           logger.debug('Using cached analysis result');
           return result;
-        } catch (error) {
+        } catch {
           logger.warn('Failed to parse cached analysis, will regenerate');
         }
       }
@@ -161,7 +161,7 @@ export class MessageAnalyzer {
                 .replace(/[^a-z0-9]+/g, '-')
                 .replace(/^-+|-+$/g, '');
 
-              const pendingUpdate = await storage.createPendingUpdate({
+              await storage.createPendingUpdate({
                 sectionId: proposedSectionId,
                 type: 'add',
                 summary: `Add new section: "${result.proposedSectionTitle}". ${result.summary}`,
@@ -187,7 +187,7 @@ export class MessageAnalyzer {
               if (!section) {
                 logger.warn(`Cannot delete non-existent section "${result.sectionId}". Skipping.`);
               } else {
-                const pendingUpdate = await storage.createPendingUpdate({
+                await storage.createPendingUpdate({
                   sectionId: result.sectionId,
                   type: 'delete',
                   summary: `Delete section: "${section.title}". ${result.summary}`,

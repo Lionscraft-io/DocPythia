@@ -7,7 +7,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
-import * as path from 'path';
 
 // Mock fs module
 vi.mock('fs', () => ({
@@ -21,7 +20,7 @@ vi.mock('fs', () => ({
 }));
 
 // Import after mocking
-import { LLMCache, CachePurpose, CachedLLMRequest } from '../server/llm/llm-cache';
+import { LLMCache, CachedLLMRequest } from '../server/llm/llm-cache';
 
 // Mock cache storage for S3 tests
 vi.mock('../server/storage/cache-storage', () => ({
