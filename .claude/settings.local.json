@@ -86,7 +86,8 @@
       "Bash(grep:*)",
       "Bash(git reset:*)",
       "Bash(npm audit:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
