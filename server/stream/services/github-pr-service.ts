@@ -18,6 +18,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { Octokit } from '@octokit/rest';
 import { getConfig } from '../../config/loader';
+import { getErrorMessage } from '../../utils/logger.js';
 
 const execAsync = promisify(exec);
 
@@ -88,8 +89,8 @@ export class GitHubPRService {
       await execAsync(`git config user.email "${botEmail}"`, { cwd: repoPath });
 
       return repoPath;
-    } catch (error: any) {
-      throw new Error(`Failed to clone repository: ${error.message}`);
+    } catch (error) {
+      throw new Error(`Failed to clone repository: ${getErrorMessage(error)}`);
     }
   }
 
@@ -99,8 +100,8 @@ export class GitHubPRService {
   async createBranch(repoPath: string, branchName: string): Promise<void> {
     try {
       await execAsync(`git checkout -b ${branchName}`, { cwd: repoPath });
-    } catch (error: any) {
-      throw new Error(`Failed to create branch: ${error.message}`);
+    } catch (error) {
+      throw new Error(`Failed to create branch: ${getErrorMessage(error)}`);
     }
   }
 
@@ -122,8 +123,8 @@ export class GitHubPRService {
 
       // Commit changes
       await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: repoPath });
-    } catch (error: any) {
-      throw new Error(`Failed to commit changes: ${error.message}`);
+    } catch (error) {
+      throw new Error(`Failed to commit changes: ${getErrorMessage(error)}`);
     }
   }
 
@@ -138,8 +139,8 @@ export class GitHubPRService {
 
       // Push branch
       await execAsync(`git push -u origin ${branchName}`, { cwd: repoPath });
-    } catch (error: any) {
-      throw new Error(`Failed to push branch: ${error.message}`);
+    } catch (error) {
+      throw new Error(`Failed to push branch: ${getErrorMessage(error)}`);
     }
   }
 
@@ -165,8 +166,8 @@ export class GitHubPRService {
         number: pr.number,
         branchName: options.branchName,
       };
-    } catch (error: any) {
-      throw new Error(`Failed to create pull request: ${error.message}`);
+    } catch (error) {
+      throw new Error(`Failed to create pull request: ${getErrorMessage(error)}`);
     }
   }
 

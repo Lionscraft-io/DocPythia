@@ -477,8 +477,8 @@ describe('Pipeline E2E Tests', () => {
 
       const result = await orchestrator.execute(context);
 
-      // Check metrics
-      expect(result.metrics.totalDurationMs).toBeGreaterThan(0);
+      // Check metrics (totalDurationMs may be 0 in fast test runs)
+      expect(result.metrics.totalDurationMs).toBeGreaterThanOrEqual(0);
       expect(result.metrics.stepDurations.size).toBe(4);
       expect(result.metrics.llmCalls).toBeGreaterThan(0);
       expect(result.metrics.llmTokensUsed).toBeGreaterThan(0);

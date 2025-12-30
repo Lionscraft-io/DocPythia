@@ -90,7 +90,22 @@
       "Bash(git push:*)",
       "Bash(npm view:*)",
       "Bash(npm run:*)",
-      "Bash(npx husky init)"
+      "Bash(npx husky init)",
+      "Bash(__NEW_LINE__ echo \"\")",
+      "Bash(server/stream/services/file-consolidation-service.ts )",
+      "Bash(server/stream/llm/prompt-templates.ts )",
+      "Bash(server/llm/providers/gemini-provider.ts )",
+      "Bash(server/utils/logger.ts )",
+      "Bash(server/pipeline/ )",
+      "Bash(tests/file-consolidation-service.test.ts )",
+      "Bash(tests/prompt-templates.test.ts )",
+      "Bash(tests/pipeline-integration.test.ts )",
+      "Bash(tests/pipeline-config.test.ts )",
+      "Bash(tests/pipeline-steps.test.ts )",
+      "Bash(tests/pipeline-e2e.test.ts )",
+      "Bash(docs/specs/customizable-analysis-pipeline.md)",
+      "Bash(server/pipeline/prompts/PromptRegistry.ts )",
+      "Bash(tests/pipeline-integration.test.ts)"
     ],
     "deny": [],
     "ask": []

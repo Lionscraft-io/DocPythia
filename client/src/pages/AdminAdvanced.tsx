@@ -173,7 +173,7 @@ export default function AdminAdvanced() {
         description: 'The documentation has been updated successfully.',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -200,7 +200,7 @@ export default function AdminAdvanced() {
         variant: 'destructive',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -232,7 +232,7 @@ export default function AdminAdvanced() {
         description: 'The change proposal has been updated.',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -273,7 +273,7 @@ export default function AdminAdvanced() {
         duration: Infinity, // Don't auto-close
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -307,7 +307,7 @@ export default function AdminAdvanced() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/conversations'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/stats'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -337,7 +337,7 @@ export default function AdminAdvanced() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/conversations'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/stats'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -375,7 +375,7 @@ export default function AdminAdvanced() {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/llm-cache/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/llm-cache'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -413,7 +413,7 @@ export default function AdminAdvanced() {
       setEditModalOpen(false);
       setEditingProposal(null);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -462,7 +462,7 @@ export default function AdminAdvanced() {
       queryClient.invalidateQueries({ queryKey: [discardedConvsUrl] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/stats'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -509,7 +509,7 @@ export default function AdminAdvanced() {
       // Refresh general batches query (if exists)
       queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/batches'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');

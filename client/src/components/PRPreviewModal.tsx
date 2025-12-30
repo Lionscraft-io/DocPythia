@@ -117,10 +117,10 @@ export function PRPreviewModal({
         appliedCount: totalProposals,
         failedCount: 0,
       });
-    } catch (error: any) {
+    } catch (error) {
       setSubmitResult({
         success: false,
-        error: error.message || 'Failed to generate PR',
+        error: error instanceof Error ? error.message : 'Failed to generate PR',
       });
     } finally {
       setIsSubmitting(false);

@@ -15,6 +15,9 @@ vi.mock('../server/utils/logger.js', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+  getErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error)),
+  hasErrorMessage: (error: unknown, message: string) =>
+    error instanceof Error && error.message === message,
 }));
 
 // Mock the llm-cache

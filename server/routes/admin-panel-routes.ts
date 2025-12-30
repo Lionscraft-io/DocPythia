@@ -5,7 +5,7 @@ import { createZulipchatScraperFromEnv } from '../scraper/zulipchat';
 import { createAnalyzerFromEnv } from '../analyzer/gemini-analyzer';
 import { triggerJobManually } from '../scheduler';
 import { llmCache } from '../llm/llm-cache.js';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, getErrorMessage, hasErrorMessage } from '../utils/logger.js';
 
 const logger = createLogger('AdminPanelRoutes');
 
@@ -55,16 +55,16 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
         bodyValidation.data.reviewedBy
       );
       res.json(result);
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error approving update:', error);
       if (
-        error.message === 'Update not found' ||
-        error.message === 'Documentation section not found'
+        hasErrorMessage(error, 'Update not found') ||
+        hasErrorMessage(error, 'Documentation section not found')
       ) {
-        return res.status(404).json({ error: error.message });
+        return res.status(404).json({ error: getErrorMessage(error) });
       }
-      if (error.message === 'Cannot approve update: status must be pending') {
-        return res.status(409).json({ error: error.message });
+      if (hasErrorMessage(error, 'Cannot approve update: status must be pending')) {
+        return res.status(409).json({ error: getErrorMessage(error) });
       }
       res.status(500).json({ error: 'Failed to approve update' });
     }
@@ -92,7 +92,7 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
       }
 
       res.json(update);
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error updating pending update:', error);
       res.status(500).json({ error: 'Failed to update pending update' });
     }
@@ -115,13 +115,13 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
         bodyValidation.data.reviewedBy
       );
       res.json(result);
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error rejecting update:', error);
-      if (error.message === 'Update not found') {
-        return res.status(404).json({ error: error.message });
+      if (hasErrorMessage(error, 'Update not found')) {
+        return res.status(404).json({ error: getErrorMessage(error) });
       }
-      if (error.message === 'Cannot reject update: status must be pending') {
-        return res.status(409).json({ error: error.message });
+      if (hasErrorMessage(error, 'Cannot reject update: status must be pending')) {
+        return res.status(409).json({ error: getErrorMessage(error) });
       }
       res.status(500).json({ error: 'Failed to reject update' });
     }
@@ -207,9 +207,9 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
         storedMessages: storedCount,
         message: `Successfully scraped and stored ${storedCount} new messages from ${channel}`,
       });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error during scraping:', error);
-      res.status(500).json({ error: 'Failed to scrape messages', details: error.message });
+      res.status(500).json({ error: 'Failed to scrape messages', details: getErrorMessage(error) });
     }
   });
 
@@ -247,9 +247,11 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
         ...results,
         message: `Analyzed ${results.analyzed} messages. Found ${results.relevant} relevant updates. Created ${results.updatesCreated} pending updates.`,
       });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error during analysis:', error);
-      res.status(500).json({ error: 'Failed to analyze messages', details: error.message });
+      res
+        .status(500)
+        .json({ error: 'Failed to analyze messages', details: getErrorMessage(error) });
     }
   });
 
@@ -291,9 +293,9 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
         message: 'Scheduled job triggered. Check server logs for progress.',
         config: { scrapeLimit, analysisLimit, channelName },
       });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error triggering job:', error);
-      res.status(500).json({ error: 'Failed to trigger job', details: error.message });
+      res.status(500).json({ error: 'Failed to trigger job', details: getErrorMessage(error) });
     }
   });
 
@@ -304,9 +306,9 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
     try {
       const stats = llmCache.getStats();
       res.json(stats);
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error getting LLM cache stats:', error);
-      res.status(500).json({ error: 'Failed to get cache stats', details: error.message });
+      res.status(500).json({ error: 'Failed to get cache stats', details: getErrorMessage(error) });
     }
   });
 
@@ -315,9 +317,9 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
     try {
       const allCached = llmCache.listAll();
       res.json(allCached);
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error listing LLM cache:', error);
-      res.status(500).json({ error: 'Failed to list cache', details: error.message });
+      res.status(500).json({ error: 'Failed to list cache', details: getErrorMessage(error) });
     }
   });
 
@@ -335,9 +337,11 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
 
       const cached = llmCache.listByPurpose(purpose as any);
       res.json({ purpose, count: cached.length, requests: cached });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error listing LLM cache by purpose:', error);
-      res.status(500).json({ error: 'Failed to list cache by purpose', details: error.message });
+      res
+        .status(500)
+        .json({ error: 'Failed to list cache by purpose', details: getErrorMessage(error) });
     }
   });
 
@@ -355,9 +359,11 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
 
       const deletedCount = llmCache.clearPurpose(purpose as any);
       res.json({ success: true, purpose, deletedCount });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error clearing LLM cache by purpose:', error);
-      res.status(500).json({ error: 'Failed to clear cache by purpose', details: error.message });
+      res
+        .status(500)
+        .json({ error: 'Failed to clear cache by purpose', details: getErrorMessage(error) });
     }
   });
 
@@ -366,9 +372,9 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
     try {
       const deletedCount = llmCache.clearAll();
       res.json({ success: true, deletedCount });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error clearing all LLM cache:', error);
-      res.status(500).json({ error: 'Failed to clear all cache', details: error.message });
+      res.status(500).json({ error: 'Failed to clear all cache', details: getErrorMessage(error) });
     }
   });
 
@@ -382,9 +388,9 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
 
       const deletedCount = llmCache.clearOlderThan(days);
       res.json({ success: true, days, deletedCount });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error cleaning up LLM cache:', error);
-      res.status(500).json({ error: 'Failed to cleanup cache', details: error.message });
+      res.status(500).json({ error: 'Failed to cleanup cache', details: getErrorMessage(error) });
     }
   });
 

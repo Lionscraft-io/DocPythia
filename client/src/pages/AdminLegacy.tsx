@@ -47,7 +47,7 @@ export default function AdminLegacy() {
         description: 'The documentation has been updated successfully.',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -73,7 +73,7 @@ export default function AdminLegacy() {
         variant: 'destructive',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -104,7 +104,7 @@ export default function AdminLegacy() {
         description: 'The change proposal has been updated.',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');

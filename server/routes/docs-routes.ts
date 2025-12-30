@@ -7,7 +7,7 @@ import { PgVectorStore } from '../vector-store.js';
 import { getInstanceDb } from '../db/instance-db.js';
 import { docIndexGenerator } from '../stream/doc-index-generator.js';
 import { geminiEmbedder, GeminiEmbedder } from '../embeddings/gemini-embedder.js';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, getErrorMessage } from '../utils/logger.js';
 
 const logger = createLogger('DocsRoutes');
 
@@ -49,7 +49,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
       logger.error('Error fetching documentation:', error);
 
       // Provide more specific error messages
-      const details = error instanceof Error ? error.message : String(error);
+      const details = error instanceof Error ? getErrorMessage(error) : String(error);
       let errorMessage = 'Failed to fetch documentation';
       if (details.includes('connect')) {
         errorMessage = 'Database connection failed';
@@ -264,15 +264,15 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
           totalDocuments: stats.totalDocuments,
           duration: Date.now() - startTime,
         });
-      } catch (syncError: any) {
-        await gitFetcher.updateSyncStatus('error', syncError.message);
+      } catch (syncError) {
+        await gitFetcher.updateSyncStatus('error', getErrorMessage(syncError));
         throw syncError;
       }
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Documentation sync failed:', error);
       res.status(500).json({
         success: false,
-        error: error.message || 'Unknown error during documentation sync',
+        error: getErrorMessage(error) || 'Unknown error during documentation sync',
       });
     }
   });
@@ -322,7 +322,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
         totalDocuments: stats.totalDocuments,
         documentsWithEmbeddings: stats.documentsWithEmbeddings,
       });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error fetching sync status:', error);
       res.status(500).json({ error: 'Failed to fetch sync status' });
     }
@@ -363,13 +363,13 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
       );
 
       res.json(result);
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error rolling back section:', error);
-      if (error.message === 'Version not found') {
-        return res.status(404).json({ error: error.message });
+      if (getErrorMessage(error) === 'Version not found') {
+        return res.status(404).json({ error: getErrorMessage(error) });
       }
-      if (error.message === 'Version does not belong to this section') {
-        return res.status(400).json({ error: error.message });
+      if (getErrorMessage(error) === 'Version does not belong to this section') {
+        return res.status(400).json({ error: getErrorMessage(error) });
       }
       res.status(500).json({ error: 'Failed to rollback section' });
     }
@@ -410,7 +410,7 @@ export function createDocsIndexRoutes(): Router {
           cacheStatus: docIndexGenerator.getCacheStatus(),
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Error generating documentation index:', error);
       res.status(500).json({ error: 'Failed to generate documentation index' });
     }

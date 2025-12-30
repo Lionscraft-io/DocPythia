@@ -132,7 +132,7 @@ export default function Admin() {
         description: 'The proposal has been approved and added to changeset.',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: 'Error',
         description: error.message || 'Failed to approve update.',
@@ -180,7 +180,7 @@ export default function Admin() {
 
       toast({ title, description: message, variant: variant as any });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: 'Error',
         description: error.message || 'Failed to update proposal.',
@@ -218,7 +218,7 @@ export default function Admin() {
         description: 'The change proposal has been updated.',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: 'Error',
         description: error.message || 'Failed to edit update.',

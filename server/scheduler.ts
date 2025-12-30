@@ -65,9 +65,11 @@ async function runScheduledJob(config: SchedulerConfig) {
     console.log(`\n========================================`);
     console.log(`Scheduled Job Completed: ${new Date().toISOString()}`);
     console.log(`========================================\n`);
-  } catch (error: any) {
-    console.error(`\n❌ Scheduled Job Failed: ${error.message}`);
-    console.error(error.stack);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error(`\n❌ Scheduled Job Failed: ${message}`);
+    console.error(stack);
   } finally {
     jobRunning = false;
   }

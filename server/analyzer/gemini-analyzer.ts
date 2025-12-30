@@ -4,7 +4,7 @@ import type { ScrapedMessage, DocumentationSection } from '../storage';
 import { getConfig } from '../config/loader';
 import { llmCache } from '../llm/llm-cache.js';
 import { PROMPT_TEMPLATES, fillTemplate } from '../stream/llm/prompt-templates.js';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, getErrorMessage } from '../utils/logger.js';
 
 const logger = createLogger('GeminiAnalyzer');
 
@@ -117,9 +117,10 @@ export class MessageAnalyzer {
       });
 
       return result;
-    } catch (error: any) {
-      logger.error('Error analyzing message:', error.message);
-      throw new Error(`Failed to analyze message: ${error.message}`);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      logger.error('Error analyzing message:', message);
+      throw new Error(`Failed to analyze message: ${message}`);
     }
   }
 
@@ -257,8 +258,8 @@ export class MessageAnalyzer {
 
         // Mark as analyzed
         await storage.markMessageAsAnalyzed(message.id);
-      } catch (error: any) {
-        logger.error(`Error analyzing message ${message.messageId}:`, error.message);
+      } catch (error) {
+        logger.error(`Error analyzing message ${message.messageId}:`, getErrorMessage(error));
         // Continue with next message
       }
     }
@@ -310,9 +311,10 @@ export class MessageAnalyzer {
       });
 
       return answer;
-    } catch (error: any) {
-      logger.error('Error generating documentation answer:', error.message);
-      throw new Error(`Failed to generate answer: ${error.message}`);
+    } catch (error) {
+      const errMsg = getErrorMessage(error);
+      logger.error('Error generating documentation answer:', errMsg);
+      throw new Error(`Failed to generate answer: ${errMsg}`);
     }
   }
 }

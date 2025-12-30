@@ -4,7 +4,7 @@ import { createAnalyzerFromEnv } from '../analyzer/gemini-analyzer';
 import { geminiEmbedder } from '../embeddings/gemini-embedder.js';
 import { PgVectorStore } from '../vector-store.js';
 import { db as prisma } from '../db';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, getErrorMessage } from '../utils/logger.js';
 
 const logger = createLogger('WidgetRoutes');
 
@@ -346,11 +346,11 @@ router.post('/ask', async (req: Request, res: Response) => {
       })),
       usedRAG: context.usedRetrieval,
     });
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Error processing widget question:', error);
     res.status(500).json({
       error: 'Failed to process question',
-      details: error.message,
+      details: getErrorMessage(error),
     });
   }
 });
