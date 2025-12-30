@@ -10,9 +10,18 @@ const CSRF_COOKIE_NAME = 'docsai_csrf_token';
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
 
 /**
- * Get CSRF token from cookie
+ * Store CSRF token in memory (backup for when cookie is not accessible)
  */
-export function getCsrfToken(): string | null {
+let csrfTokenCache: string | null = null;
+
+export function setCsrfTokenCache(token: string): void {
+  csrfTokenCache = token;
+}
+
+/**
+ * Get CSRF token from cookie or cache
+ */
+function getCsrfTokenFromCookie(): string | null {
   const cookies = document.cookie.split(';');
   for (const cookie of cookies) {
     const [name, value] = cookie.trim().split('=');
@@ -23,24 +32,8 @@ export function getCsrfToken(): string | null {
   return null;
 }
 
-/**
- * Store CSRF token in memory (backup for when cookie is not accessible)
- */
-let csrfTokenCache: string | null = null;
-
-export function setCsrfTokenCache(token: string): void {
-  csrfTokenCache = token;
-}
-
-export function getCsrfTokenFromCache(): string | null {
-  return csrfTokenCache;
-}
-
-/**
- * Get CSRF token from cookie or cache
- */
-export function getEffectiveCsrfToken(): string | null {
-  return getCsrfToken() || csrfTokenCache;
+function getEffectiveCsrfToken(): string | null {
+  return getCsrfTokenFromCookie() || csrfTokenCache;
 }
 
 /**

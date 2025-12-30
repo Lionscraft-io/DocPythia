@@ -56,12 +56,6 @@ export default function Admin() {
   const approvedConversations = approvedConvs?.data || [];
   const ignoredConversations = ignoredConvs?.data || [];
 
-  console.log('API returned:', {
-    pending: pendingConversations.length,
-    approved: approvedConversations.length,
-    ignored: ignoredConversations.length
-  });
-
   // Merge conversations from all statuses, deduplicating by conversation_id and combining proposals
   const allConversationsMap = new Map();
   [...pendingConversations, ...approvedConversations, ...ignoredConversations].forEach((conv: any) => {
@@ -77,11 +71,7 @@ export default function Admin() {
     }
   });
   const allConversations = Array.from(allConversationsMap.values()).filter(conv => {
-    const hasProposals = conv.proposals && conv.proposals.length > 0;
-    if (!hasProposals) {
-      console.log('Filtering out conversation with 0 proposals:', conv.conversation_id, conv);
-    }
-    return hasProposals;
+    return conv.proposals && conv.proposals.length > 0;
   });
 
   // Count proposals by status across all conversations

@@ -51,11 +51,6 @@ export function PRPreviewModal({ isOpen, onClose, approvedProposals, onSubmit }:
   const sourceRepo = config?.repository?.sourceRepo || ''; // Same as targetRepo, kept for API compatibility
   const baseBranch = config?.repository?.baseBranch || 'main';
 
-  // Debug: Log config when modal opens
-  if (isOpen && !configLoading) {
-    console.log('PR Modal Config:', { targetRepo, sourceRepo, baseBranch, hasConfig: !!config });
-  }
-
   // Group proposals by file
   const proposalsByFile = approvedProposals.reduce((acc, proposal) => {
     const file = proposal.page;

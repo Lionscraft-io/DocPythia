@@ -20,8 +20,6 @@ export function DropdownWidget({
   position = 'bottom-right',
   className = ""
 }: DropdownWidgetProps) {
-  console.log('🚀 DropdownWidget rendering with:', { title, expertId, domain, theme, position });
-
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -60,8 +58,7 @@ export function DropdownWidget({
       if (event.data.type === 'WIDGET_CLOSE') {
         setIsOpen(false);
       } else if (event.data.type === 'WIDGET_RESIZE') {
-        // Handle dynamic resizing if needed
-        console.log('Widget resize requested:', event.data.height);
+        // Handle dynamic resizing if needed - implementation pending
       }
     };
 
