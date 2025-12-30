@@ -145,14 +145,34 @@ Add webhook endpoints for:
 
 ## Security
 
-### P1: Session Storage Improvement
+### ~~P1: Session Storage Improvement~~ COMPLETED
 
-**Current state:** Admin tokens stored in sessionStorage (vulnerable to XSS)
+**Status:** Completed (December 2025)
 
-**Recommendation:**
-- Migrate to httpOnly cookies
-- Implement CSRF protection
-- Add token refresh mechanism
+~~**Current state:** Admin tokens stored in sessionStorage (vulnerable to XSS)~~
+
+**Implemented:**
+- Migrated to httpOnly cookies for access/refresh tokens
+- Implemented CSRF protection with timing-safe token comparison
+- Added token refresh mechanism with 15min access / 7day refresh tokens
+
+**Key files:**
+- `server/auth/session.ts` - JWT session management
+- `server/middleware/session-auth.ts` - Session authentication middleware
+- `server/routes/auth-routes.ts` - Login/logout/session endpoints
+- `client/src/hooks/useCsrf.ts` - CSRF token utilities
+- `client/src/lib/queryClient.ts` - Updated for CSRF headers
+
+**Endpoints:**
+- `POST /api/auth/login` - Sets httpOnly cookies
+- `POST /api/auth/logout` - Clears session cookies
+- `GET /api/auth/session` - Check session status
+- `POST /api/auth/refresh-csrf` - Refresh CSRF token
+
+**Features:**
+- Hybrid auth support (cookies + Bearer token fallback)
+- CSRF protection for mutating requests (POST/PUT/PATCH/DELETE)
+- Automatic token refresh via refresh token
 
 ### P2: Rate Limiting
 
@@ -401,11 +421,11 @@ Add OpenTelemetry support for:
 
 ## Roadmap Priority
 
-### Phase 1 (Next Release)
+### Phase 1 (Next Release) - COMPLETED
 1. ~~Logging migration (P1)~~ DONE
 2. ~~Routes modularization (P1)~~ DONE
 3. ~~API documentation (P1)~~ DONE
-4. Session storage improvement (P1)
+4. ~~Session storage improvement (P1)~~ DONE
 
 ### Phase 2
 1. ~~LLM provider abstraction (P1)~~ DONE

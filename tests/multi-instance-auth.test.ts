@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { hashPassword } from '../server/auth/password.js';
+import { hashPasswordSync } from '../server/auth/password.js';
 
 // Mock the InstanceConfigLoader
 vi.mock('../server/config/instance-loader.js', () => ({
@@ -26,7 +26,7 @@ import {
 
 describe('Multi-Instance Authentication', () => {
   const testPassword = 'testPassword123';
-  const testPasswordHash = hashPassword(testPassword);
+  const testPasswordHash = hashPasswordSync(testPassword);
 
   const mockConfig = {
     admin: {
@@ -65,7 +65,7 @@ describe('Multi-Instance Authentication', () => {
     it('should try all instances until match found', async () => {
       const wrongConfig = {
         admin: {
-          passwordHash: hashPassword('wrongPassword'),
+          passwordHash: hashPasswordSync('wrongPassword'),
         },
       };
 
@@ -89,7 +89,7 @@ describe('Multi-Instance Authentication', () => {
     it('should return error when no instance matches', async () => {
       const wrongConfig = {
         admin: {
-          passwordHash: hashPassword('wrongPassword'),
+          passwordHash: hashPasswordSync('wrongPassword'),
         },
       };
 

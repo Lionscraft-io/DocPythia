@@ -135,4 +135,177 @@ describe('UpdateCard', () => {
     );
     expect(screen.getByTestId('button-reject-update-1')).toHaveTextContent('Reset to Pending');
   });
+
+  describe('Edit Dialog', () => {
+    const propsWithDiff = {
+      ...defaultProps,
+      diff: {
+        before: 'Old content',
+        after: 'New content with changes',
+      },
+    };
+
+    it('should open edit dialog when edit button is clicked', () => {
+      const onEdit = vi.fn();
+      render(<UpdateCard {...propsWithDiff} onEdit={onEdit} />);
+
+      // Dialog should not be visible initially
+      expect(screen.queryByText('Edit Change Proposal')).not.toBeInTheDocument();
+
+      // Click edit button
+      fireEvent.click(screen.getByTestId('button-edit-update-1'));
+
+      // Dialog should now be visible
+      expect(screen.getByText('Edit Change Proposal')).toBeInTheDocument();
+      expect(screen.getByText('Modify the AI-generated content before approving.')).toBeInTheDocument();
+    });
+
+    it('should pre-fill textarea with diff.after content', () => {
+      const onEdit = vi.fn();
+      render(<UpdateCard {...propsWithDiff} onEdit={onEdit} />);
+
+      fireEvent.click(screen.getByTestId('button-edit-update-1'));
+
+      const textarea = screen.getByTestId('textarea-edit-content');
+      expect(textarea).toHaveValue('New content with changes');
+    });
+
+    it('should allow editing content in textarea', () => {
+      const onEdit = vi.fn();
+      render(<UpdateCard {...propsWithDiff} onEdit={onEdit} />);
+
+      fireEvent.click(screen.getByTestId('button-edit-update-1'));
+
+      const textarea = screen.getByTestId('textarea-edit-content');
+      fireEvent.change(textarea, { target: { value: 'Updated content' } });
+      expect(textarea).toHaveValue('Updated content');
+    });
+
+    it('should call onEdit with updated content when save is clicked', () => {
+      const onEdit = vi.fn();
+      render(<UpdateCard {...propsWithDiff} onEdit={onEdit} />);
+
+      fireEvent.click(screen.getByTestId('button-edit-update-1'));
+
+      const textarea = screen.getByTestId('textarea-edit-content');
+      fireEvent.change(textarea, { target: { value: 'Updated content' } });
+
+      fireEvent.click(screen.getByTestId('button-save-edit'));
+
+      expect(onEdit).toHaveBeenCalledWith('update-1', {
+        diffAfter: 'Updated content',
+      });
+    });
+
+    it('should close dialog and reset content when cancel is clicked', () => {
+      const onEdit = vi.fn();
+      render(<UpdateCard {...propsWithDiff} onEdit={onEdit} />);
+
+      fireEvent.click(screen.getByTestId('button-edit-update-1'));
+
+      // Modify content
+      const textarea = screen.getByTestId('textarea-edit-content');
+      fireEvent.change(textarea, { target: { value: 'Modified content' } });
+
+      // Click cancel
+      fireEvent.click(screen.getByTestId('button-cancel-edit'));
+
+      // Dialog should be closed
+      expect(screen.queryByText('Edit Change Proposal')).not.toBeInTheDocument();
+
+      // onEdit should not have been called
+      expect(onEdit).not.toHaveBeenCalled();
+    });
+
+    it('should close dialog after saving', () => {
+      const onEdit = vi.fn();
+      render(<UpdateCard {...propsWithDiff} onEdit={onEdit} />);
+
+      fireEvent.click(screen.getByTestId('button-edit-update-1'));
+      fireEvent.click(screen.getByTestId('button-save-edit'));
+
+      // Dialog should be closed
+      expect(screen.queryByText('Edit Change Proposal')).not.toBeInTheDocument();
+    });
+
+    it('should show preview tab in dialog', () => {
+      const onEdit = vi.fn();
+      render(<UpdateCard {...propsWithDiff} onEdit={onEdit} />);
+
+      fireEvent.click(screen.getByTestId('button-edit-update-1'));
+
+      // Should show Edit and Preview tabs
+      expect(screen.getByRole('tab', { name: /edit/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /preview/i })).toBeInTheDocument();
+    });
+
+    it('should disable textarea for delete type', () => {
+      const onEdit = vi.fn();
+      render(
+        <UpdateCard
+          {...propsWithDiff}
+          type="delete"
+          onEdit={onEdit}
+        />
+      );
+
+      fireEvent.click(screen.getByTestId('button-edit-update-1'));
+
+      const textarea = screen.getByTestId('textarea-edit-content');
+      expect(textarea).toBeDisabled();
+    });
+
+    it('should show delete-specific label for delete type', () => {
+      const onEdit = vi.fn();
+      render(
+        <UpdateCard
+          {...propsWithDiff}
+          type="delete"
+          onEdit={onEdit}
+        />
+      );
+
+      fireEvent.click(screen.getByTestId('button-edit-update-1'));
+
+      expect(screen.getByText('Content to be deleted')).toBeInTheDocument();
+    });
+
+    it('should show "(No content)" when diff.after is empty', () => {
+      const onEdit = vi.fn();
+      render(
+        <UpdateCard
+          {...defaultProps}
+          diff={{ before: 'Old', after: '' }}
+          onEdit={onEdit}
+        />
+      );
+
+      // The card itself should show "(No content)" for the proposed change
+      expect(screen.getByText('(No content)')).toBeInTheDocument();
+    });
+  });
+
+  describe('Type variations', () => {
+    it('should render correctly for major type', () => {
+      render(<UpdateCard {...defaultProps} type="major" />);
+      expect(screen.getByTestId('text-section')).toBeInTheDocument();
+    });
+
+    it('should render correctly for add type', () => {
+      render(<UpdateCard {...defaultProps} type="add" />);
+      expect(screen.getByTestId('text-section')).toBeInTheDocument();
+    });
+
+    it('should render correctly for delete type', () => {
+      render(<UpdateCard {...defaultProps} type="delete" />);
+      expect(screen.getByTestId('text-section')).toBeInTheDocument();
+    });
+  });
+
+  describe('Status display', () => {
+    it('should render auto-applied status', () => {
+      render(<UpdateCard {...defaultProps} status="auto-applied" />);
+      expect(screen.getByTestId('text-section')).toBeInTheDocument();
+    });
+  });
 });

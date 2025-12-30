@@ -1,11 +1,12 @@
 /**
  * Auth Routes Unit Tests
- * Tests for authentication API endpoints
+ * Tests for authentication API endpoints with session-based auth
  * Owner: Wayne
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import express, { Express } from 'express';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
 // Mock dependencies
@@ -20,14 +21,40 @@ vi.mock('../server/config/instance-loader.js', () => ({
   },
 }));
 
+vi.mock('../server/auth/session.js', () => ({
+  setSessionCookies: vi.fn(),
+  clearSessionCookies: vi.fn(),
+  generateCsrfToken: vi.fn(() => 'mock-csrf-token'),
+  getSessionFromRequest: vi.fn(),
+  COOKIE_NAMES: {
+    accessToken: 'docsai_access_token',
+    refreshToken: 'docsai_refresh_token',
+    csrfToken: 'docsai_csrf_token',
+  },
+}));
+
+vi.mock('../server/utils/logger.js', () => ({
+  createLogger: vi.fn(() => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  })),
+}));
+
 // Import mocked modules
 import { authenticateAnyInstance, authenticateInstance } from '../server/auth/multi-instance-auth.js';
 import { InstanceConfigLoader } from '../server/config/instance-loader.js';
+import { setSessionCookies, clearSessionCookies, getSessionFromRequest, generateCsrfToken } from '../server/auth/session.js';
 import authRouter from '../server/routes/auth-routes.js';
 
 const mockedAuthenticateAnyInstance = vi.mocked(authenticateAnyInstance);
 const mockedAuthenticateInstance = vi.mocked(authenticateInstance);
 const mockedGetAvailableInstances = vi.mocked(InstanceConfigLoader.getAvailableInstances);
+const mockedSetSessionCookies = vi.mocked(setSessionCookies);
+const mockedClearSessionCookies = vi.mocked(clearSessionCookies);
+const mockedGetSessionFromRequest = vi.mocked(getSessionFromRequest);
+const mockedGenerateCsrfToken = vi.mocked(generateCsrfToken);
 
 describe('Auth Routes', () => {
   let app: Express;
@@ -41,6 +68,7 @@ describe('Auth Routes', () => {
     // Create fresh Express app for each test
     app = express();
     app.use(express.json());
+    app.use(cookieParser());
     app.use('/api/auth', authRouter);
   });
 
@@ -70,14 +98,16 @@ describe('Auth Routes', () => {
         .send({ password: 'any-password' });
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: true,
         instanceId: 'projecta',
+        csrfToken: 'mock-csrf-token',
         message: 'Authentication disabled (development mode)',
       });
+      expect(mockedSetSessionCookies).toHaveBeenCalled();
     });
 
-    it('should return success for valid password', async () => {
+    it('should return success for valid password with csrf token', async () => {
       mockedAuthenticateAnyInstance.mockResolvedValue({
         success: true,
         instanceId: 'projecta',
@@ -88,12 +118,14 @@ describe('Auth Routes', () => {
         .send({ password: 'correct-password' });
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: true,
         instanceId: 'projecta',
+        csrfToken: 'mock-csrf-token',
         redirectUrl: '/projecta/admin',
       });
       expect(mockedAuthenticateAnyInstance).toHaveBeenCalledWith('correct-password');
+      expect(mockedSetSessionCookies).toHaveBeenCalled();
     });
 
     it('should return 401 for invalid password', async () => {
@@ -140,6 +172,83 @@ describe('Auth Routes', () => {
       expect(response.body).toEqual({
         success: false,
         error: 'Internal server error',
+      });
+    });
+  });
+
+  describe('POST /api/auth/logout', () => {
+    it('should clear session cookies on logout', async () => {
+      const response = await request(app)
+        .post('/api/auth/logout');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        message: 'Logged out successfully',
+      });
+      expect(mockedClearSessionCookies).toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/auth/session', () => {
+    it('should return authenticated true when session exists', async () => {
+      mockedGetSessionFromRequest.mockReturnValue({
+        instanceId: 'projecta',
+        username: 'admin',
+        issuedAt: Date.now(),
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 900,
+      });
+
+      const response = await request(app).get('/api/auth/session');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        authenticated: true,
+        instanceId: 'projecta',
+        username: 'admin',
+      });
+    });
+
+    it('should return authenticated false when no session', async () => {
+      mockedGetSessionFromRequest.mockReturnValue(null);
+
+      const response = await request(app).get('/api/auth/session');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        authenticated: false,
+      });
+    });
+  });
+
+  describe('POST /api/auth/refresh-csrf', () => {
+    it('should return 401 when not authenticated', async () => {
+      mockedGetSessionFromRequest.mockReturnValue(null);
+
+      const response = await request(app).post('/api/auth/refresh-csrf');
+
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual({
+        success: false,
+        error: 'Not authenticated',
+      });
+    });
+
+    it('should return new csrf token when authenticated', async () => {
+      mockedGetSessionFromRequest.mockReturnValue({
+        instanceId: 'projecta',
+        issuedAt: Date.now(),
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 900,
+      });
+
+      const response = await request(app).post('/api/auth/refresh-csrf');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        success: true,
+        csrfToken: 'mock-csrf-token',
       });
     });
   });

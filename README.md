@@ -24,7 +24,7 @@ An AI-powered documentation management platform that automatically monitors comm
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/docsai.git
+git clone https://github.com/lionscraft/docsai.git
 cd docsai
 
 # Install dependencies

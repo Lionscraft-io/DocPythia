@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Shield, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConfig } from "@/hooks/useConfig";
+import { setCsrfTokenCache } from "@/hooks/useCsrf";
 
 export default function AdminLogin() {
   const [password, setPassword] = useState("");
@@ -78,15 +79,21 @@ export default function AdminLogin() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ password: password.trim() }),
+        credentials: "include", // Important: receive and store cookies
       });
 
       const data = await response.json();
 
       if (data.success && data.instanceId) {
-        // Store password and instance in session
-        sessionStorage.setItem("admin_password", password.trim());
+        // Store CSRF token in cache for immediate use
+        if (data.csrfToken) {
+          setCsrfTokenCache(data.csrfToken);
+        }
+
+        // Store instance for legacy compatibility (some components still read this)
         sessionStorage.setItem("admin_instance", data.instanceId);
-        sessionStorage.setItem("admin_token", password.trim()); // Store token for API auth
+        // Keep password for Bearer token fallback (hybrid auth support)
+        sessionStorage.setItem("admin_token", password.trim());
 
         // Clear all cached queries to prevent showing stale data from previous user
         queryClient.clear();

@@ -4,7 +4,7 @@
  * Author: Wayne (2025-11-13)
  */
 
-import { verifyPassword } from './password';
+import { verifyPasswordSync } from './password';
 import { InstanceConfigLoader } from '../config/instance-loader';
 
 export interface AuthResult {
@@ -36,8 +36,8 @@ export async function authenticateAnyInstance(password: string): Promise<AuthRes
         ? InstanceConfigLoader.get(instanceId)
         : InstanceConfigLoader.load(instanceId);
 
-      // Check if password matches
-      if (verifyPassword(password, config.admin.passwordHash)) {
+      // Check if password matches (using sync version for middleware compatibility)
+      if (verifyPasswordSync(password, config.admin.passwordHash)) {
         return {
           success: true,
           instanceId
@@ -65,7 +65,7 @@ export function authenticateInstance(password: string, instanceId: string): bool
       ? InstanceConfigLoader.get(instanceId)
       : InstanceConfigLoader.load(instanceId);
 
-    return verifyPassword(password, config.admin.passwordHash);
+    return verifyPasswordSync(password, config.admin.passwordHash);
   } catch (error) {
     console.error(`Authentication failed for instance "${instanceId}":`, error);
     return false;

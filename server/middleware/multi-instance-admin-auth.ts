@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { InstanceConfigLoader } from "../config/instance-loader.js";
-import { verifyPassword } from "../auth/password.js";
+import { verifyPasswordSync } from "../auth/password.js";
 
 /**
  * Multi-instance admin authentication middleware
@@ -33,7 +33,7 @@ export const multiInstanceAdminAuth = (req: Request, res: Response, next: NextFu
         ? InstanceConfigLoader.get(instanceId)
         : InstanceConfigLoader.load(instanceId);
 
-      if (verifyPassword(token, config.admin.passwordHash)) {
+      if (verifyPasswordSync(token, config.admin.passwordHash)) {
         authenticated = true;
         // Store the authenticated instance in the request for later use
         (req as any).adminInstance = instanceId;

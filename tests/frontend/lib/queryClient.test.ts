@@ -23,9 +23,16 @@ const mockSessionStorage = {
 };
 Object.defineProperty(global, 'sessionStorage', { value: mockSessionStorage });
 
+// Mock document.cookie for CSRF token
+Object.defineProperty(document, 'cookie', {
+  writable: true,
+  value: '',
+});
+
 describe('apiRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    document.cookie = '';
   });
 
   it('should make a GET request without body', async () => {
@@ -63,6 +70,27 @@ describe('apiRequest', () => {
     expect(result.status).toBe(201);
   });
 
+  it('should include CSRF token for POST requests when cookie exists', async () => {
+    document.cookie = 'docsai_csrf_token=test-csrf-token';
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+    });
+
+    const data = { name: 'Test' };
+    await apiRequest('POST', '/api/test', data);
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': 'test-csrf-token',
+      },
+      body: JSON.stringify(data),
+      credentials: 'include',
+    });
+  });
+
   it('should throw error on non-ok response', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
@@ -89,6 +117,7 @@ describe('apiRequest', () => {
 describe('adminApiRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    document.cookie = '';
   });
 
   it('should include Authorization header when token exists', async () => {
@@ -146,42 +175,57 @@ describe('adminApiRequest', () => {
     });
   });
 
-  it('should throw specific error on 401 without token', async () => {
+  it('should throw session expired error on 401 when session check fails', async () => {
     mockSessionStorage.getItem.mockReturnValue(null);
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: 'Unauthorized',
-      text: () => Promise.resolve(''),
-    });
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        text: () => Promise.resolve(''),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ authenticated: false }),
+      });
 
     await expect(adminApiRequest('GET', '/api/admin/test')).rejects.toThrow(
-      'Admin token not found. Please login.'
+      'Session expired. Please login again.'
     );
   });
 
-  it('should throw specific error on 403 without token', async () => {
+  it('should throw session expired error on 403 when session check fails', async () => {
     mockSessionStorage.getItem.mockReturnValue(null);
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 403,
-      statusText: 'Forbidden',
-      text: () => Promise.resolve(''),
-    });
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        text: () => Promise.resolve(''),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ authenticated: false }),
+      });
 
     await expect(adminApiRequest('GET', '/api/admin/test')).rejects.toThrow(
-      'Admin token not found. Please login.'
+      'Session expired. Please login again.'
     );
   });
 
-  it('should throw regular error on 401 with token', async () => {
+  it('should throw regular error on 401 when session is still valid', async () => {
     mockSessionStorage.getItem.mockReturnValue('expired-token');
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: 'Unauthorized',
-      text: () => Promise.resolve('Token expired'),
-    });
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        text: () => Promise.resolve('Token expired'),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ authenticated: true }),
+      });
 
     await expect(adminApiRequest('GET', '/api/admin/test')).rejects.toThrow('401: Token expired');
   });
@@ -289,7 +333,7 @@ describe('getQueryFn', () => {
       expect(result).toEqual({ data: 'test' });
     });
 
-    it('should throw on 401 when requiresAuth and no token', async () => {
+    it('should throw session expired on 401 when requiresAuth and no token', async () => {
       mockSessionStorage.getItem.mockReturnValue(null);
       mockFetch.mockResolvedValue({
         ok: false,
@@ -306,10 +350,10 @@ describe('getQueryFn', () => {
           signal: new AbortController().signal,
           meta: undefined,
         })
-      ).rejects.toThrow('Admin token not found. Please login.');
+      ).rejects.toThrow('Session expired. Please login again.');
     });
 
-    it('should throw on 403 when requiresAuth and no token', async () => {
+    it('should throw session expired on 403 when requiresAuth and no token', async () => {
       mockSessionStorage.getItem.mockReturnValue(null);
       mockFetch.mockResolvedValue({
         ok: false,
@@ -326,7 +370,7 @@ describe('getQueryFn', () => {
           signal: new AbortController().signal,
           meta: undefined,
         })
-      ).rejects.toThrow('Admin token not found. Please login.');
+      ).rejects.toThrow('Session expired. Please login again.');
     });
   });
 

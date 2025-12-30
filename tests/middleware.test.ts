@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Request, Response, NextFunction } from 'express';
-import { hashPassword } from '../server/auth/password.js';
+import { hashPasswordSync } from '../server/auth/password.js';
 
 // Mock dependencies
 vi.mock('../server/config/instance-loader.js', () => ({
@@ -216,7 +216,7 @@ describe('Instance Middleware', () => {
 
 describe('Multi-Instance Admin Auth Middleware', () => {
   const testPassword = 'adminPassword123';
-  const testPasswordHash = hashPassword(testPassword);
+  const testPasswordHash = hashPasswordSync(testPassword);
 
   const mockConfig = {
     admin: {
@@ -298,7 +298,7 @@ describe('Multi-Instance Admin Auth Middleware', () => {
     req.headers = { authorization: `Bearer ${testPassword}` };
 
     const wrongConfig = {
-      admin: { passwordHash: hashPassword('wrong') },
+      admin: { passwordHash: hashPasswordSync('wrong') },
     };
 
     vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([

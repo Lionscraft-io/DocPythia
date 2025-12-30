@@ -7,19 +7,33 @@ export default function Logout() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    // Clear all session storage
-    sessionStorage.removeItem("admin_password");
-    sessionStorage.removeItem("admin_instance");
-    sessionStorage.removeItem("admin_token");
-    sessionStorage.clear();
+    const performLogout = async () => {
+      try {
+        // Call logout endpoint to clear server-side session cookies
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "include",
+        });
+      } catch (error) {
+        console.error("Logout error:", error);
+      }
 
-    // Clear all cached queries
-    queryClient.clear();
+      // Clear all session storage (legacy cleanup)
+      sessionStorage.removeItem("admin_password");
+      sessionStorage.removeItem("admin_instance");
+      sessionStorage.removeItem("admin_token");
+      sessionStorage.clear();
 
-    // Redirect to login page
-    setTimeout(() => {
-      setLocation("/login");
-    }, 100);
+      // Clear all cached queries
+      queryClient.clear();
+
+      // Redirect to login page
+      setTimeout(() => {
+        setLocation("/login");
+      }, 100);
+    };
+
+    performLogout();
   }, [setLocation, queryClient]);
 
   return (

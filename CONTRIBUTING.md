@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/your-org/docsai/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/lionscraft/docsai/issues)
 2. If not, create a new issue using the bug report template
 3. Include:
    - Clear description of the bug
@@ -46,7 +46,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ```bash
 # Clone your fork
-git clone https://github.com/your-username/docsai.git
+git clone https://github.com/YOUR-USERNAME/docsai.git
 cd docsai
 
 # Install dependencies

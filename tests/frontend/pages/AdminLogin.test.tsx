@@ -157,7 +157,8 @@ describe('AdminLogin Page', () => {
       }));
     });
 
-    expect(sessionStorage.getItem('admin_password')).toBe('correctpassword');
+    // Session-based auth stores admin_token for hybrid auth support
+    expect(sessionStorage.getItem('admin_token')).toBe('correctpassword');
     expect(sessionStorage.getItem('admin_instance')).toBe('projecta');
   });
 
