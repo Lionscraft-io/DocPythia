@@ -65,6 +65,11 @@ export default function Admin() {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
+  // Fetch git stats for documentation URL
+  const { data: gitStats } = useQuery<{ gitUrl: string }>({
+    queryKey: ['/api/docs/git-stats'],
+  });
+
   // Get conversations (not flattened) so we can group proposals
   const pendingConversations = pendingConvs?.data || [];
   const approvedConversations = approvedConvs?.data || [];
@@ -227,6 +232,51 @@ export default function Admin() {
     },
   });
 
+  const syncDocsMutation = useMutation({
+    mutationFn: async (force: boolean = false) => {
+      const response = await adminApiRequest('POST', '/api/docs/sync', { force });
+      return await response.json();
+    },
+    onSuccess: (data: any) => {
+      const shortPrevHash = data.previousHash ? data.previousHash.substring(0, 8) : 'none';
+      const shortCurrentHash = data.currentHash ? data.currentHash.substring(0, 8) : 'unknown';
+      const durationSeconds = ((data.duration || 0) / 1000).toFixed(1);
+
+      let message = '';
+      if (data.hadUpdates) {
+        message = `Synced ${data.summary?.filesProcessed?.length || 0} files. Added: ${data.summary?.added || 0}, Modified: ${data.summary?.modified || 0}${data.summary?.deleted ? `, Deleted: ${data.summary.deleted}` : ''}`;
+      } else {
+        message = `No updates found - already up to date`;
+      }
+
+      message += `\n\nTotal documents: ${data.totalDocuments || 'unknown'}`;
+      message += `\nDuration: ${durationSeconds}s`;
+      message += `\n\nFrom: ${shortPrevHash}\nTo: ${shortCurrentHash}`;
+
+      toast({
+        title: 'Documentation Sync Complete',
+        description: message,
+        duration: Infinity, // Don't auto-close
+      });
+    },
+    onError: (error: Error) => {
+      if (error.message.includes('401') || error.message.includes('403')) {
+        sessionStorage.removeItem('admin_token');
+        setLocation('/login');
+      } else {
+        toast({
+          title: 'Sync Failed',
+          description: error.message || 'Failed to sync documentation.',
+          variant: 'destructive',
+        });
+      }
+    },
+  });
+
+  const handleSyncDocs = () => {
+    syncDocsMutation.mutate(false);
+  };
+
   const handleApprove = (id: string) => approveMutation.mutate(id);
   const handleReject = (id: string, currentStatus: string) =>
     rejectMutation.mutate({ id, currentStatus });
@@ -339,6 +389,14 @@ export default function Admin() {
             <p className="text-gray-600">Review and manage AI-suggested documentation updates</p>
           </div>
           <div className="flex gap-3">
+            <Button
+              size="lg"
+              onClick={handleSyncDocs}
+              disabled={syncDocsMutation.isPending}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {syncDocsMutation.isPending ? 'Syncing...' : 'Sync Docs'}
+            </Button>
             <Button
               size="lg"
               onClick={handleGeneratePR}
@@ -467,7 +525,7 @@ export default function Admin() {
                           className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
                           <MessageSquare className="mr-1 h-3 w-3" />
-                          View Context
+                          View Conversation Context
                         </Button>
                       </div>
                     </CardHeader>
@@ -500,6 +558,7 @@ export default function Admin() {
                             before: '',
                             after: proposal.edited_text || proposal.suggested_text || '',
                           }}
+                          gitUrl={gitStats?.gitUrl}
                           onApprove={handleApprove}
                           onReject={(id) => handleReject(id, proposal.status)}
                           onEdit={handleEdit}
@@ -552,7 +611,7 @@ export default function Admin() {
                           className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
                           <MessageSquare className="mr-1 h-3 w-3" />
-                          View Context
+                          View Conversation Context
                         </Button>
                       </div>
                     </CardHeader>
@@ -585,6 +644,7 @@ export default function Admin() {
                             before: '',
                             after: proposal.edited_text || proposal.suggested_text || '',
                           }}
+                          gitUrl={gitStats?.gitUrl}
                           onEdit={handleEdit}
                           onReject={(id) => handleReject(id, proposal.status)}
                         />
@@ -636,7 +696,7 @@ export default function Admin() {
                           className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
                           <MessageSquare className="mr-1 h-3 w-3" />
-                          View Context
+                          View Conversation Context
                         </Button>
                       </div>
                     </CardHeader>
@@ -669,6 +729,7 @@ export default function Admin() {
                             before: '',
                             after: proposal.edited_text || proposal.suggested_text || '',
                           }}
+                          gitUrl={gitStats?.gitUrl}
                           onReject={(id) => handleReject(id, proposal.status)}
                         />
                       ))}
@@ -712,7 +773,7 @@ export default function Admin() {
                         className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
                       >
                         <MessageSquare className="mr-1 h-3 w-3" />
-                        View Context
+                        View Conversation Context
                       </Button>
                     </div>
                   </CardHeader>
@@ -745,6 +806,7 @@ export default function Admin() {
                           before: '',
                           after: proposal.edited_text || proposal.suggested_text || '',
                         }}
+                        gitUrl={gitStats?.gitUrl}
                         onApprove={proposal.status === 'pending' ? handleApprove : undefined}
                         onReject={(id) => handleReject(id, proposal.status)}
                         onEdit={proposal.status !== 'ignored' ? handleEdit : undefined}

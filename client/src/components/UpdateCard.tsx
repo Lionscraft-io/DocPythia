@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, X, Edit, MessageSquare, Eye, Code } from 'lucide-react';
+import { Check, X, Edit, MessageSquare, Eye, Code, ExternalLink, FileText } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -28,6 +28,7 @@ interface UpdateCardProps {
     before: string;
     after: string;
   };
+  gitUrl?: string;
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
   onEdit?: (id: string, data: { summary?: string; diffAfter?: string }) => void;
@@ -43,6 +44,7 @@ export function UpdateCard({
   timestamp,
   status,
   diff,
+  gitUrl,
   onApprove,
   onReject,
   onEdit,
@@ -50,14 +52,93 @@ export function UpdateCard({
 }: UpdateCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [editedContent, setEditedContent] = useState(diff?.after || '');
+  const [filePreviewOpen, setFilePreviewOpen] = useState(false);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [fileLoading, setFileLoading] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  // Build the GitHub URL for the file
+  const buildGitHubUrl = (filePath: string): string => {
+    if (!gitUrl) return '';
+    const cleanBaseUrl = gitUrl.replace(/\.git$/, '');
+    return `${cleanBaseUrl}/blob/main/${filePath}`;
+  };
+
+  // Fetch file content when preview is opened
+  useEffect(() => {
+    if (filePreviewOpen && !fileContent && !fileLoading) {
+      setFileLoading(true);
+      setFileError(null);
+
+      // The section is the file path - fetch from API
+      fetch(`/api/docs/${encodeURIComponent(section)}`)
+        .then(async (res) => {
+          if (!res.ok) {
+            throw new Error('File not found');
+          }
+          const data = await res.json();
+          setFileContent(data.content || data.currentContent || '');
+        })
+        .catch((err) => {
+          setFileError(err.message || 'Failed to load file');
+        })
+        .finally(() => {
+          setFileLoading(false);
+        });
+    }
+  }, [filePreviewOpen, fileContent, fileLoading, section]);
+
+  const handleOpenFilePreview = () => {
+    setFilePreviewOpen(true);
+  };
+
+  const handleOpenInNewTab = () => {
+    const url = buildGitHubUrl(section);
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   return (
     <Card className="bg-white border-gray-200">
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-gray-900" data-testid="text-section">
-            {section}
+          <span
+            className={`text-xs font-mono px-2 py-1 rounded border ${
+              type === 'add'
+                ? 'bg-blue-50 text-blue-800 border-blue-200'
+                : type === 'delete'
+                  ? 'bg-red-50 text-red-800 border-red-200'
+                  : 'bg-green-50 text-green-800 border-green-200'
+            }`}
+            data-testid="badge-type"
+          >
+            {type === 'add'
+              ? 'NEW SECTION'
+              : type === 'delete'
+                ? 'SECTION DELETION'
+                : 'SECTION UPDATE'}
           </span>
+          <button
+            onClick={handleOpenFilePreview}
+            className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer flex items-center gap-1"
+            data-testid="text-section"
+            title="Click to preview file content"
+          >
+            <FileText className="h-4 w-4" />
+            {section}
+          </button>
+          {gitUrl && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleOpenInNewTab}
+              className="h-6 w-6 p-0 text-gray-500 hover:text-blue-600"
+              title="Open in GitHub"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         {(onApprove || onReject || onEdit) && (
           <div className="flex gap-2">
@@ -224,6 +305,63 @@ export function UpdateCard({
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Preview Dialog */}
+      <Dialog open={filePreviewOpen} onOpenChange={setFilePreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden bg-white [&>button]:text-gray-900 [&>button]:hover:bg-gray-100">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              {section}
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 flex items-center gap-2">
+              Current file content
+              {gitUrl && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleOpenInNewTab}
+                  className="h-6 text-xs border-gray-300 text-gray-600 hover:text-blue-600"
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Open in GitHub
+                </Button>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[60vh] border border-gray-200 rounded-md p-4 bg-gray-50">
+            {fileLoading && (
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                Loading file content...
+              </div>
+            )}
+            {fileError && (
+              <div className="flex items-center justify-center py-8 text-red-500">
+                Error: {fileError}
+              </div>
+            )}
+            {!fileLoading && !fileError && fileContent && (
+              <div className="prose prose-sm max-w-none text-gray-900">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{fileContent}</ReactMarkdown>
+              </div>
+            )}
+            {!fileLoading && !fileError && !fileContent && (
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                No content available
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFilePreviewOpen(false)}
+              className="border-gray-300 text-gray-700"
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

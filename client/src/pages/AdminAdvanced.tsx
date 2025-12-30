@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { StatsCard } from '@/components/StatsCard';
 import { ProposalActionButtons } from '@/components/ProposalActionButtons';
 import { EditProposalModal } from '@/components/EditProposalModal';
@@ -15,7 +17,16 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
@@ -60,6 +71,13 @@ export default function AdminAdvanced() {
     new Set()
   );
 
+  // File preview state
+  const [filePreviewOpen, setFilePreviewOpen] = useState(false);
+  const [previewFilePath, setPreviewFilePath] = useState<string>('');
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [fileLoading, setFileLoading] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+
   // Check if auth is disabled on mount
   useEffect(() => {
     fetch('/api/updates')
@@ -98,6 +116,49 @@ export default function AdminAdvanced() {
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
     enabled: !!selectedSection,
   });
+
+  // Fetch git stats for documentation URL
+  const { data: gitStats } = useQuery<{ gitUrl: string }>({
+    queryKey: ['/api/docs/git-stats'],
+  });
+
+  // Build the GitHub URL for a file
+  const buildGitHubUrl = (filePath: string): string => {
+    if (!gitStats?.gitUrl) return '';
+    const cleanBaseUrl = gitStats.gitUrl.replace(/\.git$/, '');
+    return `${cleanBaseUrl}/blob/main/${filePath}`;
+  };
+
+  // Handle file preview
+  const handleOpenFilePreview = (filePath: string) => {
+    setPreviewFilePath(filePath);
+    setFilePreviewOpen(true);
+    setFileContent(null);
+    setFileError(null);
+    setFileLoading(true);
+
+    fetch(`/api/docs/${encodeURIComponent(filePath)}`)
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error('File not found');
+        }
+        const data = await res.json();
+        setFileContent(data.content || data.currentContent || '');
+      })
+      .catch((err) => {
+        setFileError(err.message || 'Failed to load file');
+      })
+      .finally(() => {
+        setFileLoading(false);
+      });
+  };
+
+  const handleOpenInNewTab = (filePath: string) => {
+    const url = buildGitHubUrl(filePath);
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   // Suggested Changes: conversations with pending proposals
   const suggestedChangesUrl = `/api/admin/stream/conversations?page=${proposalsPage}&limit=10&category=all&status=pending&hideEmptyProposals=false`;
@@ -859,13 +920,43 @@ export default function AdminAdvanced() {
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2">
                                     <span
-                                      className={`text-xs font-mono bg-white px-2 py-1 rounded border ${isNone ? 'text-gray-600' : 'text-green-800 font-semibold'}`}
+                                      className={`text-xs font-mono bg-white px-2 py-1 rounded border ${
+                                        isNone
+                                          ? 'text-gray-600'
+                                          : proposal.update_type === 'INSERT'
+                                            ? 'text-blue-800 font-semibold'
+                                            : proposal.update_type === 'DELETE'
+                                              ? 'text-red-800 font-semibold'
+                                              : 'text-green-800 font-semibold'
+                                      }`}
                                     >
-                                      {isNone ? 'NO CHANGES NEEDED' : proposal.update_type}
+                                      {isNone
+                                        ? 'NO CHANGES NEEDED'
+                                        : proposal.update_type === 'INSERT'
+                                          ? 'NEW SECTION'
+                                          : proposal.update_type === 'UPDATE'
+                                            ? 'SECTION UPDATE'
+                                            : proposal.update_type === 'DELETE'
+                                              ? 'SECTION DELETION'
+                                              : proposal.update_type}
                                     </span>
-                                    <span className={`text-xs ${textClass} font-medium`}>
+                                    <button
+                                      onClick={() => handleOpenFilePreview(proposal.page)}
+                                      className={`text-xs ${textClass} font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer flex items-center gap-1`}
+                                      title="Click to preview file content"
+                                    >
+                                      <FileText className="w-3 h-3" />
                                       {proposal.page}
-                                    </span>
+                                    </button>
+                                    {gitStats?.gitUrl && (
+                                      <button
+                                        onClick={() => handleOpenInNewTab(proposal.page)}
+                                        className="text-gray-500 hover:text-blue-600"
+                                        title="Open in GitHub"
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                      </button>
+                                    )}
                                   </div>
                                   {proposal.section && (
                                     <p className={`text-xs ${textClass}`}>
@@ -888,12 +979,14 @@ export default function AdminAdvanced() {
                               {proposal.suggested_text && (
                                 <div className="bg-white border border-gray-100 rounded p-3 text-xs space-y-2">
                                   <p className="font-semibold text-gray-900">Suggested Text:</p>
-                                  <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                    {expandedProposalText.has(proposal.id)
-                                      ? proposal.suggested_text
-                                      : proposal.suggested_text.substring(0, 300) +
-                                        (proposal.suggested_text.length > 300 ? '...' : '')}
-                                  </p>
+                                  <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {expandedProposalText.has(proposal.id)
+                                        ? proposal.suggested_text
+                                        : proposal.suggested_text.substring(0, 300) +
+                                          (proposal.suggested_text.length > 300 ? '...' : '')}
+                                    </ReactMarkdown>
+                                  </div>
                                   {proposal.suggested_text.length > 300 && (
                                     <button
                                       onClick={() => {
@@ -925,12 +1018,14 @@ export default function AdminAdvanced() {
                                   <p className={`font-semibold ${headingClass}`}>
                                     {isNone ? 'Why No Changes Needed:' : 'Reasoning:'}
                                   </p>
-                                  <p className="text-gray-700 whitespace-pre-wrap">
-                                    {expandedProposalReasoning.has(proposal.id)
-                                      ? proposal.reasoning
-                                      : proposal.reasoning.substring(0, 200) +
-                                        (proposal.reasoning.length > 200 ? '...' : '')}
-                                  </p>
+                                  <div className="prose prose-sm max-w-none text-gray-700">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {expandedProposalReasoning.has(proposal.id)
+                                        ? proposal.reasoning
+                                        : proposal.reasoning.substring(0, 200) +
+                                          (proposal.reasoning.length > 200 ? '...' : '')}
+                                    </ReactMarkdown>
+                                  </div>
                                   {proposal.reasoning.length > 200 && (
                                     <button
                                       onClick={() => {
@@ -2149,6 +2244,63 @@ export default function AdminAdvanced() {
         })()}
         onSubmit={handlePRSubmit}
       />
+
+      {/* File Preview Dialog */}
+      <Dialog open={filePreviewOpen} onOpenChange={setFilePreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden bg-white [&>button]:text-gray-900 [&>button]:hover:bg-gray-100">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              {previewFilePath}
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 flex items-center gap-2">
+              Current file content
+              {gitStats?.gitUrl && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleOpenInNewTab(previewFilePath)}
+                  className="h-6 text-xs border-gray-300 text-gray-600 hover:text-blue-600"
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Open in GitHub
+                </Button>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[60vh] border border-gray-200 rounded-md p-4 bg-gray-50">
+            {fileLoading && (
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                Loading file content...
+              </div>
+            )}
+            {fileError && (
+              <div className="flex items-center justify-center py-8 text-red-500">
+                Error: {fileError}
+              </div>
+            )}
+            {!fileLoading && !fileError && fileContent && (
+              <div className="prose prose-sm max-w-none text-gray-900">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{fileContent}</ReactMarkdown>
+              </div>
+            )}
+            {!fileLoading && !fileError && !fileContent && (
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                No content available
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFilePreviewOpen(false)}
+              className="border-gray-300 text-gray-700"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

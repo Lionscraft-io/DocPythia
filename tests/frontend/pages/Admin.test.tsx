@@ -260,7 +260,7 @@ describe('Admin Page', () => {
 
     it('should show View Context button on conversations', () => {
       render(<Admin />);
-      const viewContextButtons = screen.getAllByText('View Context');
+      const viewContextButtons = screen.getAllByText('View Conversation Context');
       expect(viewContextButtons.length).toBeGreaterThan(0);
     });
   });
