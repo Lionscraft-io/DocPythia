@@ -497,7 +497,13 @@ describe('Pipeline E2E Tests', () => {
 
     it('should handle messages gracefully with default config', async () => {
       const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
-      const pipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'default');
+      const fullPipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'default');
+
+      // Only run filter step - this test checks filter behavior without needing prompts
+      const pipelineConfig = {
+        ...fullPipelineConfig,
+        steps: fullPipelineConfig.steps.filter((s) => s.stepType === StepType.FILTER),
+      };
 
       const llmHandler = createMockLLMHandler();
       const orchestrator = new PipelineOrchestrator(

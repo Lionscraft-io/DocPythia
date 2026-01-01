@@ -42,6 +42,7 @@ const { mockPrismaClient, mockLLMService, mockVectorSearch } = vi.hoisted(() => 
       },
       conversationRagContext: {
         create: vi.fn(),
+        upsert: vi.fn(),
         update: vi.fn(),
         deleteMany: vi.fn(),
         findUnique: vi.fn(),
@@ -308,7 +309,7 @@ describe('BatchMessageProcessor', () => {
 
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(2);
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
-      mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
+      mockPrismaClient.conversationRagContext.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.update.mockResolvedValue({});
       mockPrismaClient.docProposal.create.mockResolvedValue({});
       mockPrismaClient.unifiedMessage.updateMany.mockResolvedValue({ count: 2 });
@@ -352,7 +353,7 @@ describe('BatchMessageProcessor', () => {
 
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(1);
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
-      mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
+      mockPrismaClient.conversationRagContext.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.update.mockResolvedValue({});
       mockPrismaClient.docProposal.create.mockResolvedValue({});
       mockPrismaClient.unifiedMessage.updateMany.mockResolvedValue({ count: 1 });
@@ -431,7 +432,7 @@ describe('BatchMessageProcessor', () => {
       );
 
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
-      mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
+      mockPrismaClient.conversationRagContext.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.update.mockResolvedValue({});
       mockPrismaClient.docProposal.create.mockResolvedValue({});
       mockPrismaClient.unifiedMessage.updateMany.mockResolvedValue({ count: 2 });
@@ -483,7 +484,7 @@ describe('BatchMessageProcessor', () => {
 
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(2);
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
-      mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
+      mockPrismaClient.conversationRagContext.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.update.mockResolvedValue({});
       mockPrismaClient.docProposal.create.mockResolvedValue({});
       mockPrismaClient.unifiedMessage.updateMany.mockResolvedValue({ count: 2 });
@@ -519,7 +520,7 @@ describe('BatchMessageProcessor', () => {
 
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(1);
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
-      mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
+      mockPrismaClient.conversationRagContext.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.update.mockResolvedValue({});
       mockPrismaClient.docProposal.create.mockResolvedValue({});
       mockPrismaClient.unifiedMessage.updateMany.mockResolvedValue({ count: 1 });
@@ -546,7 +547,7 @@ describe('BatchMessageProcessor', () => {
 
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(1);
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
-      mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
+      mockPrismaClient.conversationRagContext.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.update.mockResolvedValue({});
       mockPrismaClient.docProposal.create.mockResolvedValue({});
       mockPrismaClient.unifiedMessage.updateMany.mockResolvedValue({ count: 1 });
@@ -575,7 +576,7 @@ describe('BatchMessageProcessor', () => {
 
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(1);
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
-      mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
+      mockPrismaClient.conversationRagContext.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.update.mockResolvedValue({});
       mockPrismaClient.docProposal.create.mockResolvedValue({});
       mockPrismaClient.unifiedMessage.updateMany.mockResolvedValue({ count: 1 });
@@ -639,7 +640,7 @@ describe('BatchMessageProcessor', () => {
       );
 
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
-      mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
+      mockPrismaClient.conversationRagContext.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.update.mockResolvedValue({});
       mockPrismaClient.docProposal.create.mockResolvedValue({});
       mockPrismaClient.unifiedMessage.updateMany.mockResolvedValue({ count: 3 });
@@ -708,7 +709,7 @@ describe('BatchMessageProcessor', () => {
 
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(1);
       mockPrismaClient.messageClassification.upsert.mockResolvedValue({});
-      mockPrismaClient.conversationRagContext.create.mockResolvedValue({});
+      mockPrismaClient.conversationRagContext.upsert.mockResolvedValue({});
       mockPrismaClient.conversationRagContext.update.mockResolvedValue({});
       mockPrismaClient.docProposal.create.mockResolvedValue({});
       mockPrismaClient.unifiedMessage.updateMany.mockResolvedValue({ count: 1 });
