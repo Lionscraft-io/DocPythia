@@ -17,6 +17,7 @@ import { createLogger } from '../../utils/logger.js';
 import multer from 'multer';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { llmCache } from '../../llm/llm-cache.js';
 
 const logger = createLogger('AdminStreamRoutes');
 
@@ -286,8 +287,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
   /**
    * POST /api/admin/stream/process
    * Manually trigger stream import (fetch messages without processing)
+   * Registered twice:
+   * 1. /api/admin/stream/process (non-instance)
+   * 2. /:instance/api/admin/stream/process (instance-specific)
    */
-  app.post('/api/admin/stream/process', adminAuth, async (req: Request, res: Response) => {
+  const processHandler = async (req: Request, res: Response) => {
     try {
       const { streamId, batchSize } = processRequestSchema.parse(req.body);
 
@@ -305,13 +309,20 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       logger.error('Error importing messages:', error);
       res.status(500).json({ error: 'Failed to import messages' });
     }
-  });
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.post('/api/admin/stream/process', adminAuth, processHandler);
+  app.post('/:instance/api/admin/stream/process', instanceMiddleware, adminAuth, processHandler);
 
   /**
    * POST /api/admin/stream/process-batch
    * Process the next 24-hour batch of messages
+   * Registered twice:
+   * 1. /api/admin/stream/process-batch (non-instance)
+   * 2. /:instance/api/admin/stream/process-batch (instance-specific)
    */
-  app.post('/api/admin/stream/process-batch', adminAuth, async (req: Request, res: Response) => {
+  const processBatchHandler = async (req: Request, res: Response) => {
     try {
       const instanceId = getInstanceId(req);
       const db = getDb(req);
@@ -330,13 +341,26 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       logger.error('Error processing batch:', error);
       res.status(500).json({ error: 'Failed to process batch' });
     }
-  });
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.post('/api/admin/stream/process-batch', adminAuth, processBatchHandler);
+  app.post(
+    '/:instance/api/admin/stream/process-batch',
+    instanceMiddleware,
+    adminAuth,
+    processBatchHandler
+  );
 
   /**
    * GET /api/admin/stream/proposals
    * List documentation update proposals
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/proposals (non-instance)
+   * 2. /:instance/api/admin/stream/proposals (instance-specific)
    */
-  app.get('/api/admin/stream/proposals', adminAuth, async (req: Request, res: Response) => {
+  const proposalsListHandler = async (req: Request, res: Response) => {
     try {
       const db = getDb(req);
 
@@ -366,52 +390,62 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       logger.error('Error fetching proposals:', error);
       res.status(500).json({ error: 'Failed to fetch proposals' });
     }
-  });
+  };
+  app.get('/api/admin/stream/proposals', adminAuth, proposalsListHandler);
+  app.get(
+    '/:instance/api/admin/stream/proposals',
+    instanceMiddleware,
+    adminAuth,
+    proposalsListHandler
+  );
 
   /**
    * POST /api/admin/stream/proposals/:id/approve
    * Approve or reject a documentation proposal
    */
-  app.post(
-    '/api/admin/stream/proposals/:id/approve',
-    adminAuth,
-    async (req: Request, res: Response) => {
-      try {
-        const db = getDb(req);
+  const proposalApproveHandler = async (req: Request, res: Response) => {
+    try {
+      const db = getDb(req);
 
-        const proposalId = parseInt(req.params.id);
-        const { approved, reviewedBy } = z
-          .object({
-            approved: z.boolean(),
-            reviewedBy: z.string(),
-          })
-          .parse(req.body);
+      const proposalId = parseInt(req.params.id);
+      const { approved, reviewedBy } = z
+        .object({
+          approved: z.boolean(),
+          reviewedBy: z.string(),
+        })
+        .parse(req.body);
 
-        const updated = await db.docProposal.update({
-          where: { id: proposalId },
-          data: {
-            adminApproved: approved,
-            adminReviewedAt: new Date(),
-            adminReviewedBy: reviewedBy,
-          },
-        });
+      const updated = await db.docProposal.update({
+        where: { id: proposalId },
+        data: {
+          adminApproved: approved,
+          adminReviewedAt: new Date(),
+          adminReviewedBy: reviewedBy,
+        },
+      });
 
-        res.json({
-          message: `Proposal ${approved ? 'approved' : 'rejected'} successfully`,
-          proposal: updated,
-        });
-      } catch (error) {
-        logger.error('Error approving proposal:', error);
-        res.status(500).json({ error: 'Failed to approve proposal' });
-      }
+      res.json({
+        message: `Proposal ${approved ? 'approved' : 'rejected'} successfully`,
+        proposal: updated,
+      });
+    } catch (error) {
+      logger.error('Error approving proposal:', error);
+      res.status(500).json({ error: 'Failed to approve proposal' });
     }
+  };
+  app.post('/api/admin/stream/proposals/:id/approve', adminAuth, proposalApproveHandler);
+  app.post(
+    '/:instance/api/admin/stream/proposals/:id/approve',
+    instanceMiddleware,
+    adminAuth,
+    proposalApproveHandler
   );
 
   /**
    * PATCH /api/admin/stream/proposals/:id
    * Update proposal text
    */
-  app.patch('/api/admin/stream/proposals/:id', adminAuth, async (req: Request, res: Response) => {
+  const proposalUpdateHandler = async (req: Request, res: Response) => {
     try {
       const db = getDb(req);
 
@@ -440,80 +474,90 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       logger.error('Error updating proposal:', error);
       res.status(500).json({ error: 'Failed to update proposal' });
     }
-  });
+  };
+  app.patch('/api/admin/stream/proposals/:id', adminAuth, proposalUpdateHandler);
+  app.patch(
+    '/:instance/api/admin/stream/proposals/:id',
+    instanceMiddleware,
+    adminAuth,
+    proposalUpdateHandler
+  );
 
   /**
    * POST /api/admin/stream/proposals/:id/status
    * Change proposal status (approve/ignore/reset)
    */
-  app.post(
-    '/api/admin/stream/proposals/:id/status',
-    adminAuth,
-    async (req: Request, res: Response) => {
-      try {
-        const db = getDb(req);
+  const proposalStatusHandler = async (req: Request, res: Response) => {
+    try {
+      const db = getDb(req);
 
-        const proposalId = parseInt(req.params.id);
-        logger.debug('Raw request body:', JSON.stringify(req.body));
+      const proposalId = parseInt(req.params.id);
+      logger.debug('Raw request body:', JSON.stringify(req.body));
 
-        const { status, reviewedBy } = z
-          .object({
-            status: z.enum(['approved', 'ignored', 'pending']),
-            reviewedBy: z.string(),
-          })
-          .parse(req.body);
+      const { status, reviewedBy } = z
+        .object({
+          status: z.enum(['approved', 'ignored', 'pending']),
+          reviewedBy: z.string(),
+        })
+        .parse(req.body);
 
-        // Get current status before update
-        const beforeUpdate = await db.docProposal.findUnique({
-          where: { id: proposalId },
-          select: { status: true, conversationId: true },
-        });
-        logger.debug(
-          `Proposal ${proposalId} - Current status: ${beforeUpdate?.status}, Requested status: ${status}`
-        );
+      // Get current status before update
+      const beforeUpdate = await db.docProposal.findUnique({
+        where: { id: proposalId },
+        select: { status: true, conversationId: true },
+      });
+      logger.debug(
+        `Proposal ${proposalId} - Current status: ${beforeUpdate?.status}, Requested status: ${status}`
+      );
 
-        const updateData = {
-          status: status,
-          adminApproved: status === 'approved',
-          adminReviewedAt: status !== 'pending' ? new Date() : null,
-          adminReviewedBy: status !== 'pending' ? reviewedBy : null,
-          discardReason: status === 'ignored' ? 'Admin discarded change' : null,
-        };
+      const updateData = {
+        status: status,
+        adminApproved: status === 'approved',
+        adminReviewedAt: status !== 'pending' ? new Date() : null,
+        adminReviewedBy: status !== 'pending' ? reviewedBy : null,
+        discardReason: status === 'ignored' ? 'Admin discarded change' : null,
+      };
 
-        // Update the proposal
-        const updated = await db.docProposal.update({
-          where: { id: proposalId },
-          data: updateData,
-        });
+      // Update the proposal
+      const updated = await db.docProposal.update({
+        where: { id: proposalId },
+        data: updateData,
+      });
 
-        logger.debug(`Proposal ${proposalId} - Database returned status: ${updated.status}`);
+      logger.debug(`Proposal ${proposalId} - Database returned status: ${updated.status}`);
 
-        // Calculate conversation status
-        const allProposals = await db.docProposal.findMany({
-          where: { conversationId: updated.conversationId },
-          select: { status: true },
-        });
+      // Calculate conversation status
+      const allProposals = await db.docProposal.findMany({
+        where: { conversationId: updated.conversationId },
+        select: { status: true },
+      });
 
-        const hasPending = allProposals.some((p) => p.status === 'pending');
-        let conversationStatus: 'pending' | 'changeset' | 'discarded';
+      const hasPending = allProposals.some((p) => p.status === 'pending');
+      let conversationStatus: 'pending' | 'changeset' | 'discarded';
 
-        if (hasPending) {
-          conversationStatus = 'pending';
-        } else {
-          const hasApproved = allProposals.some((p) => p.status === 'approved');
-          conversationStatus = hasApproved ? 'changeset' : 'discarded';
-        }
-
-        res.json({
-          message: `Proposal status changed to ${status} successfully`,
-          proposal: updated,
-          conversationStatus,
-        });
-      } catch (error) {
-        logger.error('Error changing proposal status:', error);
-        res.status(500).json({ error: 'Failed to change proposal status' });
+      if (hasPending) {
+        conversationStatus = 'pending';
+      } else {
+        const hasApproved = allProposals.some((p) => p.status === 'approved');
+        conversationStatus = hasApproved ? 'changeset' : 'discarded';
       }
+
+      res.json({
+        message: `Proposal status changed to ${status} successfully`,
+        proposal: updated,
+        conversationStatus,
+      });
+    } catch (error) {
+      logger.error('Error changing proposal status:', error);
+      res.status(500).json({ error: 'Failed to change proposal status' });
     }
+  };
+  app.post('/api/admin/stream/proposals/:id/status', adminAuth, proposalStatusHandler);
+  app.post(
+    '/:instance/api/admin/stream/proposals/:id/status',
+    instanceMiddleware,
+    adminAuth,
+    proposalStatusHandler
   );
 
   /**
@@ -608,8 +652,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
   /**
    * GET /api/admin/stream/streams
    * List all configured streams
+   * Registered twice:
+   * 1. /api/admin/stream/streams (non-instance)
+   * 2. /:instance/api/admin/stream/streams (instance-specific)
    */
-  app.get('/api/admin/stream/streams', adminAuth, async (req: Request, res: Response) => {
+  const streamsHandler = async (req: Request, res: Response) => {
     try {
       const db = getDb(req);
 
@@ -629,7 +676,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       logger.error('Error fetching streams:', error);
       res.status(500).json({ error: 'Failed to fetch streams' });
     }
-  });
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.get('/api/admin/stream/streams', adminAuth, streamsHandler);
+  app.get('/:instance/api/admin/stream/streams', instanceMiddleware, adminAuth, streamsHandler);
 
   /**
    * POST /api/admin/stream/register
@@ -803,8 +854,12 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
   /**
    * POST /api/admin/stream/clear-processed
    * Reset processed messages back to PENDING status and delete all analysis results for re-testing
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/clear-processed (non-instance)
+   * 2. /:instance/api/admin/stream/clear-processed (instance-specific)
    */
-  app.post('/api/admin/stream/clear-processed', adminAuth, async (req: Request, res: Response) => {
+  const clearProcessedHandler = async (req: Request, res: Response) => {
     try {
       const db = getDb(req);
 
@@ -860,13 +915,27 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         });
         logger.debug(`Deleted ${proposalsDeleted.count} proposals`);
 
-        // Delete conversation RAG context
+        // Delete conversation RAG context for known conversations
         const ragDeleted = await tx.conversationRagContext.deleteMany({
           where: {
             conversationId: { in: conversationIdList },
           },
         });
         logger.debug(`Deleted ${ragDeleted.count} conversation RAG contexts`);
+
+        // Also delete any orphaned RAG contexts (from failed processing attempts)
+        // These won't be in conversationIdList if the messages are still PENDING
+        const orphanedRagDeleted = await tx.conversationRagContext.deleteMany({
+          where: streamId
+            ? {
+                // For stream-scoped clears, delete RAG contexts where conversation ID contains the stream prefix
+                conversationId: { contains: streamId.replace('near-zulip-', '') },
+              }
+            : {}, // For full clears, delete all RAG contexts
+        });
+        if (orphanedRagDeleted.count > 0) {
+          logger.debug(`Deleted ${orphanedRagDeleted.count} orphaned RAG contexts`);
+        }
 
         // Delete classifications
         const classificationsDeleted = await tx.messageClassification.deleteMany({
@@ -909,15 +978,29 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         logger.debug(`Reset processing watermark to ${resetWatermark.toISOString()}`);
       });
 
+      // Clear LLM cache to force fresh processing
+      const cacheCleared = await llmCache.clearAllAsync();
+      logger.info(`Cleared ${cacheCleared} LLM cache entries`);
+
       res.json({
-        message: 'Processed messages and analysis results cleared successfully',
+        message: 'Processed messages, analysis results, and LLM cache cleared successfully',
         count: messageIds.length,
+        cacheCleared,
       });
     } catch (error) {
       logger.error('Error clearing processed messages:', error);
       res.status(500).json({ error: 'Failed to clear processed messages' });
     }
-  });
+  };
+
+  // Register for both non-instance and instance-specific routes
+  app.post('/api/admin/stream/clear-processed', adminAuth, clearProcessedHandler);
+  app.post(
+    '/:instance/api/admin/stream/clear-processed',
+    instanceMiddleware,
+    adminAuth,
+    clearProcessedHandler
+  );
 
   /**
    * GET /api/admin/stream/conversations

@@ -51,7 +51,7 @@ export class GitFetcher {
     // Each instance gets its own cache directory
     this.cacheDir = `/var/cache/${config.project.shortName}-docs`;
     this.repoPath = path.join(this.cacheDir, 'repo');
-    this.git = simpleGit();
+    this.git = simpleGit({ binary: 'git' });
 
     console.log(`GitFetcher initialized for ${instanceId}: ${this.gitUrl}#${this.branch}`);
   }
@@ -84,7 +84,7 @@ export class GitFetcher {
     if (existsSync(this.repoPath)) {
       // Repository exists, pull latest changes
       console.log('Pulling latest changes from repository...');
-      this.git = simpleGit(this.repoPath);
+      this.git = simpleGit({ baseDir: this.repoPath, binary: 'git' });
 
       try {
         await this.git.fetch();

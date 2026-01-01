@@ -5,7 +5,7 @@
  * - Load real configuration files
  * - Execute complete pipeline flows
  * - Validate outputs match expected behavior
- * - Test domain-specific configurations (NEAR validators)
+ * - Test domain-specific configurations
  *
  * @author Wayne
  * @created 2025-12-30
@@ -50,55 +50,56 @@ vi.mock('../server/utils/logger.js', () => ({
 const CONFIG_BASE_PATH = path.join(process.cwd(), 'config');
 
 // Test data
-function createValidatorMessages(): UnifiedMessage[] {
+function createTestMessages(): UnifiedMessage[] {
   return [
     {
       id: 1,
-      messageId: 'v-msg-1',
-      streamId: 'near-zulip',
+      messageId: 'test-msg-1',
+      streamId: 'test-stream',
       timestamp: new Date('2025-01-15T09:00:00Z'),
-      author: 'validator_operator',
+      author: 'user_one',
       content:
-        'My validator has been missing blocks since the last protocol upgrade. Anyone else experiencing this?',
+        'The service has been showing errors since the last update. Anyone else experiencing this?',
       processingStatus: 'PENDING',
     },
     {
       id: 2,
-      messageId: 'v-msg-2',
-      streamId: 'near-zulip',
+      messageId: 'test-msg-2',
+      streamId: 'test-stream',
       timestamp: new Date('2025-01-15T09:05:00Z'),
-      author: 'experienced_op',
+      author: 'support_user',
       content:
-        'Yes, you need to update your neard config for the new RPC endpoints. Check the chunk production settings.',
+        'Yes, you need to update your configuration for the new API endpoints. Check the settings.',
       processingStatus: 'PENDING',
     },
     {
       id: 3,
-      messageId: 'v-msg-3',
-      streamId: 'near-zulip',
+      messageId: 'test-msg-3',
+      streamId: 'test-stream',
       timestamp: new Date('2025-01-15T09:10:00Z'),
-      author: 'validator_operator',
+      author: 'user_one',
       content:
-        'Thanks! The staking pool rewards also seem off. Is the epoch calculation different now?',
+        'Thanks! The performance metrics also seem different. Is the calculation method changed?',
       processingStatus: 'PENDING',
     },
     {
       id: 4,
-      messageId: 'v-msg-4',
-      streamId: 'near-zulip',
+      messageId: 'test-msg-4',
+      streamId: 'test-stream',
       timestamp: new Date('2025-01-15T10:00:00Z'),
       author: 'random_user',
-      content: 'Hey anyone know how to mint NFTs on NEAR? Looking for a good marketplace.',
+      content:
+        'Hey anyone know about completely unrelated topics? Looking for off-topic discussion.',
       processingStatus: 'PENDING',
     },
     {
       id: 5,
-      messageId: 'v-msg-5',
-      streamId: 'near-zulip',
+      messageId: 'test-msg-5',
+      streamId: 'test-stream',
       timestamp: new Date('2025-01-15T11:00:00Z'),
-      author: 'infra_engineer',
+      author: 'tech_user',
       content:
-        'What are the recommended hardware specs for running an archival node? We need to support high RPC traffic.',
+        'What are the recommended hardware specs for running the service? We need to support high traffic.',
       processingStatus: 'PENDING',
     },
   ];
@@ -113,23 +114,23 @@ function createMockLLMHandler(): ILLMHandler {
           data: {
             threads: [
               {
-                category: 'validator-troubleshooting',
+                category: 'troubleshooting',
                 messages: [0, 1, 2],
-                summary: 'Validator block production issues after upgrade',
-                docValueReason: 'Common post-upgrade validator issues needing documentation',
+                summary: 'Service issues after system upgrade',
+                docValueReason: 'Common post-upgrade issues needing documentation',
                 ragSearchCriteria: {
-                  keywords: ['validator', 'blocks', 'upgrade', 'neard'],
-                  semanticQuery: 'validator missing blocks after protocol upgrade configuration',
+                  keywords: ['service', 'errors', 'upgrade', 'config'],
+                  semanticQuery: 'service errors after upgrade configuration',
                 },
               },
               {
                 category: 'infrastructure',
                 messages: [3],
-                summary: 'Archival node hardware requirements',
+                summary: 'Hardware requirements for service',
                 docValueReason: 'Infrastructure sizing guidance needed',
                 ragSearchCriteria: {
-                  keywords: ['archival', 'node', 'hardware', 'rpc'],
-                  semanticQuery: 'archival node hardware specifications for high rpc traffic',
+                  keywords: ['hardware', 'specs', 'traffic'],
+                  semanticQuery: 'hardware specifications for high traffic',
                 },
               },
             ],
@@ -142,20 +143,20 @@ function createMockLLMHandler(): ILLMHandler {
             proposals: [
               {
                 updateType: 'UPDATE',
-                page: 'docs/validator/troubleshooting.md',
+                page: 'docs/troubleshooting.md',
                 section: 'Post-Upgrade Issues',
                 suggestedText:
-                  '## Post-Upgrade Troubleshooting\n\nAfter a protocol upgrade, validators may experience block production issues...',
+                  '## Post-Upgrade Troubleshooting\n\nAfter a system upgrade, services may experience issues...',
                 reasoning: 'Community discussion revealed common post-upgrade configuration issues',
                 sourceMessages: [0, 1],
               },
               {
                 updateType: 'INSERT',
-                page: 'docs/validator/configuration.md',
-                section: 'RPC Endpoints',
+                page: 'docs/configuration.md',
+                section: 'API Endpoints',
                 suggestedText:
-                  '### Updated RPC Configuration\n\nEnsure your neard config includes the new RPC endpoints...',
-                reasoning: 'Solution provided by experienced operator needs documentation',
+                  '### Updated API Configuration\n\nEnsure your config includes the new API endpoints...',
+                reasoning: 'Solution provided by support user needs documentation',
                 sourceMessages: [1],
               },
             ],
@@ -191,26 +192,26 @@ function createMockRagService(): IRagService {
     searchSimilarDocs: vi.fn().mockResolvedValue([
       {
         id: 1,
-        filePath: 'docs/validator/troubleshooting.md',
-        title: 'Validator Troubleshooting',
+        filePath: 'docs/troubleshooting.md',
+        title: 'Troubleshooting Guide',
         content:
-          '# Troubleshooting Guide\n\nThis guide covers common validator issues...\n\n## Sync Issues\nIf your validator is not syncing...',
+          '# Troubleshooting Guide\n\nThis guide covers common service issues...\n\n## Connection Issues\nIf your service is not connecting...',
         similarity: 0.88,
       },
       {
         id: 2,
-        filePath: 'docs/validator/configuration.md',
-        title: 'Validator Configuration',
+        filePath: 'docs/configuration.md',
+        title: 'Configuration Guide',
         content:
-          '# Configuration\n\nThis guide explains validator configuration options...\n\n## neard.conf\nThe main configuration file...',
+          '# Configuration\n\nThis guide explains configuration options...\n\n## Config File\nThe main configuration file...',
         similarity: 0.82,
       },
       {
         id: 3,
-        filePath: 'docs/integrate/running-a-node/archival-node.md',
-        title: 'Archival Node Setup',
+        filePath: 'docs/infrastructure/hardware.md',
+        title: 'Hardware Requirements',
         content:
-          '# Archival Node\n\nHow to run an archival node for full history...\n\n## Hardware Requirements\nMinimum specs...',
+          '# Hardware Requirements\n\nHow to size your infrastructure...\n\n## Minimum Specs\nMinimum specifications...',
         similarity: 0.75,
       },
     ] as RagDocument[]),
@@ -251,36 +252,20 @@ describe('Pipeline E2E Tests', () => {
       expect(config.steps.map((s) => s.stepType)).toContain(StepType.GENERATE);
     });
 
-    it('should load NEAR validator domain configuration', async () => {
-      const config = await loadDomainConfig(CONFIG_BASE_PATH, 'near', 'validators');
-
-      expect(config).toBeDefined();
-      expect(config.domainId).toBe('near-validators');
-      expect(config.name).toBe('NEAR Validator Operations');
-
-      // Check validator-specific categories
-      const categoryIds = config.categories.map((c) => c.id);
-      expect(categoryIds).toContain('validator-troubleshooting');
-      expect(categoryIds).toContain('staking-rewards');
-      expect(categoryIds).toContain('infrastructure');
-
-      // Check keywords
-      expect(config.keywords?.include).toContain('validator');
-      expect(config.keywords?.include).toContain('staking');
-      expect(config.keywords?.exclude).toContain('nft');
+    it('should handle instance-specific config gracefully when not found', async () => {
+      // Instance-specific configs (like near) are gitignored
+      // This test verifies the loader falls back to defaults appropriately
+      const defaultConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
+      expect(defaultConfig).toBeDefined();
+      expect(defaultConfig.domainId).toBe('generic');
     });
 
-    it('should load NEAR validator pipeline configuration', async () => {
-      const config = await loadPipelineConfig(CONFIG_BASE_PATH, 'near', 'validators');
+    it('should have required categories in default domain config', async () => {
+      const config = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
 
-      expect(config).toBeDefined();
-      expect(config.pipelineId).toBe('validators-v1');
-
-      // Check keyword filter has validator-specific keywords
-      const filterStep = config.steps.find((s) => s.stepType === StepType.FILTER);
-      expect(filterStep).toBeDefined();
-      expect(filterStep!.config.includeKeywords).toContain('validator');
-      expect(filterStep!.config.excludeKeywords).toContain('nft');
+      const categoryIds = config.categories.map((c) => c.id);
+      expect(categoryIds).toContain('troubleshooting');
+      expect(categoryIds).toContain('no-doc-value');
     });
   });
 
@@ -306,15 +291,15 @@ describe('Pipeline E2E Tests', () => {
       await registry.load();
 
       const rendered = registry.render('thread-classification', {
-        projectName: 'NEAR Protocol',
-        domain: 'Validator Operations',
+        projectName: 'Test Project',
+        domain: 'General Operations',
         categories: '- Troubleshooting\n- Questions',
         messagesToAnalyze: 'Test messages here',
         contextText: 'Previous context',
       });
 
-      expect(rendered.system).toContain('NEAR Protocol');
-      expect(rendered.system).toContain('Validator Operations');
+      expect(rendered.system).toContain('Test Project');
+      expect(rendered.system).toContain('General Operations');
       expect(rendered.user).toContain('Test messages here');
     });
   });
@@ -340,7 +325,7 @@ describe('Pipeline E2E Tests', () => {
         instanceId: 'default',
         batchId: 'e2e-test-batch-001',
         streamId: 'test-stream',
-        messages: createValidatorMessages(),
+        messages: createTestMessages(),
         domainConfig,
         prompts: registry,
         llmHandler,
@@ -356,9 +341,9 @@ describe('Pipeline E2E Tests', () => {
       expect(result.proposalsGenerated).toBeGreaterThan(0);
     });
 
-    it('should execute NEAR validator-focused pipeline', async () => {
-      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'near', 'validators');
-      const pipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'near', 'validators');
+    it('should execute pipeline with default domain focus', async () => {
+      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
+      const pipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'default');
 
       const llmHandler = createMockLLMHandler();
       const ragService = createMockRagService();
@@ -373,10 +358,10 @@ describe('Pipeline E2E Tests', () => {
       );
 
       const context = createPipelineContext({
-        instanceId: 'near',
-        batchId: 'near-e2e-batch-001',
-        streamId: 'near-zulip',
-        messages: createValidatorMessages(),
+        instanceId: 'default',
+        batchId: 'default-e2e-batch-001',
+        streamId: 'test-stream',
+        messages: createTestMessages(),
         domainConfig,
         prompts: registry,
         llmHandler,
@@ -389,22 +374,16 @@ describe('Pipeline E2E Tests', () => {
       // Should succeed
       expect(result.success).toBe(true);
 
-      // Should filter out NFT message
-      expect(context.filteredMessages.length).toBeLessThan(5);
-      expect(context.filteredMessages.every((m) => !m.content.toLowerCase().includes('nft'))).toBe(
-        true
-      );
-
-      // Should create threads for validator content
+      // Should create threads for content
       expect(context.threads.length).toBeGreaterThan(0);
 
       // Should have proposals
       expect(result.proposalsGenerated).toBeGreaterThan(0);
     });
 
-    it('should filter non-validator messages with keyword filter', async () => {
-      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'near', 'validators');
-      const fullPipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'near', 'validators');
+    it('should execute filter step correctly', async () => {
+      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
+      const fullPipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'default');
 
       // Only run filter step - create a copy to not mutate the cached config
       const pipelineConfig = {
@@ -419,9 +398,9 @@ describe('Pipeline E2E Tests', () => {
         createStepFactory()
       );
 
-      const messages = createValidatorMessages();
+      const messages = createTestMessages();
       const context = createPipelineContext({
-        instanceId: 'near',
+        instanceId: 'default',
         batchId: 'filter-test',
         streamId: 'test',
         messages,
@@ -434,22 +413,15 @@ describe('Pipeline E2E Tests', () => {
 
       await orchestrator.execute(context);
 
-      // NFT message (id: 4) should be filtered out
-      const filteredIds = context.filteredMessages.map((m) => m.id);
-      expect(filteredIds).not.toContain(4);
-
-      // Validator-related messages should remain
-      expect(filteredIds).toContain(1); // validator missing blocks
-      expect(filteredIds).toContain(2); // neard config
-      expect(filteredIds).toContain(3); // staking pool rewards
-      expect(filteredIds).toContain(5); // archival node specs
+      // With default config (no filters), all messages should pass through
+      expect(context.filteredMessages.length).toBe(messages.length);
     });
   });
 
   describe('Pipeline Metrics', () => {
     it('should track comprehensive metrics', async () => {
-      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'near', 'validators');
-      const pipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'near', 'validators');
+      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
+      const pipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'default');
 
       const llmHandler = createMockLLMHandler();
       const ragService = createMockRagService();
@@ -464,10 +436,10 @@ describe('Pipeline E2E Tests', () => {
       );
 
       const context = createPipelineContext({
-        instanceId: 'near',
+        instanceId: 'default',
         batchId: 'metrics-test',
         streamId: 'test',
-        messages: createValidatorMessages(),
+        messages: createTestMessages(),
         domainConfig,
         prompts: registry,
         llmHandler,
@@ -523,9 +495,9 @@ describe('Pipeline E2E Tests', () => {
       expect(result.proposalsGenerated).toBe(0);
     });
 
-    it('should handle all messages filtered out', async () => {
-      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'near', 'validators');
-      const pipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'near', 'validators');
+    it('should handle messages gracefully with default config', async () => {
+      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
+      const pipelineConfig = await loadPipelineConfig(CONFIG_BASE_PATH, 'default');
 
       const llmHandler = createMockLLMHandler();
       const orchestrator = new PipelineOrchestrator(
@@ -534,31 +506,31 @@ describe('Pipeline E2E Tests', () => {
         createStepFactory()
       );
 
-      // All messages about NFTs - should all be filtered
+      // Various messages - default config should process all
       const messages: UnifiedMessage[] = [
         {
           id: 1,
-          messageId: 'nft-1',
+          messageId: 'msg-1',
           streamId: 'test',
           timestamp: new Date(),
           author: 'user1',
-          content: 'Check out this NFT marketplace!',
+          content: 'I have a question about the documentation.',
           processingStatus: 'PENDING',
         },
         {
           id: 2,
-          messageId: 'nft-2',
+          messageId: 'msg-2',
           streamId: 'test',
           timestamp: new Date(),
           author: 'user2',
-          content: 'Best dapp for minting NFTs',
+          content: 'Here is some helpful information.',
           processingStatus: 'PENDING',
         },
       ];
 
       const context = createPipelineContext({
-        instanceId: 'near',
-        batchId: 'all-filtered',
+        instanceId: 'default',
+        batchId: 'default-test',
         streamId: 'test',
         messages,
         domainConfig,
@@ -571,14 +543,14 @@ describe('Pipeline E2E Tests', () => {
       const result = await orchestrator.execute(context);
 
       expect(result.success).toBe(true);
-      expect(context.filteredMessages.length).toBe(0);
-      expect(result.threadsCreated).toBe(0);
+      // Default config has no keyword filters, so all messages pass
+      expect(context.filteredMessages.length).toBe(2);
     });
   });
 
   describe('Domain Configuration Behavior', () => {
-    it('should respect security block patterns', async () => {
-      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'near', 'validators');
+    it('should have security configuration in default domain', async () => {
+      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
 
       // Check that security patterns are configured
       expect(domainConfig.security?.blockPatterns).toBeDefined();
@@ -586,21 +558,20 @@ describe('Pipeline E2E Tests', () => {
       expect(domainConfig.security!.blockPatterns).toContain('private[_\\s]?key');
     });
 
-    it('should respect RAG path filters', async () => {
-      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'near', 'validators');
+    it('should have RAG path configuration in default domain', async () => {
+      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
 
-      // Check RAG path configuration
+      // Check RAG path configuration - default should exclude i18n
       expect(domainConfig.ragPaths).toBeDefined();
-      expect(domainConfig.ragPaths!.include).toContain('docs/validator/**');
       expect(domainConfig.ragPaths!.exclude).toContain('i18n/**');
     });
 
-    it('should have correct context for prompts', async () => {
-      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'near', 'validators');
+    it('should have correct context in default domain', async () => {
+      const domainConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
 
-      expect(domainConfig.context.projectName).toBe('NEAR Protocol');
-      expect(domainConfig.context.domain).toBe('Validator Operations');
-      expect(domainConfig.context.targetAudience).toContain('operator');
+      expect(domainConfig.context.projectName).toBeDefined();
+      expect(domainConfig.context.domain).toBeDefined();
+      expect(domainConfig.context.targetAudience).toBeDefined();
     });
   });
 });

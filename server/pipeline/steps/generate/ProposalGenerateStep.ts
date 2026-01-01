@@ -20,6 +20,7 @@ import {
   type Proposal,
   type ILLMHandler,
 } from '../../core/interfaces.js';
+import { postProcessProposal } from '../../utils/ProposalPostProcessor.js';
 
 /**
  * Configuration for ProposalGenerateStep
@@ -186,17 +187,47 @@ export class ProposalGenerateStep extends BasePipelineStep {
       return [];
     }
 
-    // Filter out NONE proposals
+    // Log raw LLM response for debugging
+    this.logger.debug(`Thread ${thread.id}: LLM returned ${data.proposals.length} proposals`);
+    for (const p of data.proposals) {
+      if (p.suggestedText) {
+        this.logger.debug(
+          `  RAW LLM [${p.page}]: ${p.suggestedText.substring(0, 150).replace(/\n/g, '\\n')}...`
+        );
+      }
+    }
+
+    // Filter out NONE proposals and apply post-processing
     return data.proposals
       .filter((p) => p.updateType !== 'NONE')
-      .map((p) => ({
-        updateType: p.updateType,
-        page: p.page,
-        section: p.section,
-        suggestedText: p.suggestedText,
-        reasoning: p.reasoning,
-        sourceMessages: p.sourceMessages,
-      }));
+      .map((p) => {
+        // Post-process suggestedText for markdown files
+        const originalText = p.suggestedText;
+        const postProcessed = postProcessProposal(p.suggestedText, p.page);
+
+        // Debug logging to track post-processing
+        if (postProcessed.wasModified) {
+          this.logger.info(`POST-PROCESS MODIFIED [${p.page}]:`);
+          this.logger.info(`  BEFORE: ${originalText?.substring(0, 120).replace(/\n/g, '\\n')}`);
+          this.logger.info(
+            `  AFTER:  ${postProcessed.text?.substring(0, 120).replace(/\n/g, '\\n')}`
+          );
+        } else {
+          this.logger.debug(
+            `POST-PROCESS unchanged [${p.page}]: ${originalText?.substring(0, 80).replace(/\n/g, '\\n')}`
+          );
+        }
+
+        return {
+          updateType: p.updateType,
+          page: p.page,
+          section: p.section,
+          suggestedText: postProcessed.text || p.suggestedText,
+          reasoning: p.reasoning,
+          sourceMessages: p.sourceMessages,
+          warnings: postProcessed.warnings.length > 0 ? postProcessed.warnings : undefined,
+        };
+      });
   }
 
   /**

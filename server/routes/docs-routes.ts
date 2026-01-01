@@ -8,6 +8,7 @@ import { getInstanceDb } from '../db/instance-db.js';
 import { docIndexGenerator } from '../stream/doc-index-generator.js';
 import { geminiEmbedder, GeminiEmbedder } from '../embeddings/gemini-embedder.js';
 import { createLogger, getErrorMessage } from '../utils/logger.js';
+import { InstanceConfigLoader } from '../config/instance-loader.js';
 
 const logger = createLogger('DocsRoutes');
 
@@ -65,19 +66,38 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
   });
 
   // Public Git documentation stats endpoint (must be before :sectionId wildcard)
+  // Supports both instance-specific and default configs
   router.get('/git-stats', async (req: Request, res: Response) => {
     try {
-      const defaultGitUrl = process.env.DOCS_GIT_URL || '';
+      // Get instance from request (set by middleware) or use 'near' as default for this project
+      const instanceId = (req as any).instance?.id || 'near';
+
+      // Try to get config from instance config first, fallback to env var
+      let gitUrl: string;
+      let branch: string;
+
+      try {
+        const instanceConfig = InstanceConfigLoader.get(instanceId);
+        gitUrl = instanceConfig.documentation.gitUrl;
+        branch = instanceConfig.documentation.branch || 'main';
+        logger.debug(`Using instance config for ${instanceId}: ${gitUrl}`);
+      } catch {
+        // Fallback to env var if instance config not available
+        gitUrl = process.env.DOCS_GIT_URL || '';
+        branch = process.env.DOCS_GIT_BRANCH || 'main';
+        logger.debug(`Using env var config: ${gitUrl}`);
+      }
+
       const syncState = await prisma.gitSyncState.findFirst({
         where: {
-          gitUrl: defaultGitUrl,
+          gitUrl: gitUrl,
         },
       });
 
       if (!syncState) {
         return res.json({
-          gitUrl: defaultGitUrl,
-          branch: process.env.DOCS_GIT_BRANCH || 'main',
+          gitUrl: gitUrl,
+          branch: branch,
           lastSyncAt: null,
           lastCommitHash: null,
           status: 'idle',

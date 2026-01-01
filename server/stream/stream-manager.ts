@@ -369,6 +369,9 @@ export class StreamManager {
    * Import messages from a stream without processing
    */
   async importStream(streamId: string, batchSize?: number): Promise<number> {
+    logger.debug(
+      `importStream called for ${streamId}, registered adapters: ${Array.from(this.adapters.keys()).join(', ')}`
+    );
     const adapter = this.adapters.get(streamId);
     if (!adapter) {
       throw new Error(`Stream ${streamId} not found`);

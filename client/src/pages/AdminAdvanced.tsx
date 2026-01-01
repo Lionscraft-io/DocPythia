@@ -42,6 +42,21 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, adminApiRequest, getQueryFn } from '@/lib/queryClient';
 import type { PendingUpdate, DocumentationSection, SectionVersion } from '@shared/schema';
 
+// Get instance prefix from URL (e.g., /near/admin -> /near)
+function getInstancePrefix(): string {
+  const pathParts = window.location.pathname.split('/');
+  // If path is like /near/admin/advanced, return /near
+  if (
+    pathParts.length >= 2 &&
+    pathParts[1] &&
+    pathParts[1] !== 'admin' &&
+    pathParts[1] !== 'login'
+  ) {
+    return `/${pathParts[1]}`;
+  }
+  return '';
+}
+
 export default function AdminAdvanced() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -384,10 +399,16 @@ export default function AdminAdvanced() {
 
   const clearProcessedMutation = useMutation({
     mutationFn: async () => {
-      const response = await adminApiRequest('POST', '/api/admin/stream/clear-processed', {});
+      const prefix = getInstancePrefix();
+      const response = await adminApiRequest(
+        'POST',
+        `${prefix}/api/admin/stream/clear-processed`,
+        {}
+      );
       return await response.json();
     },
     onSuccess: (data: any) => {
+      const prefix = getInstancePrefix();
       toast({
         title: 'Messages Reset',
         description: `Successfully reset ${data.count} messages back to PENDING status.`,
@@ -395,8 +416,8 @@ export default function AdminAdvanced() {
       });
       // Refresh updates list and conversations
       queryClient.invalidateQueries({ queryKey: ['/api/updates'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/stats'] });
+      queryClient.invalidateQueries({ queryKey: [`${prefix}/api/admin/stream/conversations`] });
+      queryClient.invalidateQueries({ queryKey: [`${prefix}/api/admin/stream/stats`] });
     },
     onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {

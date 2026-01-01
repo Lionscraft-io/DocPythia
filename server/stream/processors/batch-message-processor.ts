@@ -19,6 +19,7 @@ import { MessageVectorSearch } from '../message-vector-search.js';
 import { PROMPT_TEMPLATES, fillTemplate } from '../llm/prompt-templates.js';
 import { InstanceConfigLoader } from '../../config/instance-loader.js';
 import { createLogger } from '../../utils/logger.js';
+import { postProcessProposal } from '../../pipeline/utils/ProposalPostProcessor.js';
 import { z } from 'zod';
 
 const logger = createLogger('BatchProcessor');
@@ -843,13 +844,23 @@ export class BatchMessageProcessor {
       contentPreview: doc.content ? doc.content.substring(0, 1000) + '...' : '', // Store 1000 char preview
     }));
 
-    await this.db.conversationRagContext.create({
-      data: {
+    // Use upsert to handle case where RAG context already exists from a failed previous attempt
+    await this.db.conversationRagContext.upsert({
+      where: { conversationId: conversation.id },
+      create: {
         conversationId: conversation.id,
         batchId,
         retrievedDocs: ragDocsMetadata,
         totalTokens: this.estimateTokens(ragDocs),
         summary: truncatedSummary,
+      },
+      update: {
+        batchId,
+        retrievedDocs: ragDocsMetadata,
+        totalTokens: this.estimateTokens(ragDocs),
+        summary: truncatedSummary,
+        proposalsRejected: null,
+        rejectionReason: null,
       },
     });
 
@@ -872,6 +883,17 @@ export class BatchMessageProcessor {
     // NOTE: Store ALL proposals including NONE type to capture LLM reasoning
     let proposalCount = 0;
     for (const proposal of proposals) {
+      // Post-process the suggested text to fix markdown formatting issues
+      const postProcessed = postProcessProposal(proposal.suggestedText, proposal.page);
+
+      if (postProcessed.wasModified) {
+        logger.info(`Post-processed proposal for ${proposal.page}:`);
+        logger.debug(
+          `  Before: ${proposal.suggestedText?.substring(0, 100).replace(/\n/g, '\\n')}`
+        );
+        logger.debug(`  After:  ${postProcessed.text?.substring(0, 100).replace(/\n/g, '\\n')}`);
+      }
+
       await this.db.docProposal.create({
         data: {
           conversationId: conversation.id,
@@ -880,7 +902,7 @@ export class BatchMessageProcessor {
           updateType: proposal.updateType,
           section: proposal.section || null,
           location: proposal.location ?? Prisma.DbNull,
-          suggestedText: proposal.suggestedText || null,
+          suggestedText: postProcessed.text || proposal.suggestedText || null,
           reasoning: proposal.reasoning || null,
           sourceMessages: proposal.sourceMessages ?? Prisma.DbNull,
           modelUsed: this.config.proposalModel,

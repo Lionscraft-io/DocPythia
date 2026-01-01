@@ -16,7 +16,7 @@ This specification defines the transformation of the hardcoded conversation anal
 - Hot-reload capability for prompts and configuration
 - Plugin-based pipeline architecture with composable steps
 - Domain-agnostic core with instance-specific configuration
-- Backward compatibility with existing NEAR DocsAI instance
+- Backward compatibility with existing DocsAI instances
 
 **Constraints:**
 - Must maintain existing database schema
@@ -25,7 +25,7 @@ This specification defines the transformation of the hardcoded conversation anal
 - Performance must not degrade significantly
 
 **Business Context:**
-The immediate use case is focusing NEAR DocsAI exclusively on validator operations, filtering out developer/user questions. Future instances may have different domain focuses (e.g., DeFi protocols, developer tools). Each instance needs unique classification categories, filtering rules, and prompt templates without duplicating core pipeline code.
+The immediate use case is focusing a DocsAI instance exclusively on specific operations (e.g., validator operations), filtering out irrelevant questions. Future instances may have different domain focuses (e.g., DeFi protocols, developer tools). Each instance needs unique classification categories, filtering rules, and prompt templates without duplicating core pipeline code.
 
 ## 2. Technical Approach
 
@@ -590,7 +590,7 @@ config/
     ├── prompts/
     │   └── thread-classification.md     # Instance override
     ├── domains/
-    │   └── validators.json              # NEAR validators domain
+    │   └── custom-domain.json           # Instance-specific domain
     └── pipelines/
         └── custom.json                  # Custom pipeline config
 ```
@@ -1124,8 +1124,8 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
 - `config/defaults/prompts/file-consolidation.md`
 - `config/defaults/domains/generic.json`
 - `config/defaults/pipelines/default.json`
-- `config/near/domains/validators.json`
-- `config/near/pipelines/validators.json`
+- `config/{instanceId}/domains/custom-domain.json`
+- `config/{instanceId}/pipelines/custom-pipeline.json`
 
 **Modified Files:**
 - `server/stream/processors/batch-message-processor.ts` - Refactor to use PipelineOrchestrator
@@ -1372,10 +1372,10 @@ describe('Pipeline End-to-End', () => {
 **`tests/e2e/validator-domain.test.ts`:**
 
 ```typescript
-describe('Validator Domain Configuration', () => {
-  it('should filter non-validator messages', async () => {
-    // Load validator domain config
-    const config = await loadDomainConfig('near', 'validators');
+describe('Custom Domain Configuration', () => {
+  it('should filter non-domain messages', async () => {
+    // Load custom domain config
+    const config = await loadDomainConfig('{instanceId}', 'custom-domain');
 
     // Execute pipeline with mixed messages
     const result = await runPipeline({
@@ -1402,7 +1402,7 @@ describe('Validator Domain Configuration', () => {
 - [ ] Verify RAG path filtering excludes i18n docs
 - [ ] Test error handling when LLM returns invalid JSON
 - [ ] Verify metrics tracking for all pipeline steps
-- [ ] Test multi-instance isolation (near vs projecta configs)
+- [ ] Test multi-instance isolation (instanceA vs instanceB configs)
 - [ ] Verify proposal generation respects security rules
 - [ ] Test configuration precedence (defaults < instance < env)
 
@@ -1487,7 +1487,7 @@ for (const pattern of context.domainConfig.security?.blockPatterns || []) {
 
 ### Expected Load
 
-**Current Batch Metrics (NEAR DocsAI):**
+**Current Batch Metrics (Example Instance):**
 - Batch size: 30 messages every 24 hours
 - Classification: 1 LLM call per batch (~2-4k tokens input, ~1k output)
 - Proposals: 5-10 LLM calls per batch (~3-5k tokens input, ~2k output each)
@@ -1599,7 +1599,7 @@ for (let i = 0; i < messages.length; i += CHUNK_SIZE) {
 
 ```typescript
 {
-  "batchId": "near-zulip_1704067200000",
+  "batchId": "stream_1704067200000",
   "status": "FAILED",
   "error": "Pipeline step 'batch-classify' failed: LLM returned invalid JSON",
   "retriable": true,
@@ -1620,8 +1620,8 @@ for (let i = 0; i < messages.length; i += CHUNK_SIZE) {
 
 ```typescript
 logger.info('Pipeline execution started', {
-  instanceId: 'near',
-  batchId: 'near-zulip_1704067200000',
+  instanceId: '{instanceId}',
+  batchId: 'stream_1704067200000',
   messageCount: 30,
   pipelineConfig: 'validators',
 });
@@ -1704,9 +1704,9 @@ await db.$transaction(async (tx) => {
 
 **Phase 4: Gradual Rollout**
 
-1. Enable for `projecta` instance first (low traffic)
+1. Enable for low-traffic instance first
 2. Monitor metrics for 24 hours
-3. Enable for `near` instance
+3. Enable for production instance
 4. Monitor for 48 hours
 5. Remove feature flag, make pipeline default
 
@@ -1732,8 +1732,8 @@ if (USE_PIPELINE_V2) {
 
 **Phased by Instance:**
 1. Internal test instance (day 1)
-2. Low-traffic instance `projecta` (day 3)
-3. Production instance `near` (day 7)
+2. Low-traffic instance (day 3)
+3. Production instances (day 7)
 4. All instances (day 10)
 
 **Success Criteria Per Phase:**
@@ -1926,155 +1926,143 @@ MESSAGES TO ANALYZE (current 24-hour batch):
 {{messagesToAnalyze}}
 ```
 
-### Validator Domain Configuration
+### Custom Domain Configuration Example
 
-**File: `config/near/domains/validators.json`**
+**File: `config/{instanceId}/domains/custom-domain.json`**
 
 ```json
 {
-  "domainId": "near-validators",
-  "name": "NEAR Validator Operations",
-  "description": "Focus on validator node operations, staking, and infrastructure",
+  "domainId": "custom-domain",
+  "name": "Custom Domain Operations",
+  "description": "Focus on specific domain operations and related topics",
   "categories": [
     {
-      "id": "validator-troubleshooting",
-      "label": "Validator Troubleshooting",
-      "description": "Validator node issues, errors, performance problems",
+      "id": "troubleshooting",
+      "label": "Troubleshooting",
+      "description": "Domain-specific issues, errors, performance problems",
       "priority": 100,
       "examples": [
-        "Validator offline after upgrade",
-        "Missing blocks, low uptime",
-        "RPC node not syncing"
+        "Service offline after upgrade",
+        "Performance degradation",
+        "Connection issues"
       ]
     },
     {
-      "id": "validator-setup",
-      "label": "Validator Setup",
-      "description": "Questions about setting up validator nodes",
+      "id": "setup",
+      "label": "Setup & Configuration",
+      "description": "Questions about initial setup and configuration",
       "priority": 90,
       "examples": [
-        "How to become a validator?",
-        "Hardware requirements for validators",
-        "Staking pool configuration"
+        "How to get started?",
+        "System requirements",
+        "Initial configuration"
       ]
     },
     {
-      "id": "validator-operations",
-      "label": "Validator Operations",
-      "description": "Day-to-day validator operations and best practices",
+      "id": "operations",
+      "label": "Operations",
+      "description": "Day-to-day operations and best practices",
       "priority": 85,
       "examples": [
-        "How to upgrade validator node?",
-        "Monitoring validator performance",
+        "How to perform upgrades?",
+        "Monitoring best practices",
         "Backup and disaster recovery"
       ]
     },
     {
-      "id": "staking-rewards",
-      "label": "Staking & Rewards",
-      "description": "Staking mechanisms, rewards, delegation",
+      "id": "advanced",
+      "label": "Advanced Topics",
+      "description": "Advanced features and complex scenarios",
       "priority": 75,
       "examples": [
-        "How are staking rewards calculated?",
-        "Delegation fee structure",
-        "Claiming rewards from pool"
+        "Advanced configuration options",
+        "Performance tuning",
+        "Integration patterns"
       ]
     },
     {
       "id": "infrastructure",
       "label": "Infrastructure",
-      "description": "Hardware, networking, cloud infrastructure for validators",
+      "description": "Hardware, networking, cloud infrastructure",
       "priority": 70,
       "examples": [
         "Recommended server specs",
-        "Network bandwidth requirements",
-        "Cloud provider comparison"
+        "Network requirements",
+        "Cloud provider options"
       ]
     },
     {
       "id": "no-doc-value",
       "label": "No Documentation Value",
-      "description": "Off-topic or non-validator discussions",
+      "description": "Off-topic discussions",
       "priority": 0,
       "examples": [
-        "Smart contract development questions",
-        "NFT marketplace issues",
-        "General NEAR token discussion"
+        "Unrelated questions",
+        "General chat",
+        "Non-technical discussions"
       ]
     }
   ],
   "keywords": {
     "include": [
-      "validator",
-      "staking",
-      "node",
-      "rpc",
-      "uptime",
-      "block production",
-      "delegation",
-      "pool",
-      "rewards",
-      "infrastructure"
+      "keyword1",
+      "keyword2",
+      "relevant-term",
+      "domain-specific"
     ],
     "exclude": [
-      "dapp",
-      "smart contract",
-      "nft",
-      "marketplace",
-      "wallet",
-      "token transfer",
-      "frontend"
+      "off-topic",
+      "unrelated",
+      "spam"
     ],
     "caseSensitive": false
   },
   "ragPaths": {
     "include": [
-      "docs/validator/**",
-      "docs/integrate/running-a-node/**",
-      "docs/develop/node/**",
-      "docs/tutorials/validator-*.md"
+      "docs/domain/**",
+      "docs/guides/**",
+      "docs/tutorials/**"
     ],
     "exclude": [
-      "docs/develop/contracts/**",
-      "docs/build/web3-apps/**",
+      "docs/archive/**",
       "i18n/**"
     ]
   },
   "security": {
     "blockPatterns": [
       "private[_\\s]?key",
-      "mnemonic[_\\s]?phrase",
+      "secret[_\\s]?token",
       "\\b[a-f0-9]{64}\\b"
     ],
     "requireApproval": false,
     "maxProposalsPerBatch": 50
   },
   "context": {
-    "projectName": "NEAR Protocol",
-    "domain": "Validator Operations",
-    "targetAudience": "Validator node operators and infrastructure teams",
-    "documentationPurpose": "Provide technical guidance for running and maintaining NEAR validator nodes"
+    "projectName": "Project Name",
+    "domain": "Domain Operations",
+    "targetAudience": "Target audience description",
+    "documentationPurpose": "Provide technical guidance for this domain"
   }
 }
 ```
 
-### Validator Pipeline Configuration
+### Custom Pipeline Configuration Example
 
-**File: `config/near/pipelines/validators.json`**
+**File: `config/{instanceId}/pipelines/custom-pipeline.json`**
 
 ```json
 {
-  "instanceId": "near",
-  "pipelineId": "validators-v1",
-  "description": "NEAR validator-focused analysis pipeline",
+  "instanceId": "{instanceId}",
+  "pipelineId": "custom-v1",
+  "description": "Custom domain-focused analysis pipeline",
   "steps": [
     {
       "stepId": "keyword-filter",
       "stepType": "filter",
       "enabled": true,
       "config": {
-        "includeKeywords": ["validator", "staking", "node", "rpc"],
-        "excludeKeywords": ["nft", "marketplace", "dapp"],
+        "includeKeywords": ["keyword1", "keyword2", "relevant-term"],
+        "excludeKeywords": ["off-topic", "unrelated", "spam"],
         "caseSensitive": false
       }
     },
@@ -2193,7 +2181,7 @@ MESSAGES TO ANALYZE (current 24-hour batch):
 
 ### Implementation Success Criteria
 
-- [ ] Zero code changes to customize NEAR for validators-only
+- [ ] Zero code changes to customize instances for specific domains
 - [ ] Pipeline executes with <10% latency increase vs. current
 - [ ] Hot-reload updates prompts without restart
 - [ ] All existing tests pass with new pipeline

@@ -1,6 +1,16 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, X, Edit, MessageSquare, Eye, Code, ExternalLink, FileText } from 'lucide-react';
+import {
+  Check,
+  X,
+  Edit,
+  MessageSquare,
+  Eye,
+  Code,
+  ExternalLink,
+  FileText,
+  FileCode,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,9 +22,126 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+/**
+ * Check if content contains MDX/Docusaurus-specific components
+ * that ReactMarkdown cannot render (excluding admonitions which we handle)
+ */
+function containsMdxComponents(content: string): boolean {
+  if (!content) return false;
+  // Check for JSX components like <Tabs>, <TabItem>, <LantstoolLabel />, etc.
+  const jsxPattern = /<[A-Z][A-Za-z0-9]*[\s/>]|<\/[A-Z][A-Za-z0-9]*>/;
+  // Check for MDX imports
+  const importPattern = /^import\s+/m;
+
+  // Note: We no longer check for ::: admonitions here since we convert them below
+  return jsxPattern.test(content) || importPattern.test(content);
+}
+
+/**
+ * Convert Docusaurus admonitions (:::tip, :::warning, etc.) to styled blockquotes
+ * for preview rendering
+ */
+function convertAdmonitionsToBlockquotes(content: string): string {
+  if (!content) return content;
+
+  const typeEmoji: Record<string, string> = {
+    tip: '💡',
+    note: '📝',
+    info: 'ℹ️',
+    warning: '⚠️',
+    caution: '⚠️',
+    danger: '🚨',
+    important: '❗',
+  };
+
+  let result = content;
+
+  // Pattern 1: Multiline admonitions - :::type\ncontent\n:::
+  const multilineRegex =
+    /^:::(tip|note|info|warning|caution|danger|important)(\[.*?\])?\s*\n([\s\S]*?)^:::\s*$/gm;
+  result = result.replace(multilineRegex, (_match, type, title, innerContent) => {
+    const emoji = typeEmoji[type] || '📌';
+    const label = title ? title.slice(1, -1) : type.charAt(0).toUpperCase() + type.slice(1);
+    const lines = innerContent.trim().split('\n');
+    const quotedLines = lines.map((line: string) => `> ${line}`).join('\n');
+    return `> ${emoji} **${label}**\n>\n${quotedLines}\n`;
+  });
+
+  // Pattern 2: Inline/single-line admonitions - :::type content ::: (all on one line or closing on same line)
+  const inlineRegex =
+    /:::(tip|note|info|warning|caution|danger|important)\s+([^:]+(?:(?!:::)[^:])*)\s*:::/gi;
+  result = result.replace(inlineRegex, (_match, type, innerContent) => {
+    const emoji = typeEmoji[type.toLowerCase()] || '📌';
+    const label = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+    // Wrap long content properly
+    const trimmedContent = innerContent.trim();
+    return `\n> ${emoji} **${label}**\n>\n> ${trimmedContent}\n`;
+  });
+
+  // Pattern 3: Admonition with title on same line as type - :::type Title\ncontent\n:::
+  const titledRegex =
+    /^:::(tip|note|info|warning|caution|danger|important)\s+([^\n]+)\n([\s\S]*?)^:::\s*$/gm;
+  result = result.replace(titledRegex, (_match, type, titleLine, innerContent) => {
+    const emoji = typeEmoji[type] || '📌';
+    // First line after :::type is treated as title if it doesn't look like content
+    const label = type.charAt(0).toUpperCase() + type.slice(1);
+    const fullContent = titleLine.trim() + '\n' + innerContent.trim();
+    const lines = fullContent.split('\n');
+    const quotedLines = lines.map((line: string) => `> ${line}`).join('\n');
+    return `> ${emoji} **${label}**\n>\n${quotedLines}\n`;
+  });
+
+  return result;
+}
+
+/**
+ * Render content as either Markdown or as a code block for MDX content
+ */
+function ContentRenderer({ content, className }: { content: string; className?: string }) {
+  const isMdx = useMemo(() => containsMdxComponents(content), [content]);
+
+  // Convert admonitions to blockquotes for preview
+  const processedContent = useMemo(() => convertAdmonitionsToBlockquotes(content), [content]);
+
+  // Check if content has admonitions (for showing the info badge)
+  const hasAdmonitions = useMemo(() => /^:::\w+/m.test(content), [content]);
+
+  if (!content) {
+    return <span className="text-gray-400 italic">(No content)</span>;
+  }
+
+  if (isMdx) {
+    return (
+      <div className={className}>
+        <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded mb-2 border border-amber-200">
+          <FileCode className="h-3 w-3" />
+          Contains MDX/Docusaurus components - shown as source
+        </div>
+        <pre className="bg-gray-900 text-gray-100 p-3 rounded-md text-xs overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
+          {content}
+        </pre>
+      </div>
+    );
+  }
+
+  return (
+    <div className={className}>
+      {hasAdmonitions && (
+        <div className="flex items-center gap-2 text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded mb-2 border border-blue-200">
+          <FileCode className="h-3 w-3" />
+          Admonitions shown as blockquotes in preview
+        </div>
+      )}
+      <div className="prose prose-sm max-w-none text-gray-900">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{processedContent}</ReactMarkdown>
+      </div>
+    </div>
+  );
+}
 
 interface UpdateCardProps {
   id: string;
@@ -128,7 +255,7 @@ export function UpdateCard({
             <FileText className="h-4 w-4" />
             {section}
           </button>
-          {gitUrl && (
+          {gitUrl && type !== 'add' && (
             <Button
               size="sm"
               variant="ghost"
@@ -190,11 +317,7 @@ export function UpdateCard({
         {diff && (
           <div className="bg-gray-50 p-3 rounded border border-gray-200">
             <div className="mb-1 text-xs font-semibold text-gray-700">Proposed Change:</div>
-            <div className="prose prose-sm max-w-none text-gray-900">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {diff.after || '(No content)'}
-              </ReactMarkdown>
-            </div>
+            <ContentRenderer content={diff.after || ''} />
           </div>
         )}
 
@@ -271,11 +394,7 @@ export function UpdateCard({
                   </TabsContent>
                   <TabsContent value="preview" className="mt-2">
                     <div className="min-h-[400px] p-4 border border-gray-300 rounded-md bg-white">
-                      <div className="prose prose-sm max-w-none text-gray-900">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {editedContent || '*No content to preview*'}
-                        </ReactMarkdown>
-                      </div>
+                      <ContentRenderer content={editedContent || ''} />
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -319,8 +438,8 @@ export function UpdateCard({
               {section}
             </DialogTitle>
             <DialogDescription className="text-gray-600 flex items-center gap-2">
-              Current file content
-              {gitUrl && (
+              {type === 'add' ? 'New file (will be created)' : 'Current file content'}
+              {gitUrl && type !== 'add' && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -344,11 +463,7 @@ export function UpdateCard({
                 Error: {fileError}
               </div>
             )}
-            {!fileLoading && !fileError && fileContent && (
-              <div className="prose prose-sm max-w-none text-gray-900">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{fileContent}</ReactMarkdown>
-              </div>
-            )}
+            {!fileLoading && !fileError && fileContent && <ContentRenderer content={fileContent} />}
             {!fileLoading && !fileError && !fileContent && (
               <div className="flex items-center justify-center py-8 text-gray-500">
                 No content available

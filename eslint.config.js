@@ -18,16 +18,21 @@ export default tseslint.config(
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // Catch temporal dead zone errors - using variables before they're defined
+      '@typescript-eslint/no-use-before-define': [
+        'error',
+        {
+          functions: false, // Functions are hoisted, so this is ok
+          classes: true,
+          variables: true,
+          allowNamedExports: false,
+        },
+      ],
+      // Disable base rule in favor of TypeScript version
+      'no-use-before-define': 'off',
     },
   },
   {
-    ignores: [
-      'node_modules/',
-      'dist/',
-      'coverage/',
-      '*.config.js',
-      '*.config.ts',
-      'prisma/',
-    ],
+    ignores: ['node_modules/', 'dist/', 'coverage/', '*.config.js', '*.config.ts', 'prisma/'],
   }
 );

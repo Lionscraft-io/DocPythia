@@ -34,7 +34,24 @@ export class Logger {
   private formatMessage(level: LogLevel, message: string, ...args: unknown[]): string {
     const timestamp = new Date().toISOString();
     const prefix = this.prefix ? `[${this.prefix}] ` : '';
-    const formattedArgs = args.length > 0 ? ' ' + JSON.stringify(args) : '';
+    const formattedArgs =
+      args.length > 0
+        ? ' ' +
+          JSON.stringify(
+            args.map((arg) => {
+              // Properly serialize Error objects
+              if (arg instanceof Error) {
+                return {
+                  name: arg.name,
+                  message: arg.message,
+                  stack: arg.stack,
+                  ...(arg as any), // Include any additional properties
+                };
+              }
+              return arg;
+            })
+          )
+        : '';
     return `${timestamp} [${level.toUpperCase()}] ${prefix}${message}${formattedArgs}`;
   }
 

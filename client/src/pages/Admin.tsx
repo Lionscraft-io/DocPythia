@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import * as React from 'react';
+const { useState, useEffect } = React;
 import { useLocation } from 'wouter';
 import { UpdateCard } from '@/components/UpdateCard';
 import { StatsCard } from '@/components/StatsCard';
@@ -12,6 +13,14 @@ import {
   MessageSquare,
   AlertCircle,
   ChevronDown,
+  GitBranch,
+  ExternalLink,
+  RefreshCw,
+  Download,
+  Cpu,
+  GitPullRequest,
+  LogOut,
+  Loader2,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -26,12 +35,36 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, adminApiRequest, getQueryFn } from '@/lib/queryClient';
 import { PRPreviewModal, type PRSubmitData } from '@/components/PRPreviewModal';
 
+// Get instance prefix from URL (e.g., /near/admin -> /near)
+function getInstancePrefix(): string {
+  const pathParts = window.location.pathname.split('/');
+  // If path is like /near/admin, return /near
+  if (
+    pathParts.length >= 2 &&
+    pathParts[1] &&
+    pathParts[1] !== 'admin' &&
+    pathParts[1] !== 'login'
+  ) {
+    return `/${pathParts[1]}`;
+  }
+  return '';
+}
+
 export default function Admin() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [conversationModalOpen, setConversationModalOpen] = useState(false);
   const [prModalOpen, setPrModalOpen] = useState(false);
+  const [processingOverlay, setProcessingOverlay] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    progress?: { current: number; total: number };
+  }>({ visible: false, title: '', message: '' });
+
+  // Instance prefix for API calls
+  const apiPrefix = getInstancePrefix();
 
   // Auth check
   useEffect(() => {
@@ -45,30 +78,88 @@ export default function Admin() {
 
   // Fetch all conversations (pending, approved, ignored)
   const { data: pendingConvs, isLoading: loadingPending } = useQuery<{ data: any[] }>({
-    queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+    queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
   const { data: approvedConvs, isLoading: loadingApproved } = useQuery<{ data: any[] }>({
-    queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+    queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
   const { data: ignoredConvs, isLoading: loadingIgnored } = useQuery<{ data: any[] }>({
-    queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+    queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
   const { data: batchHistory } = useQuery<any>({
-    queryKey: ['/api/admin/stream/batches?status=submitted'],
+    queryKey: [`${apiPrefix}/api/admin/stream/batches?status=submitted`],
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  // Fetch git stats for documentation URL
-  const { data: gitStats } = useQuery<{ gitUrl: string }>({
+  // Fetch git stats for documentation URL (uses global config, not instance-prefixed)
+  const { data: gitStats } = useQuery<{
+    gitUrl: string;
+    branch: string;
+    lastSyncAt: string | null;
+    totalDocuments: number;
+  }>({
     queryKey: ['/api/docs/git-stats'],
   });
+
+  // Fetch stream processing stats (includes is_processing flag)
+  const { data: streamStats, refetch: refetchStreamStats } = useQuery<{
+    total_messages: number;
+    processed: number;
+    queued: number;
+    failed: number;
+    is_processing: boolean;
+    proposals: { total: number; approved: number; pending: number };
+  }>({
+    queryKey: [`${apiPrefix}/api/admin/stream/stats`],
+    queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
+    // Poll faster when processing overlay is visible (1s) vs idle (5s)
+    // Note: Can't reference streamStats here as it would cause temporal dead zone error
+    refetchInterval: processingOverlay.visible ? 1000 : 5000,
+  });
+
+  // Update overlay with current progress when processing
+  useEffect(() => {
+    if (
+      processingOverlay.visible &&
+      streamStats &&
+      processingOverlay.title.includes('Processing')
+    ) {
+      const processed = streamStats.processed || 0;
+      const queued = streamStats.queued || 0;
+
+      if (!streamStats.is_processing && queued === 0) {
+        // Processing complete
+        setProcessingOverlay((prev) => ({
+          ...prev,
+          message: `Completed! Processed ${processed} messages.`,
+        }));
+        // Auto-close after showing completion
+        setTimeout(() => {
+          setProcessingOverlay({ visible: false, title: '', message: '' });
+          // Refresh conversations
+          queryClient.invalidateQueries({
+            queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
+          });
+          queryClient.invalidateQueries({
+            queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
+          });
+        }, 1500);
+      } else {
+        setProcessingOverlay((prev) => ({
+          ...prev,
+          message: `Processing messages... ${processed} completed, ${queued} remaining`,
+          progress: { current: processed, total: processed + queued },
+        }));
+      }
+    }
+  }, [streamStats, processingOverlay.visible, processingOverlay.title]);
 
   // Get conversations (not flattened) so we can group proposals
   const pendingConversations = pendingConvs?.data || [];
@@ -124,13 +215,13 @@ export default function Admin() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
       });
       queryClient.invalidateQueries({
-        queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
       });
       queryClient.invalidateQueries({
-        queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
       });
       toast({
         title: 'Update Approved',
@@ -159,13 +250,13 @@ export default function Admin() {
     onSuccess: (data, variables) => {
       // Invalidate all conversation queries to refetch with updated proposal statuses
       queryClient.invalidateQueries({
-        queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
       });
       queryClient.invalidateQueries({
-        queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
       });
       queryClient.invalidateQueries({
-        queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
       });
       let title, message, variant;
 
@@ -210,13 +301,13 @@ export default function Admin() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
       });
       queryClient.invalidateQueries({
-        queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
       });
       queryClient.invalidateQueries({
-        queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
       });
       toast({
         title: 'Update Edited',
@@ -258,6 +349,7 @@ export default function Admin() {
         description: message,
         duration: Infinity, // Don't auto-close
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/docs/git-stats'] });
     },
     onError: (error: Error) => {
       if (error.message.includes('401') || error.message.includes('403')) {
@@ -270,6 +362,118 @@ export default function Admin() {
           variant: 'destructive',
         });
       }
+    },
+  });
+
+  // Pull messages from streams (Zulip, Telegram)
+  const pullMessagesMutation = useMutation({
+    mutationFn: async () => {
+      const prefix = getInstancePrefix();
+      setProcessingOverlay({
+        visible: true,
+        title: 'Pulling Messages',
+        message: 'Fetching streams configuration...',
+      });
+
+      // Get available streams and pull from each
+      const streamsResponse = await adminApiRequest('GET', `${prefix}/api/admin/stream/streams`);
+      const streamsData = await streamsResponse.json();
+
+      // API returns array directly, not { streams: [...] }
+      const streams = Array.isArray(streamsData) ? streamsData : streamsData.streams || [];
+      const enabledStreams = streams.filter((s: any) => s.enabled);
+
+      let totalImported = 0;
+      for (let i = 0; i < enabledStreams.length; i++) {
+        const stream = enabledStreams[i];
+        setProcessingOverlay({
+          visible: true,
+          title: 'Pulling Messages',
+          message: `Pulling from ${stream.streamId || stream.stream_id}...`,
+          progress: { current: i, total: enabledStreams.length },
+        });
+
+        const response = await adminApiRequest('POST', `${prefix}/api/admin/stream/process`, {
+          streamId: stream.streamId || stream.stream_id,
+          batchSize: 100,
+        });
+        const result = await response.json();
+        totalImported += result.imported || 0;
+      }
+      return { totalImported, streamCount: enabledStreams.length, totalStreams: streams.length };
+    },
+    onSuccess: (data) => {
+      setProcessingOverlay({
+        visible: true,
+        title: 'Pulling Messages',
+        message: `Done! Imported ${data.totalImported} messages from ${data.streamCount} streams.`,
+      });
+      setTimeout(() => {
+        setProcessingOverlay({ visible: false, title: '', message: '' });
+      }, 2000);
+      toast({
+        title: 'Messages Pulled',
+        description: `Imported ${data.totalImported} new messages from ${data.streamCount} enabled streams.`,
+      });
+      refetchStreamStats();
+    },
+    onError: (error: Error) => {
+      setProcessingOverlay({ visible: false, title: '', message: '' });
+      toast({
+        title: 'Pull Failed',
+        description: error.message || 'Failed to pull messages from streams.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Process messages to generate proposals
+  const processMessagesMutation = useMutation({
+    mutationFn: async () => {
+      const prefix = getInstancePrefix();
+      const queued = streamStats?.queued || 0;
+      setProcessingOverlay({
+        visible: true,
+        title: 'Processing Messages',
+        message: `Starting to process ${queued} messages with AI...`,
+        progress: { current: 0, total: queued },
+      });
+
+      const response = await adminApiRequest(
+        'POST',
+        `${prefix}/api/admin/stream/process-batch`,
+        {}
+      );
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      setProcessingOverlay({
+        visible: true,
+        title: 'Processing Messages',
+        message: `Done! Processed ${data.messagesProcessed || 0} messages. New proposals generated.`,
+      });
+      setTimeout(() => {
+        setProcessingOverlay({ visible: false, title: '', message: '' });
+      }, 2000);
+      toast({
+        title: 'Processing Complete',
+        description: `Processed ${data.messagesProcessed || 0} messages. Check proposals for new suggestions.`,
+      });
+      refetchStreamStats();
+      queryClient.invalidateQueries({
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
+      });
+    },
+    onError: (error: Error) => {
+      setProcessingOverlay({ visible: false, title: '', message: '' });
+      toast({
+        title: 'Processing Failed',
+        description: error.message || 'Failed to process messages.',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -334,13 +538,13 @@ export default function Admin() {
     );
 
     queryClient.invalidateQueries({
-      queryKey: ['/api/admin/stream/conversations?status=pending&limit=100'],
+      queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
     });
     queryClient.invalidateQueries({
-      queryKey: ['/api/admin/stream/conversations?status=changeset&limit=100'],
+      queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
     });
     queryClient.invalidateQueries({
-      queryKey: ['/api/admin/stream/conversations?status=discarded&limit=100'],
+      queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
     });
     setPrModalOpen(false);
     toast({
@@ -378,41 +582,155 @@ export default function Admin() {
     <div className="min-h-screen flex flex-col bg-white">
       <div className="container px-6 md:px-8 flex-1 py-8">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1
-              className="text-3xl font-bold tracking-tight mb-2 text-gray-900"
-              data-testid="heading-admin"
-            >
-              Admin Dashboard
-            </h1>
-            <p className="text-gray-600">Review and manage AI-suggested documentation updates</p>
-          </div>
-          <div className="flex gap-3">
-            <Button
-              size="lg"
-              onClick={handleSyncDocs}
-              disabled={syncDocsMutation.isPending}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {syncDocsMutation.isPending ? 'Syncing...' : 'Sync Docs'}
-            </Button>
-            <Button
-              size="lg"
-              onClick={handleGeneratePR}
-              disabled={approvedCount === 0}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Generate PR ({approvedCount} approved)
-            </Button>
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1
+                className="text-3xl font-bold tracking-tight mb-2 text-gray-900"
+                data-testid="heading-admin"
+              >
+                Admin Dashboard
+              </h1>
+              <p className="text-gray-600">Review and manage AI-suggested documentation updates</p>
+            </div>
             <Button
               variant="outline"
-              size="lg"
+              size="sm"
               onClick={() => setLocation('/logout')}
               className="border-gray-300 text-gray-700 hover:bg-gray-50"
             >
+              <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
+          </div>
+
+          {/* Control Panel */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            {/* Source Info */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3 text-sm">
+                <GitBranch className="h-4 w-4 text-gray-500" />
+                <span className="text-gray-600">Source:</span>
+                {gitStats?.gitUrl ? (
+                  <>
+                    <a
+                      href={gitStats.gitUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    >
+                      {gitStats.gitUrl.replace('https://github.com/', '')}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                    {gitStats.branch && (
+                      <>
+                        <span className="text-gray-400">|</span>
+                        <span className="font-medium text-gray-700">{gitStats.branch}</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-gray-400 italic">Not configured</span>
+                )}
+              </div>
+              {gitStats?.totalDocuments !== undefined && gitStats.totalDocuments > 0 && (
+                <span className="text-sm text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">
+                  {gitStats.totalDocuments} docs indexed
+                </span>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button
+                size="sm"
+                onClick={handleSyncDocs}
+                disabled={
+                  syncDocsMutation.isPending ||
+                  processingOverlay.visible ||
+                  streamStats?.is_processing
+                }
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${syncDocsMutation.isPending ? 'animate-spin' : ''}`}
+                />
+                {syncDocsMutation.isPending ? 'Syncing...' : 'Sync Docs'}
+              </Button>
+
+              <div className="h-6 w-px bg-gray-300" />
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => pullMessagesMutation.mutate()}
+                disabled={
+                  pullMessagesMutation.isPending ||
+                  processingOverlay.visible ||
+                  streamStats?.is_processing
+                }
+                className="border-gray-300"
+              >
+                <Download
+                  className={`h-4 w-4 mr-2 ${pullMessagesMutation.isPending ? 'animate-pulse' : ''}`}
+                />
+                {pullMessagesMutation.isPending ? 'Pulling...' : 'Pull Messages'}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => processMessagesMutation.mutate()}
+                disabled={
+                  processMessagesMutation.isPending ||
+                  processingOverlay.visible ||
+                  streamStats?.is_processing
+                }
+                className="border-gray-300"
+              >
+                <Cpu
+                  className={`h-4 w-4 mr-2 ${processMessagesMutation.isPending || streamStats?.is_processing ? 'animate-pulse' : ''}`}
+                />
+                {streamStats?.is_processing
+                  ? 'Processing...'
+                  : processMessagesMutation.isPending
+                    ? 'Starting...'
+                    : 'Process Messages'}
+              </Button>
+
+              <div className="h-6 w-px bg-gray-300" />
+
+              <Button
+                size="sm"
+                onClick={handleGeneratePR}
+                disabled={
+                  approvedCount === 0 || processingOverlay.visible || streamStats?.is_processing
+                }
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <GitPullRequest className="h-4 w-4 mr-2" />
+                Generate PR ({approvedCount} approved)
+              </Button>
+
+              {/* Processing status indicator */}
+              {(streamStats?.is_processing ||
+                pullMessagesMutation.isPending ||
+                processMessagesMutation.isPending) && (
+                <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span>
+                    {streamStats?.is_processing
+                      ? `Processing ${streamStats.queued || 0} messages...`
+                      : 'Working...'}
+                  </span>
+                </div>
+              )}
+
+              {/* Queue stats */}
+              {streamStats && !streamStats.is_processing && streamStats.queued > 0 && (
+                <span className="text-sm text-gray-500">{streamStats.queued} messages queued</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1045,6 +1363,36 @@ export default function Admin() {
           })()}
           onSubmit={handlePRSubmit}
         />
+
+        {/* Processing Overlay - Blocks UI during operations */}
+        {processingOverlay.visible && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4 text-center">
+              <div className="mb-4">
+                <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {processingOverlay.title}
+              </h3>
+              <p className="text-gray-600 mb-4">{processingOverlay.message}</p>
+              {processingOverlay.progress && processingOverlay.progress.total > 0 && (
+                <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                  <div
+                    className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.min(100, (processingOverlay.progress.current / processingOverlay.progress.total) * 100)}%`,
+                    }}
+                  />
+                </div>
+              )}
+              {processingOverlay.progress && (
+                <p className="text-sm text-gray-500">
+                  {processingOverlay.progress.current} / {processingOverlay.progress.total}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

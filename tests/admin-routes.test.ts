@@ -486,10 +486,11 @@ describe('Admin Routes', () => {
       const response = await request(app).post('/api/admin/stream/clear-processed');
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({
-        message: 'Processed messages and analysis results cleared successfully',
-        count: 3,
-      });
+      expect(response.body.message).toBe(
+        'Processed messages, analysis results, and LLM cache cleared successfully'
+      );
+      expect(response.body.count).toBe(3);
+      expect(response.body).toHaveProperty('cacheCleared');
     });
 
     it('should filter by streamId', async () => {

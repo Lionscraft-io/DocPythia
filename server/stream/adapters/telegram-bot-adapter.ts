@@ -129,14 +129,28 @@ export class TelegramBotAdapter extends BaseStreamAdapter {
 
   /**
    * Start polling mode (development)
+   * Note: bot.launch() is not awaited to prevent blocking adapter registration
    */
   private async startPolling(): Promise<void> {
     console.log('Starting Telegram bot in polling mode...');
 
-    await this.bot.launch();
+    // Don't await bot.launch() - it can hang if there are network issues
+    // This allows the adapter to be registered even if polling fails to start
+    this.bot
+      .launch()
+      .then(() => {
+        this.isRunning = true;
+        console.log('Telegram bot polling started successfully');
+      })
+      .catch((error) => {
+        console.error('Telegram bot failed to start polling:', error.message);
+        // Bot is still usable for fetchMessages (which returns empty for push-based bot)
+        // Polling will not work but the adapter is registered
+      });
 
+    // Mark as "attempting to run" so cleanup knows to stop it
     this.isRunning = true;
-    console.log('Telegram bot polling started');
+    console.log('Telegram bot polling initiated (non-blocking)');
   }
 
   /**
