@@ -37,8 +37,9 @@ coverage/
 *.tsbuildinfo
 
 # Instance-specific configs (loaded from S3 in production)
-# Only example files should be committed
+# Only example files and defaults should be committed
 config/*/
+!config/defaults/
 config/instance.json
 !config/*.example.json
 !config/doc-index-README.md

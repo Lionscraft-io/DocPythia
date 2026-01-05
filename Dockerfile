@@ -42,8 +42,8 @@ COPY package*.json ./
 # Copy Prisma schema and migrations for database initialization
 COPY prisma ./prisma
 
-# Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install only production dependencies (ignore scripts to skip husky)
+RUN npm ci --only=production --ignore-scripts && npm cache clean --force
 
 # Generate Prisma Client in production stage
 RUN npx prisma generate

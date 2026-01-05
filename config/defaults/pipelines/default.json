@@ -1,0 +1,60 @@
+{
+  "instanceId": "default",
+  "pipelineId": "default-v1",
+  "description": "Default documentation analysis pipeline",
+  "steps": [
+    {
+      "stepId": "keyword-filter",
+      "stepType": "filter",
+      "enabled": true,
+      "config": {
+        "includeKeywords": [],
+        "excludeKeywords": [],
+        "caseSensitive": false
+      }
+    },
+    {
+      "stepId": "batch-classify",
+      "stepType": "classify",
+      "enabled": true,
+      "config": {
+        "promptId": "thread-classification",
+        "model": "gemini-2.5-flash",
+        "temperature": 0.2,
+        "maxTokens": 32768
+      }
+    },
+    {
+      "stepId": "rag-enrich",
+      "stepType": "enrich",
+      "enabled": true,
+      "config": {
+        "topK": 5,
+        "minSimilarity": 0.7,
+        "deduplicateTranslations": true
+      }
+    },
+    {
+      "stepId": "proposal-generate",
+      "stepType": "generate",
+      "enabled": true,
+      "config": {
+        "promptId": "changeset-generation",
+        "model": "gemini-2.5-pro",
+        "temperature": 0.4,
+        "maxTokens": 32768,
+        "maxProposalsPerThread": 5
+      }
+    }
+  ],
+  "errorHandling": {
+    "stopOnError": false,
+    "retryAttempts": 3,
+    "retryDelayMs": 5000
+  },
+  "performance": {
+    "maxConcurrentSteps": 1,
+    "timeoutMs": 300000,
+    "enableCaching": true
+  }
+}
