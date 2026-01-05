@@ -73,12 +73,20 @@ export default function AdminLogin() {
     setIsLoading(true);
 
     try {
+      // If we're on an instance-specific login page, include the instance
+      const loginPayload: { password: string; instanceId?: string } = {
+        password: password.trim(),
+      };
+      if (params.instance) {
+        loginPayload.instanceId = params.instance;
+      }
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ password: password.trim() }),
+        body: JSON.stringify(loginPayload),
         credentials: 'include', // Important: receive and store cookies
       });
 

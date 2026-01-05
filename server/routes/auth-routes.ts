@@ -29,7 +29,7 @@ const logger = createLogger('AuthRoutes');
  */
 router.post('/login', async (req: Request, res: Response) => {
   try {
-    const { password } = req.body;
+    const { password, instanceId: requestedInstance } = req.body;
 
     if (!password) {
       return res.status(400).json({
@@ -42,7 +42,8 @@ router.post('/login', async (req: Request, res: Response) => {
     if (process.env.DISABLE_ADMIN_AUTH === 'true') {
       logger.warn('ADMIN AUTH DISABLED - Development mode only!');
       const instances = InstanceConfigLoader.getAvailableInstances();
-      const instanceId = instances[0] || 'default';
+      // Use requested instance if provided, otherwise default
+      const instanceId = requestedInstance || instances[0] || 'default';
 
       // Set session cookies even in dev mode for consistency
       const session: SessionPayload = {
@@ -60,8 +61,21 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Try password against all instances
-    const result = await authenticateAnyInstance(password);
+    let result;
+
+    // If a specific instance was requested, try that one first
+    if (requestedInstance) {
+      const isValid = await authenticateInstance(password, requestedInstance);
+      if (isValid) {
+        result = { success: true, instanceId: requestedInstance };
+      } else {
+        // Fall back to trying all instances
+        result = await authenticateAnyInstance(password);
+      }
+    } else {
+      // Try password against all instances
+      result = await authenticateAnyInstance(password);
+    }
 
     if (result.success && result.instanceId) {
       // Create session and set cookies
