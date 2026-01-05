@@ -10,8 +10,8 @@ export async function initializeDatabase() {
   console.log('🔄 Initializing all instance databases...');
 
   try {
-    // Get all available instances
-    const availableInstances = InstanceConfigLoader.getAvailableInstances();
+    // Get all available instances (uses S3 if CONFIG_SOURCE=s3)
+    const availableInstances = await InstanceConfigLoader.getAvailableInstancesAsync();
     console.log(`📦 Found ${availableInstances.length} instances:`, availableInstances);
 
     const migrationsPath = path.join(process.cwd(), 'prisma', 'migrations');
@@ -25,7 +25,7 @@ export async function initializeDatabase() {
 
         const config = InstanceConfigLoader.has(instanceId)
           ? InstanceConfigLoader.get(instanceId)
-          : InstanceConfigLoader.load(instanceId);
+          : await InstanceConfigLoader.loadAsync(instanceId);
 
         const dbName = config.database?.name;
         if (!dbName) {
