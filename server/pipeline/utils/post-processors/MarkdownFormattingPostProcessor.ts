@@ -71,6 +71,36 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // Fix 0f: Run the fix 0a again to catch any remaining patterns after other fixes
     result = result.replace(/\*\*\s*\n+\s*([^*\n]+):\*\*/g, '**$1:**');
 
+    // Fix 0g: Backtick-enclosed words broken across lines
+    // Pattern: `Shadow\nValidator` -> `ShadowValidator`
+    // e.g., "Troubleshooting `Shadow\nValidator` Standby" -> "Troubleshooting `ShadowValidator` Standby"
+    result = result.replace(/`([A-Za-z]+)\n+([A-Za-z]+)`/g, '`$1$2`');
+
+    // Fix 0h: CamelCase or compound words broken across lines
+    // Pattern: Mac\nOS -> MacOS, Near\nBlocks -> NearBlocks
+    // Matches: word ending with capital or lowercase, newline, then capital followed by lowercase/uppercase
+    result = result.replace(
+      /([A-Za-z])(\n)([A-Z][A-Za-z]*)\b/g,
+      (match, before, newline, after) => {
+        // Only join if it looks like a broken compound word (Mac + OS, Near + Blocks, etc.)
+        // Check if joining creates a plausible compound word
+        const combined = before + after;
+        // Common patterns: MacOS, NearBlocks, JavaScript, GitHub, etc.
+        if (/^[a-z][A-Z]/.test(combined) || /^[A-Z][A-Z]/.test(combined)) {
+          return before + after;
+        }
+        return match; // Keep original if not a likely compound word
+      }
+    );
+
+    // Fix 0i: Simpler approach for known broken compound words
+    // Direct replacements for common patterns
+    result = result.replace(/Mac\s*\n\s*OS/g, 'MacOS');
+    result = result.replace(/Near\s*\n\s*Blocks/g, 'NearBlocks');
+    result = result.replace(/Java\s*\n\s*Script/g, 'JavaScript');
+    result = result.replace(/Git\s*\n\s*Hub/g, 'GitHub');
+    result = result.replace(/Type\s*\n\s*Script/g, 'TypeScript');
+
     // Fix 1a: Add line break after markdown headers that run into text
     // e.g., "## ConsiderationsThe text" -> "## Considerations\n\nThe text"
     // Matches lowercase followed by uppercase within header lines (indicating missing space/newline)
