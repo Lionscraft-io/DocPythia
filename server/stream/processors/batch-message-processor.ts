@@ -903,6 +903,7 @@ export class BatchMessageProcessor {
           section: proposal.section || null,
           location: proposal.location ?? Prisma.DbNull,
           suggestedText: postProcessed.text || proposal.suggestedText || null,
+          rawSuggestedText: proposal.suggestedText || null, // Original LLM output before post-processing
           reasoning: proposal.reasoning || null,
           sourceMessages: proposal.sourceMessages ?? Prisma.DbNull,
           modelUsed: this.config.proposalModel,

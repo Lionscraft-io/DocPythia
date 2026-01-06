@@ -223,6 +223,7 @@ export class ProposalGenerateStep extends BasePipelineStep {
           page: p.page,
           section: p.section,
           suggestedText: postProcessed.text || p.suggestedText,
+          rawSuggestedText: originalText, // Preserve original LLM output
           reasoning: p.reasoning,
           sourceMessages: p.sourceMessages,
           warnings: postProcessed.warnings.length > 0 ? postProcessed.warnings : undefined,

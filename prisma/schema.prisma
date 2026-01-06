@@ -333,6 +333,7 @@ model DocProposal {
   section            String?
   location           Json?          // Stores location info (lineStart, lineEnd, sectionName)
   suggestedText      String?        @map("suggested_text") @db.Text
+  rawSuggestedText   String?        @map("raw_suggested_text") @db.Text // Original LLM output before post-processing
   reasoning          String?        @db.Text
   sourceMessages     Json?          @map("source_messages") // Array of message IDs that led to this proposal
   status             ProposalStatus @default(pending)

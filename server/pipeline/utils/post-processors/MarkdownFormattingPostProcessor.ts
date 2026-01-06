@@ -40,6 +40,37 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     const originalText = text;
     let result = text;
 
+    // Fix 0a: Bold markers split from their content by newlines (opening)
+    // Pattern: **\n\nText:** -> **Text:**
+    // e.g., "**\n\nEnable Debug Pages:**" -> "**Enable Debug Pages:**"
+    result = result.replace(/\*\*\s*\n+\s*([^*\n]+):\*\*/g, '**$1:**');
+
+    // Fix 0b: Bold markers split from content (without trailing colon)
+    // Pattern: **\n\nText** -> **Text**
+    result = result.replace(/\*\*\s*\n+\s*([^*\n]+)\*\*/g, '**$1**');
+
+    // Fix 0c: Orphaned ** at start of line followed by content with closing **
+    // Pattern: "- **\n\nCommission**:" -> "- **Commission**:"
+    result = result.replace(/(-\s*)\*\*\s*\n+\s*([^*\n]+)\*\*(:?)/g, '$1**$2**$3');
+
+    // Fix 0d: Bold with extra newlines before closing colon
+    // Pattern: "**Text**\n\n:" -> "**Text:**"
+    result = result.replace(/\*\*([^*]+)\*\*\s*\n+\s*:/g, '**$1:**');
+
+    // Fix 0e: Standalone ** followed by newlines then text ending with :**
+    // Pattern: "**\n\nCause:**" -> "**Cause:**"
+    // Also handles mid-sentence: ". **\n\nSolution:**" -> ". **Solution:**"
+    // Run multiple passes to catch all occurrences
+    let prevResult = '';
+    while (prevResult !== result) {
+      prevResult = result;
+      // Match ** followed by newlines, then word characters, then :**
+      result = result.replace(/\*\*[\s\n]+([A-Za-z][A-Za-z0-9\s]*):\*\*/g, '**$1:**');
+    }
+
+    // Fix 0f: Run the fix 0a again to catch any remaining patterns after other fixes
+    result = result.replace(/\*\*\s*\n+\s*([^*\n]+):\*\*/g, '**$1:**');
+
     // Fix 1a: Add line break after markdown headers that run into text
     // e.g., "## ConsiderationsThe text" -> "## Considerations\n\nThe text"
     // Matches lowercase followed by uppercase within header lines (indicating missing space/newline)
@@ -47,17 +78,19 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
 
     // Fix 1b: Add line break after bold/italic headers that run into text
     // e.g., "***Title***Cause:" -> "***Title***\n\nCause:"
-    result = result.replace(/(\*{2,3}[^*\n]+\*{2,3})([A-Z])/g, '$1\n\n$2');
+    // Use non-greedy +? to avoid matching across multiple ** pairs
+    // Also require no leading space after ** (to avoid matching " text **")
+    result = result.replace(/(\*{2,3}[^\s*][^*\n]*?\*{2,3})([A-Z])/g, '$1\n\n$2');
 
-    // Fix 1b: Add line break after bold headers ending with colon that run into text
+    // Fix 1c: Add line break after bold headers ending with colon that run into text
     // e.g., "**Title:**While" -> "**Title:**\n\nWhile"
-    result = result.replace(/(\*{2,3}[^*\n]+:\*{2,3})([A-Z])/g, '$1\n\n$2');
+    result = result.replace(/(\*{2,3}[^\s*][^*\n]*?:\*{2,3})([A-Z])/g, '$1\n\n$2');
 
-    // Fix 1c: Add line break after admonition syntax running into text
+    // Fix 1d: Add line break after admonition syntax running into text
     // e.g., ":::note Title:::For macOS" -> ":::note Title:::\n\nFor macOS"
     result = result.replace(/(:::[a-z]+[^:]*:::)([A-Z])/gi, '$1\n\n$2');
 
-    // Fix 1d: Add line break after common section titles running into text
+    // Fix 1e: Add line break after common section titles running into text
     // e.g., "TroubleshootingIf you" -> "Troubleshooting\n\nIf you"
     result = result.replace(
       /\b(Troubleshooting|Overview|Prerequisites|Installation|Configuration|Usage|Examples?|Summary|Conclusion|Introduction|Background|Requirements|Setup|Notes?|Tips?|Warnings?|Errors?|Solutions?|Steps|Instructions)([A-Z][a-z])/g,
