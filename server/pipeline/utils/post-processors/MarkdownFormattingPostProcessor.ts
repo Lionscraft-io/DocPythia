@@ -16,6 +16,192 @@
 import { BasePostProcessor, PostProcessResult, PostProcessContext } from './types.js';
 
 /**
+ * Common sentence starters and labels that indicate the start of new content.
+ * Used to distinguish formatting errors from valid CamelCase identifiers.
+ *
+ * Examples:
+ * - "## ConsiderationsThe text" → split ("The" is sentence starter)
+ * - "## JavaScript runtime" → no split ("Script" is not sentence starter)
+ * - "## RocksDB internals" → no split (DB is uppercase, pattern doesn't match)
+ */
+const SENTENCE_STARTERS = new Set([
+  // Articles and determiners
+  'the',
+  'a',
+  'an',
+  'this',
+  'that',
+  'these',
+  'those',
+  'some',
+  'any',
+  'all',
+  'each',
+  'every',
+  'no',
+  // Pronouns
+  'it',
+  'its',
+  'we',
+  'you',
+  'they',
+  'he',
+  'she',
+  'i',
+  'my',
+  'your',
+  'our',
+  'their',
+  // Common sentence-starting verbs
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'has',
+  'have',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'should',
+  'could',
+  'can',
+  'may',
+  'might',
+  'must',
+  'use',
+  'run',
+  'check',
+  'try',
+  'make',
+  'see',
+  'note',
+  'ensure',
+  'verify',
+  'confirm',
+  'add',
+  'remove',
+  'create',
+  'delete',
+  'update',
+  'set',
+  'get',
+  'start',
+  'stop',
+  'open',
+  'close',
+  'install',
+  'configure',
+  'enable',
+  'disable',
+  // Prepositions often starting sentences
+  'for',
+  'from',
+  'to',
+  'in',
+  'on',
+  'at',
+  'by',
+  'with',
+  'about',
+  'into',
+  'onto',
+  'upon',
+  'during',
+  'after',
+  'before',
+  // Conjunctions and transitions
+  'if',
+  'when',
+  'while',
+  'unless',
+  'although',
+  'though',
+  'once',
+  'since',
+  'because',
+  'but',
+  'and',
+  'or',
+  'so',
+  'yet',
+  'nor',
+  'however',
+  'therefore',
+  'thus',
+  'hence',
+  'also',
+  'additionally',
+  'furthermore',
+  'moreover',
+  'otherwise',
+  'then',
+  'next',
+  'first',
+  'second',
+  'third',
+  'finally',
+  'lastly',
+  'now',
+  'here',
+  'there',
+  // Adverbs
+  'just',
+  'only',
+  'even',
+  'still',
+  'already',
+  'always',
+  'never',
+  'often',
+  'sometimes',
+  // Common documentation labels
+  'cause',
+  'solution',
+  'note',
+  'warning',
+  'important',
+  'example',
+  'error',
+  'issue',
+  'problem',
+  'fix',
+  'resolution',
+  'answer',
+  'question',
+  'tip',
+  'info',
+  'details',
+  'summary',
+  'overview',
+  'background',
+  'context',
+  'result',
+  'output',
+  'input',
+  'step',
+  'steps',
+  'action',
+  'description',
+  'reason',
+  'explanation',
+  'requirement',
+  'requirements',
+]);
+
+/**
+ * Check if a word is a common sentence starter
+ */
+function isSentenceStarter(word: string): boolean {
+  return SENTENCE_STARTERS.has(word.toLowerCase());
+}
+
+/**
  * Markdown Formatting Post-Processor
  */
 export class MarkdownFormattingPostProcessor extends BasePostProcessor {
@@ -77,117 +263,105 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     result = result.replace(/`([A-Za-z]+)\n+([A-Za-z]+)`/g, '`$1$2`');
 
     // Fix 0h: REMOVED - was too aggressive and stripped legitimate newlines
-    // The fix for compound words broken across lines is now handled entirely by Fix 0i
-    // which uses explicit known patterns (MacOS, NearBlocks, etc.) instead of heuristics
 
     // Fix 0i: Simpler approach for known broken compound words
-    // Direct replacements for common patterns
+    // Direct replacements for common patterns where LLM inserts newlines mid-word
     result = result.replace(/Mac\s*\n\s*OS/g, 'MacOS');
     result = result.replace(/Near\s*\n\s*Blocks/g, 'NearBlocks');
     result = result.replace(/Java\s*\n\s*Script/g, 'JavaScript');
     result = result.replace(/Git\s*\n\s*Hub/g, 'GitHub');
     result = result.replace(/Type\s*\n\s*Script/g, 'TypeScript');
 
-    // Fix 0j: Protect known compound words from Fix 1a splitting
-    // These are CamelCase words that should NOT be split at lowercase->uppercase boundaries
-    const PROTECTED_COMPOUND_WORDS = [
-      // Databases
-      'RocksDB',
-      'LevelDB',
-      'PostgreSQL',
-      'MySQL',
-      'MongoDB',
-      'CouchDB',
-      'DynamoDB',
-      'SQLite',
-      // Languages/Frameworks
-      'JavaScript',
-      'TypeScript',
-      'WebAssembly',
-      'NodeJS',
-      'NextJS',
-      'ReactJS',
-      'VueJS',
-      // Platforms
-      'GitHub',
-      'GitLab',
-      'BitBucket',
-      'YouTube',
-      'LinkedIn',
-      'CloudFlare',
-      'CloudFront',
-      // Operating Systems
-      'MacOS',
-      'iOS',
-      'iPadOS',
-      'tvOS',
-      'watchOS',
-      'FreeBSD',
-      'OpenBSD',
-      // NEAR-specific
-      'FastNear',
-      'NearBlocks',
-      'TestNet',
-      'MainNet',
-      'DevNet',
-      'BetaNet',
-      'LocalNet',
-      // NEAR technical terms
-      'FlatStorage',
-      'FlatStorageBlockNotSupported',
-      'StateSync',
-      'EpochSync',
-      'BlockSync',
-      'ChunkValidator',
-      'ShadowValidator',
-      'MemTrie',
-      // DevOps/Cloud
-      'DevOps',
-      'WebSocket',
-      'WebSockets',
-      // AI
-      'OpenAI',
-      'ChatGPT',
-    ];
-
-    // Create placeholders for protected words
-    const placeholderMap = new Map<string, string>();
-    for (const word of PROTECTED_COMPOUND_WORDS) {
-      const placeholder = `__PROTECTED_${word.toUpperCase()}__`;
-      placeholderMap.set(word, placeholder);
-      // Case-insensitive replacement to placeholder
-      result = result.replace(new RegExp(word, 'g'), placeholder);
-    }
-
     // Fix 1a: Add line break after markdown headers that run into text
     // e.g., "## ConsiderationsThe text" -> "## Considerations\n\nThe text"
-    // Matches lowercase followed by uppercase within header lines (indicating missing space/newline)
-    result = result.replace(/(#{1,6}\s[^\n]*?)([a-z])([A-Z])/gm, '$1$2\n\n$3');
+    //
+    // Key insight: Only split when the uppercase word is a SENTENCE STARTER.
+    // This distinguishes formatting errors from valid CamelCase identifiers:
+    // - "## ConsiderationsThe text" → split ("The" is sentence starter)
+    // - "## JavaScript runtime" → no split ("Script" is not sentence starter)
+    // - "## RocksDB internals" → no split (pattern requires lowercase after uppercase)
+    //
+    // Process each line individually to handle multiple CamelCase boundaries
+    // e.g., "### TestNet DeploymentFor testing" has two boundaries (tNet, tFor)
+    // We skip tNet (not sentence starter) and split at tFor
+    result = result
+      .split('\n')
+      .map((line) => {
+        // Only process header lines
+        if (!/^#{1,6}\s/.test(line)) {
+          return line;
+        }
 
-    // Restore protected words from placeholders
-    for (const [word, placeholder] of placeholderMap) {
-      result = result.replace(new RegExp(placeholder, 'g'), word);
-    }
+        // Find ALL CamelCase boundaries and split at sentence starters
+        // Pattern: lowercase followed by uppercase+lowercase (potential word start)
+        const boundaryPattern = /([a-z])([A-Z][a-z]+)/g;
+        let match;
+        let lastIndex = 0;
+        let processedLine = '';
+
+        while ((match = boundaryPattern.exec(line)) !== null) {
+          const [, , upper] = match;
+          const matchStart = match.index;
+
+          // Add everything before this match
+          processedLine += line.slice(lastIndex, matchStart + 1); // Include the lowercase letter
+
+          // Check if this uppercase word is a sentence starter
+          if (isSentenceStarter(upper)) {
+            processedLine += '\n\n' + upper;
+          } else {
+            processedLine += upper;
+          }
+
+          lastIndex = matchStart + 1 + upper.length;
+        }
+
+        // Add any remaining content after the last match
+        processedLine += line.slice(lastIndex);
+
+        return processedLine;
+      })
+      .join('\n');
 
     // Fix 1b: Add line break after bold/italic headers that run into text
     // e.g., "***Title***Cause:" -> "***Title***\n\nCause:"
-    // Use non-greedy +? to avoid matching across multiple ** pairs
-    // Also require no leading space after ** (to avoid matching " text **")
-    result = result.replace(/(\*{2,3}[^\s*][^*\n]*?\*{2,3})([A-Z])/g, '$1\n\n$2');
+    // Only split when followed by a sentence starter
+    result = result.replace(
+      /(\*{2,3}[^\s*][^*\n]*?\*{2,3})([A-Z][a-z]+)/g,
+      (match, bold, upper) => {
+        if (isSentenceStarter(upper)) {
+          return `${bold}\n\n${upper}`;
+        }
+        return match;
+      }
+    );
 
     // Fix 1c: Add line break after bold headers ending with colon that run into text
     // e.g., "**Title:**While" -> "**Title:**\n\nWhile"
+    // Colons indicate content follows, so we can be more aggressive here
     result = result.replace(/(\*{2,3}[^\s*][^*\n]*?:\*{2,3})([A-Z])/g, '$1\n\n$2');
 
     // Fix 1d: Add line break after admonition syntax running into text
     // e.g., ":::note Title:::For macOS" -> ":::note Title:::\n\nFor macOS"
-    result = result.replace(/(:::[a-z]+[^:]*:::)([A-Z])/gi, '$1\n\n$2');
+    // Only split when followed by a sentence starter
+    result = result.replace(/(:::[a-z]+[^:]*:::)([A-Z][a-z]+)/gi, (match, admonition, upper) => {
+      if (isSentenceStarter(upper)) {
+        return `${admonition}\n\n${upper}`;
+      }
+      return match;
+    });
 
     // Fix 1e: Add line break after common section titles running into text
     // e.g., "TroubleshootingIf you" -> "Troubleshooting\n\nIf you"
+    // Only split when followed by a sentence starter
     result = result.replace(
-      /\b(Troubleshooting|Overview|Prerequisites|Installation|Configuration|Usage|Examples?|Summary|Conclusion|Introduction|Background|Requirements|Setup|Notes?|Tips?|Warnings?|Errors?|Solutions?|Steps|Instructions)([A-Z][a-z])/g,
-      '$1\n\n$2'
+      /\b(Troubleshooting|Overview|Prerequisites|Installation|Configuration|Usage|Examples?|Summary|Conclusion|Introduction|Background|Requirements|Setup|Notes?|Tips?|Warnings?|Errors?|Solutions?|Steps|Instructions)([A-Z][a-z]+)/g,
+      (match, title, upper) => {
+        if (isSentenceStarter(upper)) {
+          return `${title}\n\n${upper}`;
+        }
+        return match;
+      }
     );
 
     // Fix 2: Add line break after labels at the very start of content
@@ -246,3 +420,6 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     };
   }
 }
+
+// Export for testing
+export { isSentenceStarter, SENTENCE_STARTERS };
