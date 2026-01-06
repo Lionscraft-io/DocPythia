@@ -13,7 +13,13 @@
  * @created 2025-12-31
  */
 
-import { BasePostProcessor, PostProcessResult, PostProcessContext } from './types.js';
+import {
+  BasePostProcessor,
+  PostProcessResult,
+  PostProcessContext,
+  maskCodeSegments,
+  unmaskCodeSegments,
+} from './types.js';
 
 /**
  * Common sentence starters and labels that indicate the start of new content.
@@ -199,6 +205,53 @@ const SENTENCE_STARTERS = new Set([
  */
 function isSentenceStarter(word: string): boolean {
   return SENTENCE_STARTERS.has(word.toLowerCase());
+}
+
+/**
+ * High-confidence sentence starters for boundary detection.
+ * Smaller allowlist than SENTENCE_STARTERS to avoid false positives
+ * when fixing sentence run-on issues (e.g., `.Word` -> `. Word`).
+ */
+const SENTENCE_BOUNDARY_STARTERS = new Set([
+  'the',
+  'this',
+  'that',
+  'if',
+  'when',
+  'while',
+  'for',
+  'to',
+  'in',
+  'on',
+  'at',
+  'as',
+  'we',
+  'you',
+  'it',
+  'they',
+  'there',
+  'however',
+  'therefore',
+  'also',
+  'but',
+  'or',
+  'and',
+  'please',
+  'note',
+  'ensure',
+  'see',
+  'refer',
+  'check',
+  'use',
+  'after',
+  'before',
+]);
+
+/**
+ * Check if a word is a high-confidence sentence boundary starter
+ */
+function isSentenceBoundaryStarter(word: string): boolean {
+  return SENTENCE_BOUNDARY_STARTERS.has(word.toLowerCase());
 }
 
 /**
@@ -402,7 +455,39 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
       '$1\n\n$2:\n\n$3'
     );
 
-    // Fix 4: Clean up excessive newlines (more than 2 consecutive)
+    // === NEW FIXES: Apply with code masking to avoid modifying code blocks ===
+    const masked = maskCodeSegments(result);
+
+    // Fix 6: Sentence run-on after period (missing space)
+    // e.g., "FastNear.Please refer" -> "FastNear. Please refer"
+    // Only when followed by allowlisted sentence boundary starter + word boundary
+    // Guard: requires lowercase before period (excludes versions like 1.0.0)
+    masked.text = masked.text.replace(/([a-z])\.([A-Z][a-z]+)\b/g, (match, prevChar, nextWord) => {
+      if (isSentenceBoundaryStarter(nextWord)) {
+        return `${prevChar}. ${nextWord}`;
+      }
+      return match;
+    });
+
+    // Fix 7: Missing space after markdown link
+    // e.g., "](url)This" -> "](url) This"
+    // Insert space when link followed by alphanumeric or opening quote/paren
+    masked.text = masked.text.replace(/(\]\([^)]+\))([A-Za-z0-9("'"])/g, '$1 $2');
+
+    // Fix 8: Period before bold (missing space)
+    // e.g., "available.**As of" -> "available. **As of"
+    // Guard: lowercase letter before period to avoid list items like "1.**Bold**"
+    masked.text = masked.text.replace(/([a-z])\.(\*{2,3}[A-Z])/g, '$1. $2');
+
+    // Restore code segments
+    result = unmaskCodeSegments(masked);
+
+    // Fix 9: Trailing separator garbage (end of text only)
+    // e.g., "content\n========" -> "content"
+    // Only at end to preserve setext headings mid-document
+    result = result.replace(/\n*={4,}\n*$/g, '');
+
+    // Fix 10: Clean up excessive newlines (more than 2 consecutive)
     result = result.replace(/\n{3,}/g, '\n\n');
 
     // Fix 5: Trim trailing whitespace on lines
@@ -422,4 +507,9 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
 }
 
 // Export for testing
-export { isSentenceStarter, SENTENCE_STARTERS };
+export {
+  isSentenceStarter,
+  isSentenceBoundaryStarter,
+  SENTENCE_STARTERS,
+  SENTENCE_BOUNDARY_STARTERS,
+};

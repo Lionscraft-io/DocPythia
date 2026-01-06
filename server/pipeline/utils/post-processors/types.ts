@@ -80,3 +80,57 @@ export abstract class BasePostProcessor implements IPostProcessor {
    */
   abstract process(text: string, context: PostProcessContext): PostProcessResult;
 }
+
+/**
+ * Result of masking code segments in text
+ */
+export interface MaskedText {
+  /** Text with code segments replaced by placeholders */
+  text: string;
+  /** Map of placeholder -> original code segment */
+  masks: Map<string, string>;
+}
+
+/**
+ * Mask code segments (fenced blocks and inline code) to prevent
+ * formatting fixes from modifying code content.
+ *
+ * @param text - The text to mask
+ * @returns MaskedText with placeholders and original segments
+ */
+export function maskCodeSegments(text: string): MaskedText {
+  const masks = new Map<string, string>();
+  let counter = 0;
+  let result = text;
+
+  // Mask fenced code blocks first (```...```)
+  // Use a pattern that matches opening ```, optional language, content, and closing ```
+  result = result.replace(/```[\s\S]*?```/g, (match) => {
+    const placeholder = `__CODE_BLOCK_${counter++}__`;
+    masks.set(placeholder, match);
+    return placeholder;
+  });
+
+  // Mask inline code (`...`) - non-greedy, single backticks only
+  result = result.replace(/`[^`\n]+`/g, (match) => {
+    const placeholder = `__INLINE_CODE_${counter++}__`;
+    masks.set(placeholder, match);
+    return placeholder;
+  });
+
+  return { text: result, masks };
+}
+
+/**
+ * Restore masked code segments to their original content
+ *
+ * @param masked - The masked text result from maskCodeSegments
+ * @returns Original text with code segments restored
+ */
+export function unmaskCodeSegments(masked: MaskedText): string {
+  let result = masked.text;
+  for (const [placeholder, original] of masked.masks) {
+    result = result.replace(placeholder, original);
+  }
+  return result;
+}

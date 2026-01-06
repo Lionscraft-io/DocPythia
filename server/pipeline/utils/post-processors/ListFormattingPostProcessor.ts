@@ -73,6 +73,14 @@ export class ListFormattingPostProcessor extends BasePostProcessor {
     // e.g., "Solution:1." -> "Solution:\n\n1."
     result = result.replace(/(:)(\d+\.)/g, '$1\n\n$2');
 
+    // Fix 6b: Bold header ending with colon inside bold, followed by numbered list
+    // e.g., "**Title:**1. Item" -> "**Title:**\n\n1. Item"
+    result = result.replace(/(\*{2,3}[^*]+:\*{2,3})(\d+\.)/g, '$1\n\n$2');
+
+    // Fix 6c: Bold header with colon outside bold, followed by numbered list
+    // e.g., "**Title**:1. Item" -> "**Title**:\n\n1. Item"
+    result = result.replace(/(\*{2,3}[^*]+\*{2,3}):(\d+\.)/g, '$1:\n\n$2');
+
     // Fix 7: Colon followed by bullet
     // e.g., "options:- First" -> "options:\n\n- First"
     result = result.replace(/(:)(-\s+[A-Z])/g, '$1\n\n$2');

@@ -1333,3 +1333,618 @@ describe('PostProcessorPipeline', () => {
     expect(emptyResult.wasModified).toBe(false);
   });
 });
+
+// ============================================================================
+// NEW FIXES TESTS (2026-01-06)
+// ============================================================================
+
+describe('Code Masking Utility', () => {
+  it('should mask and unmask fenced code blocks', async () => {
+    const { maskCodeSegments, unmaskCodeSegments } =
+      await import('../server/pipeline/utils/post-processors/types.js');
+
+    const input = 'Text before ```js\nconst x = 1;\n``` text after';
+    const masked = maskCodeSegments(input);
+
+    expect(masked.text).toContain('__CODE_BLOCK_');
+    expect(masked.text).not.toContain('```');
+    expect(masked.masks.size).toBe(1);
+
+    const restored = unmaskCodeSegments(masked);
+    expect(restored).toBe(input);
+  });
+
+  it('should mask and unmask inline code', async () => {
+    const { maskCodeSegments, unmaskCodeSegments } =
+      await import('../server/pipeline/utils/post-processors/types.js');
+
+    const input = 'Use `rpc.mainnet.near.org` for mainnet';
+    const masked = maskCodeSegments(input);
+
+    expect(masked.text).toContain('__INLINE_CODE_');
+    expect(masked.text).not.toContain('`rpc.mainnet.near.org`');
+    expect(masked.masks.size).toBe(1);
+
+    const restored = unmaskCodeSegments(masked);
+    expect(restored).toBe(input);
+  });
+
+  it('should mask multiple code segments', async () => {
+    const { maskCodeSegments, unmaskCodeSegments } =
+      await import('../server/pipeline/utils/post-processors/types.js');
+
+    const input = 'Use `code1` and `code2` with ```bash\necho test\n```';
+    const masked = maskCodeSegments(input);
+
+    expect(masked.masks.size).toBe(3); // 2 inline + 1 block
+
+    const restored = unmaskCodeSegments(masked);
+    expect(restored).toBe(input);
+  });
+});
+
+describe('Fix #2: Sentence Run-on After Period', () => {
+  it('should fix FastNear.Please pattern', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('FastNear.Please refer to the documentation', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('FastNear. Please refer to the documentation');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix deprecated.This pattern', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('deprecated.This method is no longer supported', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('deprecated. This method is no longer supported');
+    expect(result.wasModified).toBe(true);
+  });
+
+  // Specific patterns from proposals.txt
+  it('should fix error.Please pattern from proposals', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('403 error.Please refer to', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('403 error. Please refer to');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix issues.Ensure pattern from proposals', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('resolve temporary issues.Ensure your node', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('resolve temporary issues. Ensure your node');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix lifecycle.After pattern from proposals', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('validator lifecycle.After activation', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('validator lifecycle. After activation');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix service.After pattern from proposals', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('deprecated service.After the deprecation date', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('deprecated service. After the deprecation date');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix validator.This pattern from proposals', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('become a validator.This is a known issue', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('become a validator. This is a known issue');
+    expect(result.wasModified).toBe(true);
+  });
+
+  // Patterns NOT in allowlist - should NOT be modified
+  it('should NOT fix conventions.Always (Always not in allowlist)', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const input = 'Follow naming conventions.Always use descriptive names';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+
+  it('should NOT fix ecosystem.Chunk (Chunk not in allowlist)', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const input = 'NEAR ecosystem.Chunk producers handle';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+
+  it('should NOT modify non-sentence-starter words like JavaScript', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('foo.JavaScript runtime', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('foo.JavaScript runtime');
+    expect(result.wasModified).toBe(false);
+  });
+
+  it('should NOT modify content inside inline code', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('Use `rpc.mainnet.near.org` for mainnet', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('Use `rpc.mainnet.near.org` for mainnet');
+    expect(result.wasModified).toBe(false);
+  });
+
+  it('should NOT modify content inside fenced code blocks', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const input = '```js\nfoo.The value\n```';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+});
+
+describe('Fix #3: Bold Header + Numbered List', () => {
+  it('should fix **Title:**1. pattern (colon inside bold)', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+    const result = processor.process('**Accessing GCS Snapshots:**1. First step', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('**Accessing GCS Snapshots:**\n\n1. First step');
+    expect(result.wasModified).toBe(true);
+  });
+
+  // Other specific patterns from proposals.txt
+  it('should fix **Identification Methods:**1. pattern from proposals', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+    const result = processor.process('**Identification Methods:**1. Check the logs', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('**Identification Methods:**\n\n1. Check the logs');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix **Troubleshooting Steps:**1. pattern from proposals', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+    const result = processor.process('**Troubleshooting Steps:**1. Restart the node', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('**Troubleshooting Steps:**\n\n1. Restart the node');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix **Title**:1. pattern (colon outside bold)', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+    const result = processor.process('**Title**:1. First step', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('**Title**:\n\n1. First step');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix ***Title:***1. pattern (bold+italic)', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+    const result = processor.process('***Important Note:***1. First item', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('***Important Note:***\n\n1. First item');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should NOT modify already formatted bold + list', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+    const input = '**Title:**\n\n1. First step';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+});
+
+describe('Fix #4: Missing Space After Markdown Link', () => {
+  it('should fix ](url)This pattern', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('[link](https://example.com)This continues', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('[link](https://example.com) This continues');
+    expect(result.wasModified).toBe(true);
+  });
+
+  // Specific pattern from proposals.txt
+  it('should fix ](https://docs.fastnear.com/docs/snapshots)T pattern from proposals', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process(
+      '[FastNear Snapshots Documentation](https://docs.fastnear.com/docs/snapshots)This resource will guide',
+      {
+        targetFilePath: 'doc.md',
+        fileExtension: 'md',
+        isMarkdown: true,
+        isHtml: false,
+        originalText: '',
+        previousWarnings: [],
+      }
+    );
+    expect(result.text).toBe(
+      '[FastNear Snapshots Documentation](https://docs.fastnear.com/docs/snapshots) This resource will guide'
+    );
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix ](url)123 pattern (number after link)', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('[docs](url)123 items', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('[docs](url) 123 items');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix ](url)"Quoted pattern (quote after link)', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('[link](url)"Quoted text"', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('[link](url) "Quoted text"');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should NOT modify link followed by punctuation', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const input = '[link](url). Next sentence';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+
+  it('should NOT modify link inside code block', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const input = '```\n[link](url)This\n```';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+});
+
+describe('Fix #5: Trailing Separator Garbage', () => {
+  it('should remove trailing ======== at end of text', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('Content here\n\n========================================', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('Content here');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should NOT remove setext heading mid-document', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const input = 'Title\n======\n\nContent here';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+});
+
+describe('Fix #6: Period Before Bold (Missing Space)', () => {
+  it('should fix available.**As of pattern', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('no longer available.**As of June 1st', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('no longer available. **As of June 1st');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should fix period before ***bold+italic', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const result = processor.process('something.***Important Note***', {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe('something. ***Important Note***');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should NOT modify list items like 1.**Bold**', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const input = '1.**Bold** text here';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+
+  it('should NOT modify ellipsis before bold', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    // The guard requires lowercase before period, so ...**Bold won't match
+    const input = '...**Bold**';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+
+  it('should NOT modify bold inside code block', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+    const input = '```\nfoo.**Bar**\n```';
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+    expect(result.text).toBe(input);
+    expect(result.wasModified).toBe(false);
+  });
+});
+
+describe('Combined New Fixes Integration', () => {
+  it('should fix multiple issues in one proposal', async () => {
+    const { postProcessProposal } =
+      await import('../server/pipeline/utils/ProposalPostProcessor.js');
+
+    // Combines: sentence run-on, link spacing, period before bold
+    const input =
+      'FastNear.Please refer to [docs](https://example.com)This is deprecated.**Note:** Content';
+
+    const result = postProcessProposal(input, 'doc.md');
+
+    // Sentence run-on fixed
+    expect(result.text).toContain('FastNear. Please');
+    // Link spacing fixed
+    expect(result.text).toContain('](https://example.com) This');
+    // Period before bold fixed
+    expect(result.text).toContain('deprecated. **Note:**');
+    expect(result.wasModified).toBe(true);
+  });
+
+  it('should handle real proposal with trailing separator', async () => {
+    const { postProcessProposal } =
+      await import('../server/pipeline/utils/ProposalPostProcessor.js');
+
+    const input = `## Custom Data Retention
+
+Some content here about data retention.
+
+========================================
+
+`;
+
+    const result = postProcessProposal(input, 'doc.md');
+
+    expect(result.text).not.toContain('====');
+    expect(result.text).toContain('Some content here');
+    expect(result.wasModified).toBe(true);
+  });
+});
