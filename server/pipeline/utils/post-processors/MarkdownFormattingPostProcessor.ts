@@ -76,22 +76,9 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // e.g., "Troubleshooting `Shadow\nValidator` Standby" -> "Troubleshooting `ShadowValidator` Standby"
     result = result.replace(/`([A-Za-z]+)\n+([A-Za-z]+)`/g, '`$1$2`');
 
-    // Fix 0h: CamelCase or compound words broken across lines
-    // Pattern: Mac\nOS -> MacOS, Near\nBlocks -> NearBlocks
-    // Matches: word ending with capital or lowercase, newline, then capital followed by lowercase/uppercase
-    result = result.replace(
-      /([A-Za-z])(\n)([A-Z][A-Za-z]*)\b/g,
-      (match, before, newline, after) => {
-        // Only join if it looks like a broken compound word (Mac + OS, Near + Blocks, etc.)
-        // Check if joining creates a plausible compound word
-        const combined = before + after;
-        // Common patterns: MacOS, NearBlocks, JavaScript, GitHub, etc.
-        if (/^[a-z][A-Z]/.test(combined) || /^[A-Z][A-Z]/.test(combined)) {
-          return before + after;
-        }
-        return match; // Keep original if not a likely compound word
-      }
-    );
+    // Fix 0h: REMOVED - was too aggressive and stripped legitimate newlines
+    // The fix for compound words broken across lines is now handled entirely by Fix 0i
+    // which uses explicit known patterns (MacOS, NearBlocks, etc.) instead of heuristics
 
     // Fix 0i: Simpler approach for known broken compound words
     // Direct replacements for common patterns
@@ -170,6 +157,13 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // e.g., "Cause: These errors..." -> "Cause:\n\nThese errors..."
     result = result.replace(
       /^((?:Cause|Solution|Note|Warning|Important|Example)):[ \t]+(\S)/gi,
+      '$1:\n\n$2'
+    );
+
+    // Fix 2b: Handle labels with no space after colon at start
+    // e.g., "Cause:The errors..." -> "Cause:\n\nThe errors..."
+    result = result.replace(
+      /^((?:Cause|Solution|Note|Warning|Important|Example)):([A-Z])/gim,
       '$1:\n\n$2'
     );
 

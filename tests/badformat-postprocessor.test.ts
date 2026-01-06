@@ -502,6 +502,181 @@ Enable Debug Pages:** Enable debug RPC.`;
   });
 });
 
+describe('Raw vs Processed Regression Tests (2026-01-06)', () => {
+  /**
+   * Tests based on comparing raw LLM output with post-processed output
+   * from the admin dashboard proposals.
+   */
+
+  describe('Protected Compound Words', () => {
+    it('should NOT split RocksDB in headers', () => {
+      const input = `### RocksDB Log File Management for NEAR Nodes`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('RocksDB');
+      expect(result.text).not.toContain('Rocks DB');
+      expect(result.text).not.toContain('Rocks\n\nDB');
+    });
+
+    it('should NOT split PostgreSQL in headers', () => {
+      const input = `## Using PostgreSQL with JavaScript`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('PostgreSQL');
+      expect(result.text).toContain('JavaScript');
+    });
+
+    it('should NOT split compound words in body text', () => {
+      const input = `Configure your RocksDB settings and connect to PostgreSQL via JavaScript.`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('RocksDB');
+      expect(result.text).toContain('PostgreSQL');
+      expect(result.text).toContain('JavaScript');
+    });
+  });
+
+  describe('HTML br tag handling in tables', () => {
+    it('should preserve <br/> inside table rows', () => {
+      const input = `| Error | Description | Solution |
+| --- | --- | --- |
+| NO_SYNCED_BLOCKS | Node is syncing | • Wait for sync <br/>• Try different node |`;
+
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('<br/>');
+    });
+
+    it('should convert <br/> to newline outside tables', () => {
+      const input = `First line<br/>Second line<br/>Third line`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('\n');
+      expect(result.text).not.toContain('<br/>');
+    });
+  });
+
+  describe('Numbered list items with bold', () => {
+    it('should handle numbered lists with bold titles', () => {
+      const input = `1. **Stopping the node.** Ensure the process is stopped.
+2. **Deleting the data directory.** Remove ~/.near/data.
+3. **Re-initializing the node.** Run neard init.`;
+
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('1. **Stopping the node.**');
+      expect(result.text).toContain('2. **Deleting the data directory.**');
+      expect(result.text).toContain('3. **Re-initializing the node.**');
+      // Should NOT have space inside bold markers
+      expect(result.text).not.toContain('** Stopping');
+      expect(result.text).not.toContain('** Deleting');
+    });
+
+    it('should NOT insert space after ** in list items', () => {
+      const input = `1. **Step one**
+2. **Step two**
+3. **Step three**`;
+
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      // Check no space was inserted after **
+      expect(result.text).not.toMatch(/\*\* [A-Z]/);
+    });
+  });
+
+  describe('Label formatting (Cause/Solution)', () => {
+    it('should add proper spacing after Cause: labels', () => {
+      const input = `Cause:The node is experiencing issues.`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      // Should have proper separation
+      expect(result.text).toMatch(/Cause:[\s\n]/);
+    });
+
+    it('should add proper spacing after Solution: labels', () => {
+      const input = `occur.Solution:Restart the node.`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      // Should separate the label from preceding text
+      expect(result.text).toContain('\n\nSolution:');
+    });
+
+    it('should handle Cause/Solution pairs correctly', () => {
+      const input = `***My node fails***Cause: High CPU usage.Solution: Add resources.`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      // Both labels should be properly formatted
+      expect(result.text).toContain('Cause:');
+      expect(result.text).toContain('Solution:');
+    });
+  });
+
+  describe('Backtick-enclosed words broken across lines', () => {
+    it('should join backtick words split by newlines', () => {
+      const input = 'Troubleshooting `Shadow\nValidator` Standby Nodes';
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('`ShadowValidator`');
+      expect(result.text).not.toContain('`Shadow\nValidator`');
+    });
+
+    it('should handle multiple broken backtick words', () => {
+      const input = 'Use `Shadow\nValidator` and `Mem\nTrie` features';
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('`ShadowValidator`');
+      expect(result.text).toContain('`MemTrie`');
+    });
+  });
+
+  describe('Compound words broken across lines', () => {
+    it('should join MacOS broken across lines', () => {
+      const input = `Known Performance Considerations for Mac
+OS (aarch64)`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('MacOS');
+      expect(result.text).not.toContain('Mac\nOS');
+    });
+
+    it('should join NearBlocks broken across lines', () => {
+      const input = `Check Near
+Blocks explorer for details.`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toContain('NearBlocks');
+    });
+  });
+
+  describe('Triple-star formatting (bold+italic)', () => {
+    it('should handle ***Title***Cause: pattern', () => {
+      const input = `***My node can't sync***Cause: Network issues prevent sync.`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      // Should add separation between title and Cause
+      expect(result.text).toContain("***My node can't sync***");
+      expect(result.text).toContain('Cause:');
+    });
+  });
+
+  describe('Headers running into text', () => {
+    it('should separate header from following text', () => {
+      const input = `## Expected Synchronization TimesThe time required for sync varies.`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      // Should add newline after header
+      expect(result.text).toMatch(/## Expected Synchronization Times\s*\n/);
+    });
+
+    it('should handle subsection headers', () => {
+      const input = `### Enabling Debug LoggingWhen troubleshooting complex issues...`;
+      const result = postProcessProposal(input, 'docs/test.md');
+
+      expect(result.text).toMatch(/### Enabling Debug Logging\s*\n/);
+    });
+  });
+});
+
 // Export intermediate results for analysis
 export function getIntermediateResults() {
   return INTERMEDIATE_RESULTS;
