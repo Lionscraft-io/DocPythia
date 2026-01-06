@@ -91,24 +91,61 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // Fix 0j: Protect known compound words from Fix 1a splitting
     // These are CamelCase words that should NOT be split at lowercase->uppercase boundaries
     const PROTECTED_COMPOUND_WORDS = [
+      // Databases
       'RocksDB',
       'LevelDB',
       'PostgreSQL',
       'MySQL',
       'MongoDB',
+      'CouchDB',
+      'DynamoDB',
+      'SQLite',
+      // Languages/Frameworks
       'JavaScript',
       'TypeScript',
+      'WebAssembly',
+      'NodeJS',
+      'NextJS',
+      'ReactJS',
+      'VueJS',
+      // Platforms
       'GitHub',
       'GitLab',
       'BitBucket',
       'YouTube',
       'LinkedIn',
+      'CloudFlare',
+      'CloudFront',
+      // Operating Systems
       'MacOS',
       'iOS',
-      'DevOps',
-      'WebSocket',
+      'iPadOS',
+      'tvOS',
+      'watchOS',
+      'FreeBSD',
+      'OpenBSD',
+      // NEAR-specific
       'FastNear',
       'NearBlocks',
+      'TestNet',
+      'MainNet',
+      'DevNet',
+      'BetaNet',
+      'LocalNet',
+      // NEAR technical terms
+      'FlatStorage',
+      'FlatStorageBlockNotSupported',
+      'StateSync',
+      'EpochSync',
+      'BlockSync',
+      'ChunkValidator',
+      'ShadowValidator',
+      'MemTrie',
+      // DevOps/Cloud
+      'DevOps',
+      'WebSocket',
+      'WebSockets',
+      // AI
       'OpenAI',
       'ChatGPT',
     ];
