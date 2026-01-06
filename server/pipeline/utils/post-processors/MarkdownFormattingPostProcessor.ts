@@ -101,10 +101,49 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     result = result.replace(/Git\s*\n\s*Hub/g, 'GitHub');
     result = result.replace(/Type\s*\n\s*Script/g, 'TypeScript');
 
+    // Fix 0j: Protect known compound words from Fix 1a splitting
+    // These are CamelCase words that should NOT be split at lowercase->uppercase boundaries
+    const PROTECTED_COMPOUND_WORDS = [
+      'RocksDB',
+      'LevelDB',
+      'PostgreSQL',
+      'MySQL',
+      'MongoDB',
+      'JavaScript',
+      'TypeScript',
+      'GitHub',
+      'GitLab',
+      'BitBucket',
+      'YouTube',
+      'LinkedIn',
+      'MacOS',
+      'iOS',
+      'DevOps',
+      'WebSocket',
+      'FastNear',
+      'NearBlocks',
+      'OpenAI',
+      'ChatGPT',
+    ];
+
+    // Create placeholders for protected words
+    const placeholderMap = new Map<string, string>();
+    for (const word of PROTECTED_COMPOUND_WORDS) {
+      const placeholder = `__PROTECTED_${word.toUpperCase()}__`;
+      placeholderMap.set(word, placeholder);
+      // Case-insensitive replacement to placeholder
+      result = result.replace(new RegExp(word, 'g'), placeholder);
+    }
+
     // Fix 1a: Add line break after markdown headers that run into text
     // e.g., "## ConsiderationsThe text" -> "## Considerations\n\nThe text"
     // Matches lowercase followed by uppercase within header lines (indicating missing space/newline)
     result = result.replace(/(#{1,6}\s[^\n]*?)([a-z])([A-Z])/gm, '$1$2\n\n$3');
+
+    // Restore protected words from placeholders
+    for (const [word, placeholder] of placeholderMap) {
+      result = result.replace(new RegExp(placeholder, 'g'), word);
+    }
 
     // Fix 1b: Add line break after bold/italic headers that run into text
     // e.g., "***Title***Cause:" -> "***Title***\n\nCause:"

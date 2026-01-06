@@ -13,6 +13,8 @@ import { BasePostProcessor, PostProcessResult, PostProcessContext } from './type
 /**
  * Inline HTML to Markdown rules (applied first, multiple passes)
  * These handle inline elements that can be nested
+ *
+ * Note: <br/> conversion is handled separately to preserve it in table contexts
  */
 const INLINE_HTML_RULES: Array<{
   pattern: RegExp;
@@ -30,8 +32,10 @@ const INLINE_HTML_RULES: Array<{
   // Links
   { pattern: /<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, replacement: '[$2]($1)' },
 
-  // Line breaks (convert early)
-  { pattern: /<br\s*\/?>/gi, replacement: '\n' },
+  // Line breaks - only convert when NOT inside a table row
+  // Table rows start with | and <br/> inside them should be preserved
+  // This pattern only matches <br/> that are NOT preceded by | on the same line
+  // Handled separately in convertHtmlToMarkdown method
 
   // Strikethrough
   { pattern: /<del[^>]*>([\s\S]*?)<\/del>/gi, replacement: '~~$1~~' },
@@ -213,22 +217,48 @@ export class HtmlToMarkdownPostProcessor extends BasePostProcessor {
     // Step 3: Apply inline rules until stable
     result = this.applyRulesUntilStable(result, INLINE_HTML_RULES);
 
-    // Step 4: Apply block-level rules
+    // Step 4: Convert <br/> tags - preserve in table rows, convert elsewhere
+    result = this.convertLineBreaks(result);
+
+    // Step 5: Apply block-level rules
     for (const rule of BLOCK_HTML_RULES) {
       rule.pattern.lastIndex = 0;
       result = result.replace(rule.pattern, rule.replacement);
     }
 
-    // Step 5: Convert remaining simple blockquotes
+    // Step 6: Convert remaining simple blockquotes
     result = this.convertSimpleBlockquotes(result);
 
-    // Step 6: Clean up
+    // Step 7: Clean up
     result = result.replace(/\n{3,}/g, '\n\n');
     result = result.replace(/\n\s*:::/g, '\n:::');
     result = result.replace(/:::\s*\n/g, ':::\n');
     result = result.trim();
 
     return result;
+  }
+
+  /**
+   * Convert <br/> tags to newlines, but preserve them in table rows
+   * Table rows start with | and <br/> inside them creates line breaks within cells
+   */
+  private convertLineBreaks(text: string): string {
+    // Process line by line to detect table context
+    const lines = text.split('\n');
+    const processedLines = lines.map((line) => {
+      // Check if this line is a table row (starts with |)
+      const isTableRow = line.trim().startsWith('|');
+
+      if (isTableRow) {
+        // In table rows, keep <br/> as-is (many markdown renderers support it)
+        return line;
+      } else {
+        // Outside tables, convert <br/> to newline
+        return line.replace(/<br\s*\/?>/gi, '\n');
+      }
+    });
+
+    return processedLines.join('\n');
   }
 
   /**
