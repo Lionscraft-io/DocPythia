@@ -132,7 +132,7 @@ export class TelegramBotAdapter extends BaseStreamAdapter {
    * Note: bot.launch() is not awaited to prevent blocking adapter registration
    */
   private async startPolling(): Promise<void> {
-    console.log('Starting Telegram bot in polling mode...');
+    console.log(`[TelegramAdapter ${this.streamId}] Starting polling mode...`);
 
     // Don't await bot.launch() - it can hang if there are network issues
     // This allows the adapter to be registered even if polling fails to start
@@ -140,17 +140,25 @@ export class TelegramBotAdapter extends BaseStreamAdapter {
       .launch()
       .then(() => {
         this.isRunning = true;
-        console.log('Telegram bot polling started successfully');
+        console.log(`[TelegramAdapter ${this.streamId}] Polling started successfully`);
       })
       .catch((error) => {
-        console.error('Telegram bot failed to start polling:', error.message);
+        console.error(`[TelegramAdapter ${this.streamId}] Failed to start polling:`, error.message);
+        if (error.message.includes('409') || error.message.includes('terminated')) {
+          console.error(
+            `[TelegramAdapter ${this.streamId}] 409 CONFLICT: Another bot instance is already polling!`
+          );
+          console.error(
+            `[TelegramAdapter ${this.streamId}] Check for: other App Runner revisions, local dev instances, or duplicate deployments`
+          );
+        }
         // Bot is still usable for fetchMessages (which returns empty for push-based bot)
         // Polling will not work but the adapter is registered
       });
 
     // Mark as "attempting to run" so cleanup knows to stop it
     this.isRunning = true;
-    console.log('Telegram bot polling initiated (non-blocking)');
+    console.log(`[TelegramAdapter ${this.streamId}] Polling initiated (non-blocking)`);
   }
 
   /**
@@ -159,7 +167,15 @@ export class TelegramBotAdapter extends BaseStreamAdapter {
   private async handleMessage(ctx: Context): Promise<void> {
     try {
       const message = ctx.message || ctx.channelPost;
+      console.log(`[TelegramAdapter ${this.streamId}] Received update:`, {
+        updateId: ctx.update.update_id,
+        hasMessage: !!ctx.message,
+        hasChannelPost: !!ctx.channelPost,
+        chatId: message?.chat?.id,
+      });
+
       if (!message || !('text' in message)) {
+        console.log(`[TelegramAdapter ${this.streamId}] Ignoring non-text message`);
         return; // Ignore non-text messages for now
       }
 
@@ -171,7 +187,10 @@ export class TelegramBotAdapter extends BaseStreamAdapter {
         this.botConfig.allowedChats.length > 0 &&
         !this.botConfig.allowedChats.includes(chatId)
       ) {
-        console.log(`Ignoring message from non-whitelisted chat: ${chatId}`);
+        console.log(`[TelegramAdapter ${this.streamId}] Ignoring non-whitelisted chat: ${chatId}`);
+        console.log(
+          `[TelegramAdapter ${this.streamId}] Allowed chats: ${this.botConfig.allowedChats.join(', ')}`
+        );
         return;
       }
 

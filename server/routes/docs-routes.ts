@@ -124,19 +124,38 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
     }
   });
 
-  // Get single section
-  router.get('/:sectionId', async (req: Request, res: Response) => {
+  // Get single section/document by ID or file path
+  router.get('/:sectionId(*)', async (req: Request, res: Response) => {
     try {
-      const validation = sectionIdSchema.safeParse(req.params);
-      if (!validation.success) {
+      const sectionId = req.params.sectionId;
+      if (!sectionId || sectionId.length < 1) {
         return res.status(400).json({ error: 'Invalid section ID' });
       }
 
-      const section = await storage.getDocumentationSection(validation.data.sectionId);
-      if (!section) {
-        return res.status(404).json({ error: 'Section not found' });
+      // First try the legacy documentation_sections table
+      const section = await storage.getDocumentationSection(sectionId);
+      if (section) {
+        return res.json(section);
       }
-      res.json(section);
+
+      // If not found, try the RAG vector store (document_pages) by file path
+      // Get instance from request or use default
+      const instanceId = (req as any).instance?.id || 'near';
+      const instanceDb = getInstanceDb(instanceId);
+      const instanceVectorStore = new PgVectorStore(instanceId, instanceDb);
+
+      const document = await instanceVectorStore.getDocumentByPath(sectionId);
+      if (document) {
+        return res.json({
+          sectionId: document.filePath,
+          title: document.title,
+          content: document.content,
+          gitHash: document.gitHash,
+          gitUrl: document.gitUrl,
+        });
+      }
+
+      return res.status(404).json({ error: 'Section not found' });
     } catch (error) {
       logger.error('Error fetching section:', error);
       res.status(500).json({ error: 'Failed to fetch section' });

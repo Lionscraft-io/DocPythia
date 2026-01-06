@@ -148,6 +148,17 @@ export class ZulipBotAdapter extends BaseStreamAdapter {
 
     const url = `${this.botConfig.site}/api/v1/messages?${params}`;
 
+    // Debug logging for Zulip API request
+    console.log(`[ZulipAdapter] Fetching messages with params:`, {
+      channel,
+      anchor,
+      numBefore,
+      numAfter,
+      hasWatermark: !!watermark?.lastProcessedId,
+      watermarkId: watermark?.lastProcessedId,
+      startDate: startDate || 'none',
+    });
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -163,6 +174,15 @@ export class ZulipBotAdapter extends BaseStreamAdapter {
 
     const data: ZulipMessagesResponse = await response.json();
 
+    // Debug logging for Zulip API response
+    console.log(`[ZulipAdapter] API response:`, {
+      result: data.result,
+      messageCount: data.messages?.length || 0,
+      foundOldest: (data as any).found_oldest,
+      foundNewest: (data as any).found_newest,
+      anchor: (data as any).anchor,
+    });
+
     if (data.result !== 'success') {
       throw new Error(`Zulip API error: ${data.msg}`);
     }
@@ -171,7 +191,13 @@ export class ZulipBotAdapter extends BaseStreamAdapter {
 
     // Filter out the anchor message if doing incremental fetch
     if (watermark?.lastProcessedId) {
+      const beforeFilter = messages.length;
       messages = messages.filter((msg) => msg.id.toString() !== watermark.lastProcessedId);
+      if (beforeFilter !== messages.length) {
+        console.log(
+          `[ZulipAdapter] Filtered out anchor message, ${beforeFilter} -> ${messages.length}`
+        );
+      }
     }
 
     // Normalize to StreamMessage format

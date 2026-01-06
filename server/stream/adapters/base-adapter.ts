@@ -165,6 +165,53 @@ export abstract class BaseStreamAdapter implements StreamAdapter {
       });
       console.log(`Created watermark for ${this.streamId}`);
     }
+
+    // Safety: sync watermark with actual latest message in database
+    await this.syncWatermarkWithLatestMessage();
+  }
+
+  /**
+   * Safety mechanism: Sync watermark to match the actual latest message in database.
+   * This prevents watermark drift if updates fail or messages are imported out of order.
+   */
+  private async syncWatermarkWithLatestMessage(): Promise<void> {
+    try {
+      // Get the actual latest message from the database for this stream
+      const latestMessage = await this.db.unifiedMessage.findFirst({
+        where: { streamId: this.streamId },
+        orderBy: { timestamp: 'desc' },
+        select: { messageId: true, timestamp: true },
+      });
+
+      if (!latestMessage) {
+        console.log(`[${this.streamId}] No messages in database, watermark unchanged`);
+        return;
+      }
+
+      // Get current watermark
+      const currentWatermark = await this.getWatermark();
+
+      // Compare: if DB has newer message than watermark, sync it
+      if (
+        !currentWatermark.lastProcessedId ||
+        latestMessage.messageId !== currentWatermark.lastProcessedId
+      ) {
+        // Check if the latest message is actually newer (by timestamp)
+        const isNewer =
+          !currentWatermark.lastProcessedTime ||
+          latestMessage.timestamp > currentWatermark.lastProcessedTime;
+
+        if (isNewer) {
+          console.log(
+            `[${this.streamId}] Syncing watermark: ${currentWatermark.lastProcessedId || 'none'} -> ${latestMessage.messageId}`
+          );
+          await this.updateWatermark(latestMessage.timestamp, latestMessage.messageId, 0);
+        }
+      }
+    } catch (error) {
+      console.error(`[${this.streamId}] Failed to sync watermark with latest message:`, error);
+      // Don't throw - this is a safety mechanism, not critical path
+    }
   }
 
   /**
