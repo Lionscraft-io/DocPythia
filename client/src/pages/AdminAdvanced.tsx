@@ -441,6 +441,40 @@ export default function AdminAdvanced() {
     clearProcessedMutation.mutate();
   };
 
+  const reprocessProposalsMutation = useMutation({
+    mutationFn: async () => {
+      const prefix = getInstancePrefix();
+      const response = await adminApiRequest(
+        'POST',
+        `${prefix}/api/admin/stream/reprocess-proposals`,
+        {}
+      );
+      return await response.json();
+    },
+    onSuccess: (data: any) => {
+      const prefix = getInstancePrefix();
+      toast({
+        title: 'Proposals Reprocessed',
+        description: `Processed ${data.processed} proposals, ${data.modified} were modified.`,
+        duration: 5000,
+      });
+      // Refresh conversations data
+      queryClient.invalidateQueries({ queryKey: [`${prefix}/api/admin/stream/conversations`] });
+      queryClient.invalidateQueries({ queryKey: [`${prefix}/api/admin/stream/proposals`] });
+    },
+    onError: () => {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to reprocess proposals.',
+      });
+    },
+  });
+
+  const handleReprocessProposals = () => {
+    reprocessProposalsMutation.mutate();
+  };
+
   const clearCacheMutation = useMutation({
     mutationFn: async (purpose?: string) => {
       const url = purpose ? `/api/admin/llm-cache/${purpose}` : '/api/admin/llm-cache';
@@ -722,6 +756,14 @@ export default function AdminAdvanced() {
             className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {clearProcessedMutation.isPending ? 'Clearing...' : 'Clear Processed'}
+          </button>
+          <button
+            onClick={handleReprocessProposals}
+            disabled={reprocessProposalsMutation.isPending}
+            className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Re-run all proposals through the post-processing pipeline using raw LLM output"
+          >
+            {reprocessProposalsMutation.isPending ? 'Reprocessing...' : 'Reprocess Proposals'}
           </button>
         </div>
 

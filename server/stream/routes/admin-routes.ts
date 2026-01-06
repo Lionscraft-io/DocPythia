@@ -18,6 +18,7 @@ import multer from 'multer';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { llmCache } from '../../llm/llm-cache.js';
+import { postProcessProposal } from '../../pipeline/utils/ProposalPostProcessor.js';
 
 const logger = createLogger('AdminStreamRoutes');
 
@@ -1000,6 +1001,93 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
     instanceMiddleware,
     adminAuth,
     clearProcessedHandler
+  );
+
+  /**
+   * POST /api/admin/stream/reprocess-proposals
+   * Re-run all proposals through the post-processing pipeline
+   * Uses rawSuggestedText as input and updates suggestedText with new output
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/reprocess-proposals (non-instance)
+   * 2. /:instance/api/admin/stream/reprocess-proposals (instance-specific)
+   */
+  const reprocessProposalsHandler = async (req: Request, res: Response) => {
+    try {
+      const db = getDb(req);
+
+      // Get all proposals that have rawSuggestedText
+      const proposals = await db.docProposal.findMany({
+        where: {
+          rawSuggestedText: { not: null },
+        },
+        select: {
+          id: true,
+          page: true,
+          rawSuggestedText: true,
+          suggestedText: true,
+        },
+      });
+
+      if (proposals.length === 0) {
+        return res.json({
+          message: 'No proposals with raw text found to reprocess',
+          processed: 0,
+          modified: 0,
+        });
+      }
+
+      logger.info(`Reprocessing ${proposals.length} proposals through post-processor pipeline`);
+
+      let modified = 0;
+      const errors: Array<{ id: number; error: string }> = [];
+
+      // Process each proposal
+      for (const proposal of proposals) {
+        try {
+          if (!proposal.rawSuggestedText) continue;
+
+          // Run through post-processing pipeline
+          const result = postProcessProposal(proposal.rawSuggestedText, proposal.page);
+
+          // Only update if the result is different from current suggestedText
+          if (result.text !== proposal.suggestedText) {
+            await db.docProposal.update({
+              where: { id: proposal.id },
+              data: { suggestedText: result.text },
+            });
+            modified++;
+            logger.debug(`Proposal ${proposal.id} updated with new post-processed text`);
+          }
+        } catch (error: any) {
+          logger.error(`Error reprocessing proposal ${proposal.id}:`, error);
+          errors.push({ id: proposal.id, error: error.message });
+        }
+      }
+
+      logger.info(
+        `Reprocessing complete: ${proposals.length} proposals checked, ${modified} modified, ${errors.length} errors`
+      );
+
+      res.json({
+        message: 'Proposals reprocessed through post-processor pipeline',
+        processed: proposals.length,
+        modified,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    } catch (error) {
+      logger.error('Error reprocessing proposals:', error);
+      res.status(500).json({ error: 'Failed to reprocess proposals' });
+    }
+  };
+
+  // Register for both non-instance and instance-specific routes
+  app.post('/api/admin/stream/reprocess-proposals', adminAuth, reprocessProposalsHandler);
+  app.post(
+    '/:instance/api/admin/stream/reprocess-proposals',
+    instanceMiddleware,
+    adminAuth,
+    reprocessProposalsHandler
   );
 
   /**
