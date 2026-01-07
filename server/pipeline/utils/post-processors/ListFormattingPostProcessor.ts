@@ -12,7 +12,13 @@
  * @created 2026-01-01
  */
 
-import { BasePostProcessor, PostProcessResult, PostProcessContext } from './types.js';
+import {
+  BasePostProcessor,
+  PostProcessResult,
+  PostProcessContext,
+  maskCodeSegments,
+  unmaskCodeSegments,
+} from './types.js';
 
 /**
  * List Formatting Post-Processor
@@ -48,47 +54,7 @@ export class ListFormattingPostProcessor extends BasePostProcessor {
     // LLM sometimes generates escaped \n instead of actual newlines
     result = result.replace(/\\n/g, '\n');
 
-    // Fix 1: Numbered list after closing paren
-    // e.g., "migration)2. Finding" -> "migration)\n\n2. Finding"
-    result = result.replace(/(\))(\d+\.\s*\*{0,2}\s*[A-Z])/g, '$1\n\n$2');
-
-    // Fix 2: Numbered list after punctuation (period, exclamation, question)
-    // e.g., "directory.2. Check" -> "directory.\n\n2. Check"
-    // Handles optional bold markers: "directory.2. **Check"
-    result = result.replace(/([.!?])(\d+\.\s*\*{0,2}\s*[A-Z])/g, '$1\n\n$2');
-
-    // Fix 3: Word directly followed by number (no punctuation)
-    // e.g., "Sync5. Download" -> "Sync\n\n5. Download"
-    result = result.replace(/([a-z])(\d+\.\s+[A-Z])/g, '$1\n\n$2');
-
-    // Fix 4: Dash/bullet after closing paren
-    // e.g., "Phase)- During" -> "Phase)\n\n- During"
-    result = result.replace(/(\))(-\s+[A-Z])/g, '$1\n\n$2');
-
-    // Fix 5: Dash/bullet after punctuation
-    // e.g., "nodes.- Data" -> "nodes.\n\n- Data"
-    result = result.replace(/([.!?])(-\s+[A-Z])/g, '$1\n\n$2');
-
-    // Fix 6: Colon followed by numbered list
-    // e.g., "Solution:1." -> "Solution:\n\n1."
-    result = result.replace(/(:)(\d+\.)/g, '$1\n\n$2');
-
-    // Fix 6b: Bold header ending with colon inside bold, followed by numbered list
-    // e.g., "**Title:**1. Item" -> "**Title:**\n\n1. Item"
-    result = result.replace(/(\*{2,3}[^*]+:\*{2,3})(\d+\.)/g, '$1\n\n$2');
-
-    // Fix 6c: Bold header with colon outside bold, followed by numbered list
-    // e.g., "**Title**:1. Item" -> "**Title**:\n\n1. Item"
-    result = result.replace(/(\*{2,3}[^*]+\*{2,3}):(\d+\.)/g, '$1:\n\n$2');
-
-    // Fix 7: Colon followed by bullet
-    // e.g., "options:- First" -> "options:\n\n- First"
-    result = result.replace(/(:)(-\s+[A-Z])/g, '$1\n\n$2');
-
-    // Fix 8: Colon followed by asterisk bullet
-    // e.g., "contribute:* Network" -> "contribute:\n\n* Network"
-    result = result.replace(/(:)(\s*\*\s+)/g, '$1\n\n$2');
-
+    // === Fixes 9-10 must run BEFORE masking because they look for backticks ===
     // Fix 9: Asterisk bullet after backtick-quoted code
     // e.g., "`state_sync`* `next`" -> "`state_sync`\n\n* `next`"
     result = result.replace(/(`)\*\s+`/g, '$1\n\n* `');
@@ -97,13 +63,60 @@ export class ListFormattingPostProcessor extends BasePostProcessor {
     // e.g., "enabled`* item" -> "enabled`\n\n* item"
     result = result.replace(/([`'"])\*\s+/g, '$1\n\n* ');
 
+    // === Apply code masking to protect code blocks from remaining fixes ===
+    const masked = maskCodeSegments(result);
+
+    // Fix 1: Numbered list after closing paren
+    // e.g., "migration)2. Finding" -> "migration)\n\n2. Finding"
+    masked.text = masked.text.replace(/(\))(\d+\.\s*\*{0,2}\s*[A-Z])/g, '$1\n\n$2');
+
+    // Fix 2: Numbered list after punctuation (period, exclamation, question)
+    // e.g., "directory.2. Check" -> "directory.\n\n2. Check"
+    // Handles optional bold markers: "directory.2. **Check"
+    masked.text = masked.text.replace(/([.!?])(\d+\.\s*\*{0,2}\s*[A-Z])/g, '$1\n\n$2');
+
+    // Fix 3: Word directly followed by number (no punctuation)
+    // e.g., "Sync5. Download" -> "Sync\n\n5. Download"
+    masked.text = masked.text.replace(/([a-z])(\d+\.\s+[A-Z])/g, '$1\n\n$2');
+
+    // Fix 4: Dash/bullet after closing paren
+    // e.g., "Phase)- During" -> "Phase)\n\n- During"
+    masked.text = masked.text.replace(/(\))(-\s+[A-Z])/g, '$1\n\n$2');
+
+    // Fix 5: Dash/bullet after punctuation
+    // e.g., "nodes.- Data" -> "nodes.\n\n- Data"
+    masked.text = masked.text.replace(/([.!?])(-\s+[A-Z])/g, '$1\n\n$2');
+
+    // Fix 6: Colon followed by numbered list
+    // e.g., "Solution:1." -> "Solution:\n\n1."
+    masked.text = masked.text.replace(/(:)(\d+\.)/g, '$1\n\n$2');
+
+    // Fix 6b: Bold header ending with colon inside bold, followed by numbered list
+    // e.g., "**Title:**1. Item" -> "**Title:**\n\n1. Item"
+    masked.text = masked.text.replace(/(\*{2,3}[^*]+:\*{2,3})(\d+\.)/g, '$1\n\n$2');
+
+    // Fix 6c: Bold header with colon outside bold, followed by numbered list
+    // e.g., "**Title**:1. Item" -> "**Title**:\n\n1. Item"
+    masked.text = masked.text.replace(/(\*{2,3}[^*]+\*{2,3}):(\d+\.)/g, '$1:\n\n$2');
+
+    // Fix 7: Colon followed by bullet
+    // e.g., "options:- First" -> "options:\n\n- First"
+    masked.text = masked.text.replace(/(:)(-\s+[A-Z])/g, '$1\n\n$2');
+
+    // Fix 8: Colon followed by asterisk bullet
+    // e.g., "contribute:* Network" -> "contribute:\n\n* Network"
+    masked.text = masked.text.replace(/(:)(\s*\*\s+)/g, '$1\n\n$2');
+
     // Fix 11: Asterisk bullet after sentence ending (with multiple spaces)
     // e.g., "execution. *   **Operating" -> "execution.\n\n*   **Operating"
-    result = result.replace(/([.!?])\s+(\*\s{2,}\*{0,2}[A-Z])/g, '$1\n\n$2');
+    masked.text = masked.text.replace(/([.!?])\s+(\*\s{2,}\*{0,2}[A-Z])/g, '$1\n\n$2');
 
     // Fix 12: Asterisk bullet after sentence ending (with single space)
     // e.g., "execution. * Check" -> "execution.\n\n* Check"
-    result = result.replace(/([.!?])\s+(\*\s[A-Z])/g, '$1\n\n$2');
+    masked.text = masked.text.replace(/([.!?])\s+(\*\s[A-Z])/g, '$1\n\n$2');
+
+    // Restore code segments
+    result = unmaskCodeSegments(masked);
 
     // Fix 13: Clean up excessive newlines (more than 2 consecutive)
     result = result.replace(/\n{3,}/g, '\n\n');

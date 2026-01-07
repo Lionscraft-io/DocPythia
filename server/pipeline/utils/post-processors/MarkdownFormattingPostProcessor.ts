@@ -334,9 +334,7 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // - "## JavaScript runtime" → no split ("Script" is not sentence starter)
     // - "## RocksDB internals" → no split (pattern requires lowercase after uppercase)
     //
-    // Process each line individually to handle multiple CamelCase boundaries
-    // e.g., "### TestNet DeploymentFor testing" has two boundaries (tNet, tFor)
-    // We skip tNet (not sentence starter) and split at tFor
+    // Uses callback replace for safety (avoids manual index slicing)
     result = result
       .split('\n')
       .map((line) => {
@@ -347,39 +345,22 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
 
         // Find ALL CamelCase boundaries and split at sentence starters
         // Pattern: lowercase followed by uppercase+lowercase (potential word start)
-        const boundaryPattern = /([a-z])([A-Z][a-z]+)/g;
-        let match;
-        let lastIndex = 0;
-        let processedLine = '';
-
-        while ((match = boundaryPattern.exec(line)) !== null) {
-          const [, , upper] = match;
-          const matchStart = match.index;
-
-          // Add everything before this match
-          processedLine += line.slice(lastIndex, matchStart + 1); // Include the lowercase letter
-
-          // Check if this uppercase word is a sentence starter
+        return line.replace(/([a-z])([A-Z][a-z]+)/g, (match, lower, upper) => {
           if (isSentenceStarter(upper)) {
-            processedLine += '\n\n' + upper;
-          } else {
-            processedLine += upper;
+            return `${lower}\n\n${upper}`;
           }
-
-          lastIndex = matchStart + 1 + upper.length;
-        }
-
-        // Add any remaining content after the last match
-        processedLine += line.slice(lastIndex);
-
-        return processedLine;
+          return match;
+        });
       })
       .join('\n');
+
+    // === Apply code masking early to protect code blocks from all content-altering fixes ===
+    const masked = maskCodeSegments(result);
 
     // Fix 1b: Add line break after bold/italic headers that run into text
     // e.g., "***Title***Cause:" -> "***Title***\n\nCause:"
     // Only split when followed by a sentence starter
-    result = result.replace(
+    masked.text = masked.text.replace(
       /(\*{2,3}[^\s*][^*\n]*?\*{2,3})([A-Z][a-z]+)/g,
       (match, bold, upper) => {
         if (isSentenceStarter(upper)) {
@@ -391,23 +372,26 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
 
     // Fix 1c: Add line break after bold headers ending with colon that run into text
     // e.g., "**Title:**While" -> "**Title:**\n\nWhile"
-    // Colons indicate content follows, so we can be more aggressive here
-    result = result.replace(/(\*{2,3}[^\s*][^*\n]*?:\*{2,3})([A-Z])/g, '$1\n\n$2');
+    // Colons indicate content follows, so always split (more aggressive than 1b)
+    masked.text = masked.text.replace(/(\*{2,3}[^\s*][^*\n]*?:\*{2,3})([A-Z])/g, '$1\n\n$2');
 
     // Fix 1d: Add line break after admonition syntax running into text
     // e.g., ":::note Title:::For macOS" -> ":::note Title:::\n\nFor macOS"
     // Only split when followed by a sentence starter
-    result = result.replace(/(:::[a-z]+[^:]*:::)([A-Z][a-z]+)/gi, (match, admonition, upper) => {
-      if (isSentenceStarter(upper)) {
-        return `${admonition}\n\n${upper}`;
+    masked.text = masked.text.replace(
+      /(:::[a-z]+[^:]*:::)([A-Z][a-z]+)/gi,
+      (match, admonition, upper) => {
+        if (isSentenceStarter(upper)) {
+          return `${admonition}\n\n${upper}`;
+        }
+        return match;
       }
-      return match;
-    });
+    );
 
     // Fix 1e: Add line break after common section titles running into text
     // e.g., "TroubleshootingIf you" -> "Troubleshooting\n\nIf you"
     // Only split when followed by a sentence starter
-    result = result.replace(
+    masked.text = masked.text.replace(
       /\b(Troubleshooting|Overview|Prerequisites|Installation|Configuration|Usage|Examples?|Summary|Conclusion|Introduction|Background|Requirements|Setup|Notes?|Tips?|Warnings?|Errors?|Solutions?|Steps|Instructions)([A-Z][a-z]+)/g,
       (match, title, upper) => {
         if (isSentenceStarter(upper)) {
@@ -419,14 +403,15 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
 
     // Fix 2: Add line break after labels at the very start of content
     // e.g., "Cause: These errors..." -> "Cause:\n\nThese errors..."
-    result = result.replace(
-      /^((?:Cause|Solution|Note|Warning|Important|Example)):[ \t]+(\S)/gi,
+    // Negative lookahead prevents matching when followed by inline code or code placeholder
+    masked.text = masked.text.replace(
+      /^((?:Cause|Solution|Note|Warning|Important|Example)):[ \t]+(?!`|__)(\S)/gi,
       '$1:\n\n$2'
     );
 
     // Fix 2b: Handle labels with no space after colon at start
     // e.g., "Cause:The errors..." -> "Cause:\n\nThe errors..."
-    result = result.replace(
+    masked.text = masked.text.replace(
       /^((?:Cause|Solution|Note|Warning|Important|Example)):([A-Z])/gim,
       '$1:\n\n$2'
     );
@@ -435,30 +420,30 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // e.g., "corrupt state.Solution:1." -> "corrupt state.\n\nSolution:\n\n1."
     // Also handles numbered labels like "Solution 1:" or "Cause 2:"
     // Note: space after punctuation is optional since LLM often omits it
-    result = result.replace(
-      /([.!?])[ \t]*((?:Cause|Solution|Note|Warning|Important|Example)(?:\s*\d+)?):[ \t]*(\S)/gi,
+    // Negative lookahead prevents matching when followed by inline code or code placeholder
+    masked.text = masked.text.replace(
+      /([.!?])[ \t]*((?:Cause|Solution|Note|Warning|Important|Example)(?:\s*\d+)?):[ \t]*(?!`|__)(\S)/gi,
       '$1\n\n$2:\n\n$3'
     );
 
     // Fix 3b: Handle labels directly after punctuation (no space)
     // e.g., "occur.Solution:" -> "occur.\n\nSolution:"
     // Also handles "occur.Solution 1:" -> "occur.\n\nSolution 1:"
-    result = result.replace(
-      /([.!?])((?:Cause|Solution|Note|Warning|Important|Example)(?:\s*\d+)?):(\S)/gi,
+    // Negative lookahead prevents matching when followed by inline code or code placeholder
+    masked.text = masked.text.replace(
+      /([.!?])((?:Cause|Solution|Note|Warning|Important|Example)(?:\s*\d+)?):(?!`|__)(\S)/gi,
       '$1\n\n$2:\n\n$3'
     );
 
     // Fix 3c: Handle labels after colon (not just .!?)
     // e.g., "following:Cause:" -> "following:\n\nCause:"
-    result = result.replace(
-      /(:)((?:Cause|Solution|Note|Warning|Important|Example)(?:\s*\d+)?):[ \t]*(\S)/gi,
+    // Negative lookahead prevents matching when followed by inline code or code placeholder
+    masked.text = masked.text.replace(
+      /(:)((?:Cause|Solution|Note|Warning|Important|Example)(?:\s*\d+)?):[ \t]*(?!`|__)(\S)/gi,
       '$1\n\n$2:\n\n$3'
     );
 
-    // === NEW FIXES: Apply with code masking to avoid modifying code blocks ===
-    const masked = maskCodeSegments(result);
-
-    // Fix 6: Sentence run-on after period (missing space)
+    // Fix 4: Sentence run-on after period (missing space)
     // e.g., "FastNear.Please refer" -> "FastNear. Please refer"
     // Only when followed by allowlisted sentence boundary starter + word boundary
     // Guard: requires lowercase before period (excludes versions like 1.0.0)
@@ -469,12 +454,12 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
       return match;
     });
 
-    // Fix 7: Missing space after markdown link
+    // Fix 5: Missing space after markdown link
     // e.g., "](url)This" -> "](url) This"
-    // Insert space when link followed by alphanumeric or opening quote/paren
-    masked.text = masked.text.replace(/(\]\([^)]+\))([A-Za-z0-9("'"])/g, '$1 $2');
+    // Uses lookahead to insert space when link is followed by word-starting char
+    masked.text = masked.text.replace(/(\]\([^)]+\))(?=[A-Za-z0-9("'"])/g, '$1 ');
 
-    // Fix 8: Period before bold (missing space)
+    // Fix 6: Period before bold (missing space)
     // e.g., "available.**As of" -> "available. **As of"
     // Guard: lowercase letter before period to avoid list items like "1.**Bold**"
     masked.text = masked.text.replace(/([a-z])\.(\*{2,3}[A-Z])/g, '$1. $2');
@@ -482,15 +467,15 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // Restore code segments
     result = unmaskCodeSegments(masked);
 
-    // Fix 9: Trailing separator garbage (end of text only)
+    // Fix 7: Trailing separator garbage (end of text only)
     // e.g., "content\n========" -> "content"
     // Only at end to preserve setext headings mid-document
     result = result.replace(/\n*={4,}\n*$/g, '');
 
-    // Fix 10: Clean up excessive newlines (more than 2 consecutive)
+    // Fix 8: Clean up excessive newlines (more than 2 consecutive)
     result = result.replace(/\n{3,}/g, '\n\n');
 
-    // Fix 5: Trim trailing whitespace on lines
+    // Fix 9: Trim trailing whitespace on lines
     result = result
       .split('\n')
       .map((line) => line.trimEnd())
