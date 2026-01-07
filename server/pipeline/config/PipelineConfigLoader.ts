@@ -3,9 +3,11 @@
  *
  * Loads and validates pipeline configurations from JSON files.
  * Supports defaults with instance-specific overrides.
+ * Now supports S3 loading for production deployments.
  *
  * @author Wayne
  * @created 2025-12-30
+ * @updated 2026-01-07 - Added S3 storage support
  */
 
 import fs from 'fs/promises';
@@ -13,6 +15,7 @@ import path from 'path';
 import { z } from 'zod';
 import { StepType, type PipelineConfig } from '../core/interfaces.js';
 import { createLogger } from '../../utils/logger.js';
+import { s3Storage } from '../../storage/s3-client.js';
 
 const logger = createLogger('PipelineConfigLoader');
 
@@ -55,6 +58,44 @@ export const PipelineConfigSchema = z.object({
   errorHandling: ErrorHandlingConfigSchema,
   performance: PerformanceConfigSchema,
 });
+
+/**
+ * Check if S3 storage should be used for configs
+ */
+function shouldUseS3(): boolean {
+  return process.env.CONFIG_SOURCE === 's3' && s3Storage.isEnabled();
+}
+
+/**
+ * Load pipeline configuration from S3
+ */
+async function loadConfigFromS3(
+  instanceId: string,
+  pipelineId: string
+): Promise<PipelineConfig | null> {
+  const prefix = process.env.CONFIG_S3_PREFIX || 'configs/';
+  const s3Key = `${prefix}${instanceId}/pipelines/${pipelineId}.json`;
+
+  try {
+    const config = await s3Storage.getJson<PipelineConfig>(s3Key);
+    if (config) {
+      const validated = PipelineConfigSchema.parse(config);
+      logger.info(`Loaded pipeline config from S3: ${s3Key}`);
+      return validated as PipelineConfig;
+    }
+    return null;
+  } catch (error) {
+    if (
+      (error as Error).message?.includes('NoSuchKey') ||
+      (error as Error).message?.includes('not found')
+    ) {
+      logger.debug(`No pipeline config in S3: ${s3Key}`);
+      return null;
+    }
+    logger.warn(`Failed to load pipeline config from S3 (${s3Key}):`, error);
+    return null;
+  }
+}
 
 /**
  * Default pipeline configuration
@@ -203,6 +244,12 @@ function mergeConfigs(
 /**
  * Load pipeline configuration for an instance
  *
+ * Priority order:
+ * 1. S3 instance-specific config (if S3 enabled)
+ * 2. Local instance-specific config
+ * 3. Local default config
+ * 4. Built-in default config
+ *
  * @param configBasePath - Base path for config files
  * @param instanceId - Instance identifier
  * @param pipelineId - Optional specific pipeline ID (defaults to 'default')
@@ -224,17 +271,29 @@ export async function loadPipelineConfig(
 
   logger.info(`Loading pipeline config for ${instanceId}`, { pipelineId: configId });
 
-  // Load default config
+  // Load default config first (local or built-in)
   const defaultPath = path.join(configBasePath, 'defaults', 'pipelines', 'default.json');
   let config = (await loadConfigFile(defaultPath)) || DEFAULT_PIPELINE_CONFIG;
+  let loadedFromS3 = false;
 
-  // Load instance-specific config
-  const instancePath = path.join(configBasePath, instanceId, 'pipelines', `${configId}.json`);
+  // Try S3 first if enabled
+  if (shouldUseS3()) {
+    const s3Config = await loadConfigFromS3(instanceId, configId);
+    if (s3Config) {
+      config = mergeConfigs(config, s3Config);
+      loadedFromS3 = true;
+      logger.debug(`Applied S3 pipeline config for ${instanceId}/${configId}`);
+    }
+  }
 
-  const instanceConfig = await loadConfigFile(instancePath);
-  if (instanceConfig) {
-    config = mergeConfigs(config, instanceConfig);
-    logger.debug(`Applied instance pipeline config: ${instancePath}`);
+  // Fallback to local instance-specific config if S3 didn't provide one
+  if (!loadedFromS3) {
+    const instancePath = path.join(configBasePath, instanceId, 'pipelines', `${configId}.json`);
+    const instanceConfig = await loadConfigFile(instancePath);
+    if (instanceConfig) {
+      config = mergeConfigs(config, instanceConfig);
+      logger.debug(`Applied local instance pipeline config: ${instancePath}`);
+    }
   }
 
   // Update instance ID if not set
@@ -277,7 +336,7 @@ export async function listPipelineConfigs(
 ): Promise<string[]> {
   const pipelines: string[] = [];
 
-  // List default pipelines
+  // List default pipelines (local)
   const defaultsDir = path.join(configBasePath, 'defaults', 'pipelines');
   try {
     const defaultFiles = await fs.readdir(defaultsDir);
@@ -288,7 +347,25 @@ export async function listPipelineConfigs(
     // Directory may not exist
   }
 
-  // List instance pipelines
+  // List instance pipelines from S3 if enabled
+  if (shouldUseS3()) {
+    try {
+      const prefix = process.env.CONFIG_S3_PREFIX || 'configs/';
+      const s3Prefix = `${prefix}${instanceId}/pipelines/`;
+      const keys = await s3Storage.list(s3Prefix);
+
+      for (const key of keys) {
+        const match = key.match(/\/pipelines\/([^/]+)\.json$/);
+        if (match) {
+          pipelines.push(match[1]);
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to list pipelines from S3 for ${instanceId}:`, error);
+    }
+  }
+
+  // List instance pipelines (local fallback)
   const instanceDir = path.join(configBasePath, instanceId, 'pipelines');
   try {
     const instanceFiles = await fs.readdir(instanceDir);
