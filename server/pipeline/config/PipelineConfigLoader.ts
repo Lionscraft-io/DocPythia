@@ -107,6 +107,38 @@ const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
         maxProposalsPerThread: 5,
       },
     },
+    {
+      stepId: 'content-validate',
+      stepType: StepType.VALIDATE,
+      enabled: false, // Optional step - enable when needed
+      config: {
+        maxRetries: 2,
+        promptId: 'content-reformat',
+        model: 'gemini-2.5-flash',
+        temperature: 0.2,
+        maxTokens: 8192,
+        skipPatterns: [], // Regex patterns for files to skip validation
+      },
+    },
+    {
+      stepId: 'length-reduce',
+      stepType: StepType.CONDENSE,
+      enabled: false, // Optional step - enable when needed
+      config: {
+        defaultMaxLength: 3000,
+        defaultTargetLength: 2000,
+        // Priority-based tiers (higher priority = more space allowed)
+        priorityTiers: [
+          { minPriority: 70, maxLength: 5000, targetLength: 3500 }, // High priority
+          { minPriority: 40, maxLength: 3500, targetLength: 2500 }, // Medium priority
+          { minPriority: 0, maxLength: 2000, targetLength: 1500 }, // Low priority
+        ],
+        promptId: 'content-condense',
+        model: 'gemini-2.5-flash',
+        temperature: 0.3,
+        maxTokens: 8192,
+      },
+    },
   ],
   errorHandling: {
     stopOnError: false,

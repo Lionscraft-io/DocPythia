@@ -24,6 +24,10 @@ export enum StepType {
   ENRICH = 'enrich',
   GENERATE = 'generate',
   TRANSFORM = 'transform',
+  /** Validates content format and uses LLM to fix on failure */
+  VALIDATE = 'validate',
+  /** Condenses overly long proposals using LLM */
+  CONDENSE = 'condense',
 }
 
 /**

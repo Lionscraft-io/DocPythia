@@ -13,6 +13,8 @@ import { KeywordFilterStep } from '../steps/filter/KeywordFilterStep.js';
 import { BatchClassifyStep } from '../steps/classify/BatchClassifyStep.js';
 import { RagEnrichStep } from '../steps/enrich/RagEnrichStep.js';
 import { ProposalGenerateStep } from '../steps/generate/ProposalGenerateStep.js';
+import { ContentValidationStep } from '../steps/transform/ContentValidationStep.js';
+import { LengthReductionStep } from '../steps/transform/LengthReductionStep.js';
 import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger('StepFactory');
@@ -52,6 +54,18 @@ export class StepFactory {
     this.register(
       StepType.GENERATE,
       (config, llmHandler) => new ProposalGenerateStep(config, llmHandler)
+    );
+
+    // Transform steps - content validation
+    this.register(
+      StepType.VALIDATE,
+      (config, llmHandler) => new ContentValidationStep(config, llmHandler)
+    );
+
+    // Transform steps - length reduction
+    this.register(
+      StepType.CONDENSE,
+      (config, llmHandler) => new LengthReductionStep(config, llmHandler)
     );
 
     logger.debug('Registered built-in steps', {
