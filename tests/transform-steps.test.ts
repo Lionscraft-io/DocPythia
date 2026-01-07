@@ -369,6 +369,240 @@ describe('ContentValidationStep', () => {
       // Should skip, no LLM call
       expect(mockLLMHandler.requestJSON).not.toHaveBeenCalled();
     });
+
+    it('should skip files in vendor directory', async () => {
+      const stepWithSkip = new ContentValidationStep(
+        {
+          stepId: 'test-validate',
+          stepType: StepType.VALIDATE,
+          enabled: true,
+          config: {
+            skipPatterns: ['vendor/'],
+          },
+        },
+        mockLLMHandler
+      );
+
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'vendor/lib.js',
+              suggestedText: 'invalid content {{{',
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      await stepWithSkip.execute(context);
+
+      expect(mockLLMHandler.requestJSON).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('execute - HTML/XML validation', () => {
+    it('should pass valid HTML through unchanged', async () => {
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'page.html',
+              suggestedText: '<div><p>Hello</p></div>',
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      const result = await step.execute(context);
+
+      const resultProposals = result.proposals.get('thread-1')!;
+      expect(resultProposals[0].suggestedText).toBe('<div><p>Hello</p></div>');
+    });
+
+    it('should detect unbalanced HTML tags', async () => {
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'page.html',
+              suggestedText: '<div><p>Hello</div>',
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      context.llmHandler = mockLLMHandler;
+
+      await step.execute(context);
+
+      expect(mockLLMHandler.requestJSON).toHaveBeenCalled();
+    });
+
+    it('should handle self-closing tags correctly', async () => {
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'page.html',
+              suggestedText: '<div><img src="test.jpg" /><br /></div>',
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      const result = await step.execute(context);
+
+      const resultProposals = result.proposals.get('thread-1')!;
+      expect(resultProposals[0].warnings).toBeUndefined();
+    });
+  });
+
+  describe('execute - edge cases', () => {
+    it('should skip NONE updateType proposals', async () => {
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'NONE',
+              page: 'docs/unchanged.md',
+              suggestedText: 'invalid ```',
+              reasoning: 'no change needed',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      await step.execute(context);
+
+      expect(mockLLMHandler.requestJSON).not.toHaveBeenCalled();
+    });
+
+    it('should skip proposals without suggestedText', async () => {
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/test.md',
+              suggestedText: undefined,
+              reasoning: 'test',
+            } as Proposal,
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      await step.execute(context);
+
+      expect(mockLLMHandler.requestJSON).not.toHaveBeenCalled();
+    });
+
+    it('should handle .mdx files as markdown', async () => {
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/component.mdx',
+              suggestedText: '# Valid MDX\n\n<Component prop="value" />',
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      const result = await step.execute(context);
+
+      const resultProposals = result.proposals.get('thread-1')!;
+      expect(resultProposals[0].suggestedText).toContain('Valid MDX');
+    });
+
+    it('should add warning after max retries exhausted', async () => {
+      const stepWithOneRetry = new ContentValidationStep(
+        {
+          stepId: 'test-validate',
+          stepType: StepType.VALIDATE,
+          enabled: true,
+          config: { maxRetries: 1 },
+        },
+        mockLLMHandler
+      );
+
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/broken.md',
+              suggestedText: 'Unbalanced ```',
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      // Mock LLM to always return still-invalid content
+      (mockLLMHandler.requestJSON as any).mockResolvedValue({
+        data: { reformattedContent: 'Still unbalanced ```' },
+        response: { text: '', model: 'mock', tokensUsed: 100 },
+      });
+
+      const context = createMockContext(proposals);
+      context.llmHandler = mockLLMHandler;
+      const result = await stepWithOneRetry.execute(context);
+
+      const resultProposals = result.proposals.get('thread-1')!;
+      expect(resultProposals[0].warnings?.some((w) => w.includes('Validation failed'))).toBe(true);
+    });
+
+    it('should handle LLM error gracefully', async () => {
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/broken.md',
+              suggestedText: 'Unbalanced ```',
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      // Mock LLM to throw error
+      (mockLLMHandler.requestJSON as any).mockRejectedValue(new Error('LLM unavailable'));
+
+      const context = createMockContext(proposals);
+      context.llmHandler = mockLLMHandler;
+      const result = await step.execute(context);
+
+      // Should return with warning but not throw
+      const resultProposals = result.proposals.get('thread-1')!;
+      expect(resultProposals[0].warnings?.some((w) => w.includes('Validation failed'))).toBe(true);
+    });
   });
 });
 
@@ -590,6 +824,287 @@ describe('LengthReductionStep', () => {
       // Should use LLM result regardless
       expect(resultProposals[0].suggestedText).toBe(llmResult);
       expect(resultProposals[0].warnings?.some((w) => w.includes('Condensed'))).toBe(true);
+    });
+
+    it('should skip NONE updateType proposals', async () => {
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'NONE',
+              page: 'docs/unchanged.md',
+              suggestedText: 'A'.repeat(200),
+              reasoning: 'no change',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      await step.execute(context);
+
+      expect(mockLLMHandler.requestJSON).not.toHaveBeenCalled();
+    });
+
+    it('should skip proposals without suggestedText', async () => {
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/test.md',
+              suggestedText: undefined,
+              reasoning: 'test',
+            } as Proposal,
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      await step.execute(context);
+
+      expect(mockLLMHandler.requestJSON).not.toHaveBeenCalled();
+    });
+
+    it('should use low priority tier for low priority categories', async () => {
+      const longContent = 'A'.repeat(120); // Exceeds low priority max (100)
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-low',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/minor.md',
+              suggestedText: longContent,
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      context.domainConfig.categories = [
+        { id: 'minor', label: 'Minor', description: 'Low priority', priority: 20 },
+      ];
+      context.threads = [
+        {
+          id: 'thread-low',
+          category: 'minor',
+          messageIds: [],
+          summary: '',
+          docValueReason: '',
+          ragSearchCriteria: { keywords: [], semanticQuery: '' },
+        },
+      ];
+
+      (mockLLMHandler.requestJSON as any).mockResolvedValue({
+        data: { condensedContent: 'Short' },
+        response: { text: '', model: 'mock', tokensUsed: 50 },
+      });
+      context.llmHandler = mockLLMHandler;
+
+      await step.execute(context);
+
+      // Should condense because 120 > 100 (low priority max)
+      expect(mockLLMHandler.requestJSON).toHaveBeenCalled();
+    });
+
+    it('should use default priority (50) when category not found', async () => {
+      const longContent = 'A'.repeat(150); // Exceeds low priority max (100) but not default
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-unknown',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/test.md',
+              suggestedText: longContent,
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      // Thread has unknown category
+      context.threads = [
+        {
+          id: 'thread-unknown',
+          category: 'nonexistent',
+          messageIds: [],
+          summary: '',
+          docValueReason: '',
+          ragSearchCriteria: { keywords: [], semanticQuery: '' },
+        },
+      ];
+
+      (mockLLMHandler.requestJSON as any).mockResolvedValue({
+        data: { condensedContent: 'Short' },
+        response: { text: '', model: 'mock', tokensUsed: 50 },
+      });
+      context.llmHandler = mockLLMHandler;
+
+      await step.execute(context);
+
+      // Default priority 50 maps to low tier (0-69 -> maxLength 100)
+      // 150 > 100, so should condense
+      expect(mockLLMHandler.requestJSON).toHaveBeenCalled();
+    });
+
+    it('should handle multiple threads with different priorities', async () => {
+      const longContent = 'A'.repeat(150);
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-high',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/important.md',
+              suggestedText: longContent,
+              reasoning: 'test',
+            },
+          ],
+        ],
+        [
+          'thread-low',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/minor.md',
+              suggestedText: longContent,
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      const context = createMockContext(proposals);
+      context.domainConfig.categories = [
+        { id: 'critical', label: 'Critical', description: 'High priority', priority: 90 },
+        { id: 'minor', label: 'Minor', description: 'Low priority', priority: 10 },
+      ];
+      context.threads = [
+        {
+          id: 'thread-high',
+          category: 'critical',
+          messageIds: [],
+          summary: '',
+          docValueReason: '',
+          ragSearchCriteria: { keywords: [], semanticQuery: '' },
+        },
+        {
+          id: 'thread-low',
+          category: 'minor',
+          messageIds: [],
+          summary: '',
+          docValueReason: '',
+          ragSearchCriteria: { keywords: [], semanticQuery: '' },
+        },
+      ];
+
+      (mockLLMHandler.requestJSON as any).mockResolvedValue({
+        data: { condensedContent: 'Short' },
+        response: { text: '', model: 'mock', tokensUsed: 50 },
+      });
+      context.llmHandler = mockLLMHandler;
+
+      await step.execute(context);
+
+      // Only low priority should be condensed (150 > 100 but 150 < 200)
+      expect(mockLLMHandler.requestJSON).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle LLM error gracefully', async () => {
+      const longContent = 'A'.repeat(150);
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/long.md',
+              suggestedText: longContent,
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      // Mock LLM to throw error
+      (mockLLMHandler.requestJSON as any).mockRejectedValue(new Error('LLM unavailable'));
+
+      const context = createMockContext(proposals);
+      context.llmHandler = mockLLMHandler;
+      const result = await step.execute(context);
+
+      // Should return original with warning
+      const resultProposals = result.proposals.get('thread-1')!;
+      expect(resultProposals[0].suggestedText).toBe(longContent);
+      expect(resultProposals[0].warnings?.some((w) => w.includes('Length reduction failed'))).toBe(
+        true
+      );
+    });
+
+    it('should update metrics on successful condensing', async () => {
+      const longContent = 'A'.repeat(150);
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/long.md',
+              suggestedText: longContent,
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      (mockLLMHandler.requestJSON as any).mockResolvedValue({
+        data: { condensedContent: 'Short' },
+        response: { text: '', model: 'mock', tokensUsed: 150 },
+      });
+
+      const context = createMockContext(proposals);
+      context.llmHandler = mockLLMHandler;
+      const result = await step.execute(context);
+
+      expect(result.metrics.llmCalls).toBe(1);
+      expect(result.metrics.llmTokensUsed).toBe(150);
+    });
+
+    it('should include priority info in condensed warning', async () => {
+      const longContent = 'A'.repeat(150);
+      const proposals = new Map<string, Proposal[]>([
+        [
+          'thread-1',
+          [
+            {
+              updateType: 'UPDATE',
+              page: 'docs/long.md',
+              suggestedText: longContent,
+              reasoning: 'test',
+            },
+          ],
+        ],
+      ]);
+
+      (mockLLMHandler.requestJSON as any).mockResolvedValue({
+        data: { condensedContent: 'Short content' },
+        response: { text: '', model: 'mock', tokensUsed: 50 },
+      });
+
+      const context = createMockContext(proposals);
+      context.llmHandler = mockLLMHandler;
+      const result = await step.execute(context);
+
+      const resultProposals = result.proposals.get('thread-1')!;
+      const warning = resultProposals[0].warnings?.find((w) => w.includes('Condensed'));
+      expect(warning).toContain('priority');
+      expect(warning).toContain('max');
     });
   });
 });

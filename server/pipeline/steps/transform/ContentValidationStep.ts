@@ -344,17 +344,17 @@ export class ContentValidationStep extends BasePipelineStep {
    */
   private validateXml(content: string, fileType: string): ValidationResult {
     // Basic tag balance check
+    // Match open tags that don't end with /> (self-closing)
+    // The negative lookbehind (?<!\/) ensures we don't match self-closing tags
     const openTags = content.match(/<[a-zA-Z][^>]*(?<!\/)\s*>/g) || [];
     const closeTags = content.match(/<\/[a-zA-Z][^>]*>/g) || [];
 
-    // Self-closing tags don't count
-    const selfClosing = content.match(/<[a-zA-Z][^>]*\/>/g) || [];
-    const netOpen = openTags.length - selfClosing.length;
-
-    if (netOpen !== closeTags.length) {
+    // Open tags regex already excludes self-closing via lookbehind,
+    // so we just compare open vs close counts directly
+    if (openTags.length !== closeTags.length) {
       return {
         valid: false,
-        error: `Unbalanced tags: ${netOpen} open tags, ${closeTags.length} close tags`,
+        error: `Unbalanced tags: ${openTags.length} open tags, ${closeTags.length} close tags`,
         fileType,
       };
     }
