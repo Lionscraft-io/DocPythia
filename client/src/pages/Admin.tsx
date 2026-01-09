@@ -551,16 +551,20 @@ export default function Admin() {
     }
 
     // Step 1: Create a draft batch
-    const batchResponse = await adminApiRequest('POST', '/api/admin/stream/batches', {
+    const batchResponse = await adminApiRequest('POST', `${apiPrefix}/api/admin/stream/batches`, {
       proposalIds,
     });
     const batchData = (await batchResponse.json()) as { batch: { id: number } };
 
     // Step 2: Generate PR from the batch
-    await adminApiRequest('POST', `/api/admin/stream/batches/${batchData.batch.id}/generate-pr`, {
-      ...prData,
-      proposalIds,
-    });
+    await adminApiRequest(
+      'POST',
+      `${apiPrefix}/api/admin/stream/batches/${batchData.batch.id}/generate-pr`,
+      {
+        ...prData,
+        proposalIds,
+      }
+    );
 
     queryClient.invalidateQueries({
       queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
