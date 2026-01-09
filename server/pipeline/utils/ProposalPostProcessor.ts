@@ -13,15 +13,18 @@ import type { PostProcessResult } from './post-processors/types.js';
 import { HtmlToMarkdownPostProcessor } from './post-processors/HtmlToMarkdownPostProcessor.js';
 import { ListFormattingPostProcessor } from './post-processors/ListFormattingPostProcessor.js';
 import { MarkdownFormattingPostProcessor } from './post-processors/MarkdownFormattingPostProcessor.js';
+import { CodeBlockFormattingPostProcessor } from './post-processors/CodeBlockFormattingPostProcessor.js';
 import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger('ProposalPostProcessor');
 
 // Create default pipeline with processors in order:
-// 1. HTML to Markdown - convert HTML elements first
-// 2. Markdown Formatting - fix labels (Cause:/Solution:) and headers first
-// 3. List Formatting - fix numbered/bullet list issues last
+// 1. Code Block Formatting - fix code block issues first (before masking)
+// 2. HTML to Markdown - convert HTML elements
+// 3. Markdown Formatting - fix labels (Cause:/Solution:) and headers
+// 4. List Formatting - fix numbered/bullet list issues last
 const defaultPipeline = new PostProcessorPipeline([
+  new CodeBlockFormattingPostProcessor(),
   new HtmlToMarkdownPostProcessor(),
   new MarkdownFormattingPostProcessor(),
   new ListFormattingPostProcessor(),
@@ -171,6 +174,7 @@ export type {
 export { HtmlToMarkdownPostProcessor } from './post-processors/HtmlToMarkdownPostProcessor.js';
 export { ListFormattingPostProcessor } from './post-processors/ListFormattingPostProcessor.js';
 export { MarkdownFormattingPostProcessor } from './post-processors/MarkdownFormattingPostProcessor.js';
+export { CodeBlockFormattingPostProcessor } from './post-processors/CodeBlockFormattingPostProcessor.js';
 
 export default {
   postProcessProposal,

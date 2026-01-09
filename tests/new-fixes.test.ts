@@ -26,11 +26,14 @@ describe('New Post-Processor Fixes', () => {
     });
   });
 
-  describe('<br/> handling in tables', () => {
-    it('should preserve <br/> in table rows', () => {
+  describe('<br/> handling', () => {
+    it('should convert <br/> to newline in table rows', () => {
+      // Changed: now converts <br/> everywhere since frontend shows literal text
       const input = '| NO_SYNCED_BLOCKS | Description | • Wait <br/>• Send request |';
       const result = htmlProcessor.process(input, context);
-      expect(result.text).toContain('<br/>');
+      expect(result.text).not.toContain('<br/>');
+      expect(result.text).toContain('• Wait');
+      expect(result.text).toContain('• Send request');
     });
 
     it('should convert <br/> to newline outside tables', () => {
@@ -38,6 +41,27 @@ describe('New Post-Processor Fixes', () => {
       const result = htmlProcessor.process(input, context);
       expect(result.text).toContain('\n');
       expect(result.text).not.toContain('<br/>');
+    });
+  });
+
+  describe('Bold marker space fix (Fix 0j)', () => {
+    it('should remove space after opening bold markers', () => {
+      const input = '1. ** Check indexer logs**: Look for warnings';
+      const result = mdProcessor.process(input, context);
+      expect(result.text).toContain('**Check indexer logs**');
+      expect(result.text).not.toContain('** Check');
+    });
+
+    it('should not affect closing bold markers with trailing space', () => {
+      const input = '**bold** text continues';
+      const result = mdProcessor.process(input, context);
+      expect(result.text).toBe('**bold** text continues');
+    });
+
+    it('should handle bold at start of line', () => {
+      const input = '** Start of line**';
+      const result = mdProcessor.process(input, context);
+      expect(result.text).toBe('**Start of line**');
     });
   });
 });

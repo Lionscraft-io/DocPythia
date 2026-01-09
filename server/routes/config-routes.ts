@@ -5,6 +5,35 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('ConfigRoutes');
 const router = Router();
 
+/**
+ * Extract owner/repo from various git URL formats
+ * Supports: https://github.com/owner/repo, https://github.com/owner/repo.git,
+ *           git@github.com:owner/repo.git, owner/repo
+ */
+function extractRepoFromGitUrl(gitUrl: string | undefined): string {
+  if (!gitUrl) return '';
+
+  // Already in owner/repo format
+  if (/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/.test(gitUrl)) {
+    return gitUrl;
+  }
+
+  // HTTPS format: https://github.com/owner/repo or https://github.com/owner/repo.git
+  const httpsMatch = gitUrl.match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?$/);
+  if (httpsMatch) {
+    return httpsMatch[1];
+  }
+
+  // SSH format: git@github.com:owner/repo.git
+  const sshMatch = gitUrl.match(/git@github\.com:([^/]+\/[^/]+?)(?:\.git)?$/);
+  if (sshMatch) {
+    return sshMatch[1];
+  }
+
+  logger.warn(`Could not extract owner/repo from git URL: ${gitUrl}`);
+  return '';
+}
+
 // Public configuration endpoint (instance-aware)
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -63,9 +92,10 @@ router.get('/', async (req: Request, res: Response) => {
         versionHistoryEnabled: config.features.versionHistoryEnabled,
       },
       repository: {
-        targetRepo: process.env.DEFAULT_TARGET_REPO || '',
-        sourceRepo: process.env.DEFAULT_TARGET_REPO || '', // Same as targetRepo for API compatibility
-        baseBranch: process.env.DEFAULT_BASE_BRANCH || 'main',
+        // Extract owner/repo from gitUrl (e.g., "https://github.com/owner/repo" -> "owner/repo")
+        targetRepo: extractRepoFromGitUrl(config.documentation.gitUrl),
+        sourceRepo: extractRepoFromGitUrl(config.documentation.gitUrl),
+        baseBranch: config.documentation.branch || 'main',
       },
     });
   } catch (error) {

@@ -325,6 +325,15 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     result = result.replace(/Git\s*\n\s*Hub/g, 'GitHub');
     result = result.replace(/Type\s*\n\s*Script/g, 'TypeScript');
 
+    // Fix 0j: Remove space after opening bold/italic markers
+    // e.g., "** Check indexer logs**" -> "**Check indexer logs**"
+    // Only match at start of line or after whitespace (opening markers, not closing)
+    result = result.replace(/(^|[\s(])\*{2,3}[ \t]+(\S)/gm, (match, before, after) => {
+      // Reconstruct: keep the prefix, asterisks (from match), remove space, keep first char
+      const asterisks = match.slice(before.length).replace(/[ \t]+\S$/, '');
+      return before + asterisks + after;
+    });
+
     // Fix 1a: Add line break after markdown headers that run into text
     // e.g., "## ConsiderationsThe text" -> "## Considerations\n\nThe text"
     //
@@ -360,8 +369,9 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // Fix 1b: Add line break after bold/italic headers that run into text
     // e.g., "***Title***Cause:" -> "***Title***\n\nCause:"
     // Only split when followed by a sentence starter
+    // Note: [^\s*\d] excludes digits to prevent matching "**1. **Stop" as bold text
     masked.text = masked.text.replace(
-      /(\*{2,3}[^\s*][^*\n]*?\*{2,3})([A-Z][a-z]+)/g,
+      /(\*{2,3}[^\s*\d][^*\n]*?\*{2,3})([A-Z][a-z]+)/g,
       (match, bold, upper) => {
         if (isSentenceStarter(upper)) {
           return `${bold}\n\n${upper}`;
@@ -373,7 +383,8 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // Fix 1c: Add line break after bold headers ending with colon that run into text
     // e.g., "**Title:**While" -> "**Title:**\n\nWhile"
     // Colons indicate content follows, so always split (more aggressive than 1b)
-    masked.text = masked.text.replace(/(\*{2,3}[^\s*][^*\n]*?:\*{2,3})([A-Z])/g, '$1\n\n$2');
+    // Note: [^\s*\d] excludes digits to prevent matching "**1. **Stop" as bold text
+    masked.text = masked.text.replace(/(\*{2,3}[^\s*\d][^*\n]*?:\*{2,3})([A-Z])/g, '$1\n\n$2');
 
     // Fix 1d: Add line break after admonition syntax running into text
     // e.g., ":::note Title:::For macOS" -> ":::note Title:::\n\nFor macOS"
@@ -463,6 +474,11 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // e.g., "available.**As of" -> "available. **As of"
     // Guard: lowercase letter before period to avoid list items like "1.**Bold**"
     masked.text = masked.text.replace(/([a-z])\.(\*{2,3}[A-Z])/g, '$1. $2');
+
+    // Fix 6b: Escaped double quotes from CSV/JSON serialization
+    // e.g., '""archive""' -> '"archive"'
+    // Run on masked text to avoid modifying code blocks
+    masked.text = masked.text.replace(/""/g, '"');
 
     // Restore code segments
     result = unmaskCodeSegments(masked);

@@ -537,14 +537,18 @@ describe('Raw vs Processed Regression Tests (2026-01-06)', () => {
   });
 
   describe('HTML br tag handling in tables', () => {
-    it('should preserve <br/> inside table rows', () => {
+    it('should convert <br/> to newline inside table rows', () => {
+      // Changed behavior: <br/> is now converted to newlines everywhere
+      // because frontend doesn't render HTML - it shows literal <br/> text
       const input = `| Error | Description | Solution |
 | --- | --- | --- |
 | NO_SYNCED_BLOCKS | Node is syncing | • Wait for sync <br/>• Try different node |`;
 
       const result = postProcessProposal(input, 'docs/test.md');
 
-      expect(result.text).toContain('<br/>');
+      expect(result.text).not.toContain('<br/>');
+      expect(result.text).toContain('• Wait for sync');
+      expect(result.text).toContain('• Try different node');
     });
 
     it('should convert <br/> to newline outside tables', () => {

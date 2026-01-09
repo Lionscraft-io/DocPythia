@@ -239,26 +239,11 @@ export class HtmlToMarkdownPostProcessor extends BasePostProcessor {
   }
 
   /**
-   * Convert <br/> tags to newlines, but preserve them in table rows
-   * Table rows start with | and <br/> inside them creates line breaks within cells
+   * Convert <br/> tags to newlines everywhere
+   * Previously preserved in tables, but frontend doesn't render HTML so convert all
    */
   private convertLineBreaks(text: string): string {
-    // Process line by line to detect table context
-    const lines = text.split('\n');
-    const processedLines = lines.map((line) => {
-      // Check if this line is a table row (starts with |)
-      const isTableRow = line.trim().startsWith('|');
-
-      if (isTableRow) {
-        // In table rows, keep <br/> as-is (many markdown renderers support it)
-        return line;
-      } else {
-        // Outside tables, convert <br/> to newline
-        return line.replace(/<br\s*\/?>/gi, '\n');
-      }
-    });
-
-    return processedLines.join('\n');
+    return text.replace(/<br\s*\/?>/gi, '\n');
   }
 
   /**

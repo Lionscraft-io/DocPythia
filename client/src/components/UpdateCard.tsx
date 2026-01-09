@@ -32,13 +32,27 @@ import remarkGfm from 'remark-gfm';
  */
 function containsMdxComponents(content: string): boolean {
   if (!content) return false;
-  // Check for JSX components like <Tabs>, <TabItem>, <LantstoolLabel />, etc.
-  const jsxPattern = /<[A-Z][A-Za-z0-9]*[\s/>]|<\/[A-Z][A-Za-z0-9]*>/;
-  // Check for MDX imports
-  const importPattern = /^import\s+/m;
 
-  // Note: We no longer check for ::: admonitions here since we convert them below
-  return jsxPattern.test(content) || importPattern.test(content);
+  // Check for MDX imports first (definitive MDX indicator)
+  const importPattern = /^import\s+/m;
+  if (importPattern.test(content)) return true;
+
+  // Check for JSX components like <Tabs>, <TabItem>, <CodeBlock />, etc.
+  // Must be PascalCase (not ALL_CAPS which are CLI placeholders like <COLUMN>)
+  // PascalCase: starts with uppercase, contains at least one lowercase letter
+  const jsxMatches = content.match(/<\/?([A-Z][A-Za-z0-9]*)[\s/>]/g);
+  if (jsxMatches) {
+    for (const match of jsxMatches) {
+      // Extract the tag name
+      const tagName = match.replace(/^<\/?/, '').replace(/[\s/>]$/, '');
+      // Check if it's PascalCase (has lowercase letters) vs ALL_CAPS placeholder
+      if (/[a-z]/.test(tagName)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**

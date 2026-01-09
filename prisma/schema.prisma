@@ -345,6 +345,7 @@ model DocProposal {
   adminReviewedBy    String?        @map("admin_reviewed_by")
   discardReason      String?        @map("discard_reason") @db.Text
   modelUsed          String?        @map("model_used")
+  warnings           Json?          // Array of warning strings from pipeline processing
   createdAt          DateTime       @default(now()) @map("created_at")
 
   // PR Generation fields (Phase 2)

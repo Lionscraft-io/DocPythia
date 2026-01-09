@@ -300,6 +300,76 @@ export class ContentValidationStep extends BasePipelineStep {
       }
     }
 
+    // === Semantic markdown checks ===
+    // These catch "technically valid" markdown that is semantically broken
+
+    // Check for overly long headings (likely concatenated with paragraph text)
+    // e.g., "## Sync info pageDisplays a page with tracked shards..."
+    const headingPattern = /^(#{1,6})\s+(.+)$/gm;
+    let headingMatch;
+    while ((headingMatch = headingPattern.exec(content)) !== null) {
+      const headingText = headingMatch[2];
+      const wordCount = headingText.split(/\s+/).length;
+
+      // Headings with more than 6 words are suspicious
+      if (wordCount > 6) {
+        errors.push(
+          `Heading too long (${wordCount} words) - may have paragraph text concatenated: "${headingText.substring(0, 50)}..."`
+        );
+        break; // One error is enough to trigger reformat
+      }
+
+      // Headings that contain sentence-ending punctuation followed by more text
+      // e.g., "## Title. More text here" or "## Title: Description text here that goes on"
+      if (/[.!?]\s+[A-Z]/.test(headingText)) {
+        errors.push(
+          `Heading appears to contain paragraph text (sentence break detected): "${headingText.substring(0, 50)}..."`
+        );
+        break;
+      }
+
+      // Headings with camelCase mid-word (e.g., "pageDisplays" - concatenated)
+      // Look for lowercase followed immediately by uppercase without space
+      if (/[a-z][A-Z]/.test(headingText)) {
+        // Exclude common exceptions like "JavaScript", "TypeScript", "GitHub"
+        const withoutExceptions = headingText.replace(
+          /\b(JavaScript|TypeScript|GitHub|GitLab|LinkedIn|YouTube|iOS|macOS|PostgreSQL|MongoDB|MySQL|NoSQL|GraphQL|WebSocket|IntelliJ|PyCharm|DevOps|OAuth|FastAPI|NumPy|DataFrame|DataFrame)\b/gi,
+          ''
+        );
+        if (/[a-z][A-Z]/.test(withoutExceptions)) {
+          errors.push(
+            `Heading contains possible concatenation (missing space before capital): "${headingText.substring(0, 50)}..."`
+          );
+          break;
+        }
+      }
+    }
+
+    // Check for list items or paragraph text directly after heading on same line
+    // (heading should be on its own line)
+    const headingWithContent = /^(#{1,6})\s+[^\n]+[a-z]\s*[-*1-9]\.\s/gm;
+    if (headingWithContent.test(content)) {
+      errors.push('Heading appears to have list content on the same line');
+    }
+
+    // Check for orphan table rows (table data without proper header/separator structure)
+    // A valid markdown table requires: header row, separator row (|---|), then data rows
+    const tableRowPattern = /^\|[^|]+\|/gm;
+    const tableRows = content.match(tableRowPattern);
+    if (tableRows && tableRows.length > 0) {
+      // Check if there's a separator row (|---|---|) which indicates proper table structure
+      const separatorPattern = /^\|[\s-:]+\|/gm;
+      const hasSeparator = separatorPattern.test(content);
+
+      if (!hasSeparator) {
+        // Content has table-like rows but no separator - likely orphan rows
+        errors.push(
+          'Table rows detected without proper table structure (missing header/separator row). ' +
+            'Tables require: header row, separator row (|---|---|), then data rows'
+        );
+      }
+    }
+
     return {
       valid: errors.length === 0,
       error: errors.join('; '),

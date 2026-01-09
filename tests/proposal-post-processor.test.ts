@@ -2380,3 +2380,349 @@ describe('Fix 7 Link Spacing Edge Cases', () => {
     expect(result.wasModified).toBe(false);
   });
 });
+
+/**
+ * ============================================================================
+ * PRODUCTION DATA ISSUE REPRODUCTION TESTS
+ * ============================================================================
+ *
+ * These tests document formatting issues found in production proposals.
+ * Tests are marked with `.fails` or `.skip` to track known issues until fixed.
+ *
+ * Issues identified from database review (2026-01-07):
+ * 1. Random "O" characters inserted between text
+ * 2. Code blocks with commands concatenated (no newlines)
+ * 3. Escaped double quotes ("" instead of ")
+ * 4. JSON configs on single lines
+ * 5. List items running together
+ */
+
+describe('Production Data Issues - Random O Characters (ID 1187)', () => {
+  // Issue: Random "O" letter appearing between text segments
+  // Example: "commandO commandO" instead of "command\ncommand"
+  // FIXED: fixRandomOCharacters in CodeBlockFormattingPostProcessor
+
+  it('should not have random O characters between code commands', async () => {
+    const { CodeBlockFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/CodeBlockFormattingPostProcessor.js');
+    const processor = new CodeBlockFormattingPostProcessor();
+
+    // Simulated input with random "O" character issue
+    const input = `To check your validator status, run:
+
+\`\`\`bash
+near validators current | grep your_pool_idO near view your_pool_id get_owner_id
+\`\`\``;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    // Expected: Commands should be on separate lines, no random "O"
+    expect(result.text).toContain('grep your_pool_id\nnear view');
+    expect(result.text).not.toMatch(/pool_idO\s*near/);
+  });
+
+  it.skip('should handle O appearing mid-word in technical terms', async () => {
+    // NOTE: This test is skipped because random O in regular text (not code blocks)
+    // is very difficult to fix without false positives. We only fix it in code blocks
+    // where we can detect command boundaries.
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+
+    // Random O inserted mid-word
+    const input = `The validatorO node requires proper configuration.`;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    // The O shouldn't be there
+    expect(result.text).toBe('The validator node requires proper configuration.');
+  });
+});
+
+describe('Production Data Issues - Code Blocks Without Newlines (IDs 1218, 1216, 1212)', () => {
+  // Issue: Multiple commands concatenated on single line within code blocks
+  // Example: "near login near stake" instead of "near login\nnear stake"
+  // FIXED: splitConcatenatedCommands in CodeBlockFormattingPostProcessor
+
+  it('should detect and fix concatenated bash commands', async () => {
+    const { CodeBlockFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/CodeBlockFormattingPostProcessor.js');
+    const processor = new CodeBlockFormattingPostProcessor();
+
+    // Commands concatenated without newlines
+    const input = `\`\`\`bash
+near login near stake your_pool.pool.near near view your_pool.pool.near get_owner_id
+\`\`\``;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    // Commands should be on separate lines
+    expect(result.text).toContain('near login\n');
+    expect(result.text).toContain('near stake your_pool.pool.near\n');
+    expect(result.text).toContain('near view your_pool.pool.near get_owner_id');
+  });
+
+  it('should detect concatenated neard commands', async () => {
+    const { CodeBlockFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/CodeBlockFormattingPostProcessor.js');
+    const processor = new CodeBlockFormattingPostProcessor();
+
+    // neard commands run together
+    const input = `\`\`\`
+neard --version neard run --home ~/.near/mainnet
+\`\`\``;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    expect(result.text).toContain('neard --version\n');
+    expect(result.text).toContain('neard run --home');
+  });
+
+  it('should fix concatenated shell commands with pipes', async () => {
+    const { CodeBlockFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/CodeBlockFormattingPostProcessor.js');
+    const processor = new CodeBlockFormattingPostProcessor();
+
+    // Shell commands that should be separate
+    const input = `\`\`\`bash
+curl -s https://rpc.mainnet.near.org/status | jq '.version' echo "Done"
+\`\`\``;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    // The echo should be on a new line
+    expect(result.text).toContain("jq '.version'\necho");
+  });
+});
+
+describe('Production Data Issues - Escaped Double Quotes', () => {
+  // Issue: Escaped quotes appearing as "" instead of proper "
+  // This often happens with JSON values or quoted strings
+  // FIXED: Fix 6b in MarkdownFormattingPostProcessor
+
+  it('should fix doubled quotes in inline content', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+
+    // Doubled quotes from CSV/JSON escaping issues
+    const input = `Set the ""archive"" field to ""true"" in your config.`;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    // Quotes should be normalized
+    expect(result.text).toBe('Set the "archive" field to "true" in your config.');
+  });
+
+  it('should fix doubled quotes in configuration examples', async () => {
+    const { MarkdownFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
+    const processor = new MarkdownFormattingPostProcessor();
+
+    // Common in JSON configuration snippets
+    const input = `The ""tracked_shards"" array should contain ""all"" for archival nodes.`;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    expect(result.text).toBe('The "tracked_shards" array should contain "all" for archival nodes.');
+  });
+});
+
+describe('Production Data Issues - JSON on Single Line', () => {
+  // Issue: JSON configurations not properly formatted with newlines
+  // Example: {"field": "value", "field2": "value2"} instead of multi-line
+  // FIXED: formatJson in CodeBlockFormattingPostProcessor
+
+  it('should format inline JSON config in documentation', async () => {
+    const { CodeBlockFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/CodeBlockFormattingPostProcessor.js');
+    const processor = new CodeBlockFormattingPostProcessor();
+
+    // Single-line JSON that should be formatted
+    const input = `Add this to your config.json:
+
+\`\`\`json
+{"archive": true, "tracked_shards": ["all"], "gc": {"gc_blocks_limit": 10000}}
+\`\`\``;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    // JSON should be multi-line for readability
+    expect(result.text).toContain('"archive": true,\n');
+    expect(result.text).toContain('"tracked_shards": [\n');
+  });
+
+  it('should format complex nested JSON', async () => {
+    const { CodeBlockFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/CodeBlockFormattingPostProcessor.js');
+    const processor = new CodeBlockFormattingPostProcessor();
+
+    const input = `\`\`\`json
+{"network": {"boot_nodes": ["ed25519:...@mainnet.near.org:24567"]}, "rpc": {"addr": "0.0.0.0:3030"}}
+\`\`\``;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    // Should have proper JSON formatting
+    expect(result.text).toContain('"network": {\n');
+    expect(result.text).toContain('"boot_nodes":');
+  });
+});
+
+describe('Production Data Issues - List Items Concatenated', () => {
+  // Issue: List items running together without proper line breaks
+  // Example: "- item 1- item 2" instead of "- item 1\n- item 2"
+  // FIXED: Fix 7b and 8b in ListFormattingPostProcessor
+
+  it('should fix bullet list items concatenated together', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+
+    // List items without line breaks
+    const input = `Common issues include:- Node not syncing properly- Missing blocks in database- High CPU usage during sync`;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    expect(result.text).toContain('include:\n\n- Node not syncing');
+    expect(result.text).toContain('properly\n\n- Missing blocks');
+    expect(result.text).toContain('database\n\n- High CPU');
+  });
+
+  it('should fix asterisk list items concatenated', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+
+    // Asterisk lists run together
+    const input = `Prerequisites:* Valid NEAR account* Access to RPC node* Sufficient disk space`;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    expect(result.text).toContain('Prerequisites:\n\n* Valid NEAR');
+    expect(result.text).toContain('account\n\n* Access to');
+    expect(result.text).toContain('node\n\n* Sufficient');
+  });
+
+  // These patterns ARE already handled by Fix 6 in ListFormattingPostProcessor
+  it('should fix numbered list items concatenated (already working)', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+
+    // Numbered list items run together
+    const input = `Follow these steps:1. Stop the neard service2. Backup your data directory3. Download the latest snapshot4. Start neard again`;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    expect(result.text).toContain('steps:\n\n1. Stop');
+    expect(result.text).toContain('service\n\n2. Backup');
+    expect(result.text).toContain('directory\n\n3. Download');
+    expect(result.text).toContain('snapshot\n\n4. Start');
+  });
+
+  it('should fix mixed sentence-list concatenation (already working)', async () => {
+    const { ListFormattingPostProcessor } =
+      await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
+    const processor = new ListFormattingPostProcessor();
+
+    // Sentence ending directly followed by list number
+    const input = `This is important to understand.1. First step2. Second step`;
+
+    const result = processor.process(input, {
+      targetFilePath: 'doc.md',
+      fileExtension: 'md',
+      isMarkdown: true,
+      isHtml: false,
+      originalText: '',
+      previousWarnings: [],
+    });
+
+    expect(result.text).toContain('understand.\n\n1. First');
+    expect(result.text).toContain('step\n\n2. Second');
+  });
+});

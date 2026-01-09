@@ -103,9 +103,17 @@ export class ListFormattingPostProcessor extends BasePostProcessor {
     // e.g., "options:- First" -> "options:\n\n- First"
     masked.text = masked.text.replace(/(:)(-\s+[A-Z])/g, '$1\n\n$2');
 
+    // Fix 7b: Word ending directly followed by dash bullet (no colon)
+    // e.g., "properly- Missing" -> "properly\n\n- Missing"
+    masked.text = masked.text.replace(/([a-z])(-\s+[A-Z])/g, '$1\n\n$2');
+
     // Fix 8: Colon followed by asterisk bullet
     // e.g., "contribute:* Network" -> "contribute:\n\n* Network"
     masked.text = masked.text.replace(/(:)(\s*\*\s+)/g, '$1\n\n$2');
+
+    // Fix 8b: Word ending directly followed by asterisk bullet (no colon)
+    // e.g., "account* Access" -> "account\n\n* Access"
+    masked.text = masked.text.replace(/([a-z])(\*\s+[A-Z])/g, '$1\n\n$2');
 
     // Fix 11: Asterisk bullet after sentence ending (with multiple spaces)
     // e.g., "execution. *   **Operating" -> "execution.\n\n*   **Operating"

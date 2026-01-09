@@ -37,9 +37,37 @@ export interface LLMLogger {
 }
 
 /**
- * Default console logger
+ * Production logger - logs metadata only, no prompt/response bodies
  */
-export class ConsoleLogger implements LLMLogger {
+export class ProductionLogger implements LLMLogger {
+  logRequest(request: LLMRequest): void {
+    const promptLength = (request.systemPrompt?.length || 0) + request.userPrompt.length;
+    console.log(
+      `[LLM] Request: model=${request.model}, temp=${request.temperature || 'default'}, ` +
+        `maxTokens=${request.maxTokens || 'default'}, promptChars=${promptLength}`
+    );
+  }
+
+  logResponse(response: LLMResponse, rawJson?: string): void {
+    console.log(
+      `[LLM] Response: model=${response.modelUsed}, tokens=${response.tokensUsed || 'unknown'}, ` +
+        `finish=${response.finishReason || 'unknown'}, responseChars=${rawJson?.length || 0}`
+    );
+  }
+
+  logError(error: Error, context: string): void {
+    console.error(`[LLM] ERROR (${context}): ${error.message}`);
+  }
+
+  logRetry(attempt: number, error: Error, delayMs: number): void {
+    console.log(`[LLM] Retry attempt ${attempt}, waiting ${delayMs}ms: ${error.message}`);
+  }
+}
+
+/**
+ * Verbose console logger - logs full prompts and responses (for debugging)
+ */
+export class VerboseLogger implements LLMLogger {
   logRequest(request: LLMRequest, schema?: any): void {
     console.log('\n' + '='.repeat(80));
     console.log('📤 LLM REQUEST');
@@ -89,6 +117,19 @@ export class ConsoleLogger implements LLMLogger {
 }
 
 /**
+ * Alias for backwards compatibility
+ */
+export const ConsoleLogger = VerboseLogger;
+
+/**
+ * Get default logger based on environment
+ */
+function getDefaultLogger(): LLMLogger {
+  const verbose = process.env.LLM_VERBOSE_LOGGING === 'true';
+  return verbose ? new VerboseLogger() : new ProductionLogger();
+}
+
+/**
  * Silent logger for testing
  */
 export class SilentLogger implements LLMLogger {
@@ -114,7 +155,7 @@ export class LLMService {
       this.provider = new GeminiProvider(apiKey);
       this.cache = defaultLlmCache;
       this.retryHandler = new RetryHandler();
-      this.logger = new ConsoleLogger();
+      this.logger = getDefaultLogger();
     } else {
       // Config object provided
       const config = apiKeyOrConfig;
@@ -131,7 +172,7 @@ export class LLMService {
 
       this.cache = config.cache || defaultLlmCache;
       this.retryHandler = new RetryHandler(config.retryConfig, config.delayFn);
-      this.logger = config.logger || new ConsoleLogger();
+      this.logger = config.logger || getDefaultLogger();
     }
 
     console.log('LLMService initialized');
@@ -246,15 +287,11 @@ export class LLMService {
 
     // Save to cache if purpose is provided
     if (cachePurpose) {
-      console.log(
-        `[DEBUG] llm-service.ts: Calling llmCache.set() with purpose: ${cachePurpose}, messageId: ${messageId}`
-      );
       this.cache.set(prompt, result.text, cachePurpose, {
         model: llmResponse.modelUsed,
         tokensUsed: llmResponse.tokensUsed,
         messageId,
       });
-      console.log(`[DEBUG] llm-service.ts: llmCache.set() returned`);
     }
 
     return { data: parseResult.data!, response: llmResponse };

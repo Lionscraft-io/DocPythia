@@ -253,9 +253,9 @@ export function PRPreviewModal({
                   <AlertDescription className="text-gray-900">
                     Repository configuration not found. Please ensure{' '}
                     <code className="px-1 py-0.5 bg-gray-200 rounded text-xs">
-                      DEFAULT_TARGET_REPO
+                      documentation.gitUrl
                     </code>{' '}
-                    is set in your environment.
+                    is configured in your instance settings.
                   </AlertDescription>
                 </Alert>
               )}

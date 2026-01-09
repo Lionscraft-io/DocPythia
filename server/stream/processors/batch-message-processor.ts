@@ -22,6 +22,23 @@ import { createLogger } from '../../utils/logger.js';
 import { postProcessProposal } from '../../pipeline/utils/ProposalPostProcessor.js';
 import { z } from 'zod';
 
+// Pipeline integration imports
+import {
+  loadPipelineConfig,
+  clearPipelineConfigCache,
+} from '../../pipeline/config/PipelineConfigLoader.js';
+import { PipelineOrchestrator } from '../../pipeline/core/PipelineOrchestrator.js';
+import { createPipelineContext } from '../../pipeline/core/PipelineContext.js';
+import { createPromptRegistry, PromptRegistry } from '../../pipeline/prompts/PromptRegistry.js';
+import { createGeminiHandler, GeminiHandler } from '../../pipeline/handlers/GeminiHandler.js';
+import type {
+  PipelineConfig,
+  Proposal as PipelineProposal,
+  IDomainConfig,
+  ConversationThread,
+} from '../../pipeline/core/interfaces.js';
+import { StepType } from '../../pipeline/core/interfaces.js';
+
 const logger = createLogger('BatchProcessor');
 
 // ========== Batch Classification Schema ==========
@@ -62,6 +79,7 @@ const ProposalGenerationSchema = z.object({
   suggestedText: z.string().max(2000, 'Suggested text must be 2000 characters or less').optional(),
   reasoning: z.string().max(300, 'Reasoning must be 300 characters or less'),
   sourceMessages: z.array(z.number()).optional(), // Message IDs that led to this proposal
+  warnings: z.array(z.string()).optional(), // Validation warnings from pipeline post-processing
 });
 
 type ProposalGeneration = z.infer<typeof ProposalGenerationSchema>;
@@ -122,12 +140,202 @@ export class BatchMessageProcessor {
   private db: PrismaClient;
   private messageVectorSearch: MessageVectorSearch;
 
+  // Pipeline integration
+  private pipelineConfig: PipelineConfig | null = null;
+  private promptRegistry: PromptRegistry | null = null;
+  private llmHandler: GeminiHandler | null = null;
+  private pipelineInitialized: boolean = false;
+
   constructor(instanceId: string, db: PrismaClient, config: Partial<BatchProcessorConfig> = {}) {
     this.instanceId = instanceId;
     this.db = db;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.messageVectorSearch = new MessageVectorSearch(instanceId, db);
     logger.info(`[${instanceId}] BatchMessageProcessor initialized`);
+  }
+
+  /**
+   * Initialize pipeline components (lazy initialization)
+   * Loads config from S3 if CONFIG_SOURCE=s3, otherwise from local files
+   */
+  private async initializePipeline(): Promise<void> {
+    if (this.pipelineInitialized) return;
+
+    try {
+      const configBasePath = process.env.CONFIG_BASE_PATH || './config';
+
+      // Load pipeline config (with S3 support)
+      this.pipelineConfig = await loadPipelineConfig(configBasePath, this.instanceId, 'validators');
+      logger.info(`Loaded pipeline config: ${this.pipelineConfig.pipelineId}`, {
+        steps: this.pipelineConfig.steps.map((s) => `${s.stepId}:${s.enabled}`),
+      });
+
+      // Initialize prompt registry
+      this.promptRegistry = createPromptRegistry(configBasePath, this.instanceId);
+      await this.promptRegistry.load();
+      logger.debug(`Loaded ${this.promptRegistry.list().length} prompt templates`);
+
+      // Initialize LLM handler
+      this.llmHandler = createGeminiHandler();
+
+      this.pipelineInitialized = true;
+    } catch (error) {
+      logger.warn('Failed to initialize pipeline, post-processing steps will be skipped:', error);
+      this.pipelineInitialized = true; // Don't retry on every batch
+    }
+  }
+
+  /**
+   * Clear pipeline cache (useful for hot-reload of configs)
+   */
+  clearPipelineCache(): void {
+    clearPipelineConfigCache();
+    this.pipelineInitialized = false;
+    this.pipelineConfig = null;
+    this.promptRegistry = null;
+    logger.info('Pipeline cache cleared');
+  }
+
+  /**
+   * Run pipeline post-processing steps (VALIDATE, CONDENSE) on proposals
+   * Returns processed proposals array
+   */
+  private async runPipelinePostProcessing(
+    proposals: ProposalGeneration[],
+    conversation: ConversationGroup,
+    batchId: string
+  ): Promise<ProposalGeneration[]> {
+    // Check if pipeline is available and has post-processing steps enabled
+    if (!this.pipelineConfig || !this.promptRegistry || !this.llmHandler) {
+      return proposals;
+    }
+
+    // Find enabled post-processing steps
+    const validateStep = this.pipelineConfig.steps.find(
+      (s) => s.stepType === StepType.VALIDATE && s.enabled
+    );
+    const condenseStep = this.pipelineConfig.steps.find(
+      (s) => s.stepType === StepType.CONDENSE && s.enabled
+    );
+
+    if (!validateStep && !condenseStep) {
+      return proposals;
+    }
+
+    logger.debug(`Running pipeline post-processing for ${conversation.id}`, {
+      validate: !!validateStep,
+      condense: !!condenseStep,
+      proposalCount: proposals.length,
+    });
+
+    // Build minimal domain config for post-processing
+    const instanceConfig = InstanceConfigLoader.get(this.instanceId);
+    const domainConfig: IDomainConfig = {
+      domainId: this.instanceId,
+      name: instanceConfig.project.name,
+      categories: [], // Categories not needed for VALIDATE/CONDENSE steps
+      context: {
+        projectName: instanceConfig.project.name,
+        domain: instanceConfig.project.domain || 'documentation',
+        targetAudience: 'developers',
+        documentationPurpose: 'technical documentation',
+      },
+    };
+
+    // Convert conversation to thread format for pipeline context
+    const thread: ConversationThread = {
+      id: conversation.id,
+      category: conversation.messages[0]?.category || 'unknown',
+      messageIds: conversation.messages.map((m) => m.messageId),
+      summary: conversation.summary,
+      docValueReason: conversation.messages[0]?.docValueReason || '',
+      ragSearchCriteria: conversation.messages[0]?.ragSearchCriteria || {
+        keywords: [],
+        semanticQuery: '',
+      },
+    };
+
+    // Convert proposals to pipeline format
+    const pipelineProposals: PipelineProposal[] = proposals.map((p) => ({
+      updateType: p.updateType,
+      page: p.page,
+      section: p.section,
+      suggestedText: p.suggestedText,
+      reasoning: p.reasoning,
+      sourceMessages: p.sourceMessages,
+    }));
+
+    // Create RAG service adapter (maps MessageVectorSearch to IRagService interface)
+    const ragServiceAdapter = {
+      searchSimilarDocs: async (query: string, topK: number) => {
+        const results = await this.messageVectorSearch.searchSimilarDocs(query, topK);
+        return results.map((r) => ({
+          id: r.id,
+          filePath: r.file_path,
+          title: r.title,
+          content: r.content,
+          similarity: r.distance,
+        }));
+      },
+    };
+
+    // Create a minimal pipeline context for post-processing
+    const context = createPipelineContext({
+      instanceId: this.instanceId,
+      batchId,
+      streamId: conversation.id,
+      messages: [], // Not needed for post-processing
+      contextMessages: [],
+      domainConfig,
+      prompts: this.promptRegistry,
+      llmHandler: this.llmHandler,
+      ragService: ragServiceAdapter,
+      db: this.db,
+    });
+
+    // Add thread and proposals to context
+    context.threads = [thread];
+    context.proposals.set(conversation.id, pipelineProposals);
+
+    // Create orchestrator with only post-processing steps
+    const postProcessConfig: PipelineConfig = {
+      ...this.pipelineConfig,
+      steps: this.pipelineConfig.steps.filter(
+        (s) => (s.stepType === StepType.VALIDATE || s.stepType === StepType.CONDENSE) && s.enabled
+      ),
+    };
+
+    if (postProcessConfig.steps.length === 0) {
+      return proposals;
+    }
+
+    try {
+      const orchestrator = new PipelineOrchestrator(postProcessConfig, this.llmHandler);
+      const result = await orchestrator.execute(context);
+
+      if (!result.success) {
+        logger.warn(`Pipeline post-processing had errors for ${conversation.id}`, {
+          errors: result.errors.map((e) => e.message),
+        });
+      }
+
+      // Extract processed proposals back
+      const processedProposals = context.proposals.get(conversation.id) || [];
+
+      // Convert back to ProposalGeneration format
+      return processedProposals.map((p) => ({
+        updateType: p.updateType,
+        page: p.page,
+        section: p.section,
+        suggestedText: p.suggestedText,
+        reasoning: p.reasoning,
+        sourceMessages: p.sourceMessages,
+        warnings: p.warnings,
+      }));
+    } catch (error) {
+      logger.error(`Pipeline post-processing failed for ${conversation.id}:`, error);
+      return proposals; // Return original proposals on error
+    }
   }
 
   /**
@@ -151,6 +359,9 @@ export class BatchMessageProcessor {
     // Set processing flag
     BatchMessageProcessor.isProcessing = true;
     logger.info('Starting batch processing...');
+
+    // Initialize pipeline components (loads config from S3 if enabled)
+    await this.initializePipeline();
 
     try {
       let totalMessagesProcessedAcrossAllBatches = 0;
@@ -602,8 +813,8 @@ export class BatchMessageProcessor {
       messagesToAnalyze,
     });
 
-    logger.info(
-      `Classifying batch with ${messages.length} messages and ${contextMessages.length} context messages`
+    logger.debug(
+      `Classifying batch: ${messages.length} messages, ${contextMessages.length} context`
     );
 
     const { data } = await llmService.requestJSON(
@@ -786,13 +997,9 @@ export class BatchMessageProcessor {
       const firstMsg = messageDetails[0]!;
       const lastMsg = messageDetails[messageDetails.length - 1]!;
 
-      // Include topic in conversation ID for Zulip messages to ensure different topics get unique IDs
-      const topic = firstMsg.metadata?.topic
-        ? `_${firstMsg.metadata.topic.replace(/[^a-zA-Z0-9]/g, '-')}`
-        : '';
-
+      // Use channel + timestamp for conversation ID (not Zulip topic, since LLM may merge across topics)
       conversations.push({
-        id: `thread_${firstMsg.channel || 'general'}${topic}_${firstMsg.timestamp.getTime()}`,
+        id: `thread_${firstMsg.channel || 'general'}_${firstMsg.timestamp.getTime()}`,
         channel: firstMsg.channel,
         summary: thread.summary, // Thread summary from LLM
         messages: messageDetails as any[],
@@ -821,7 +1028,7 @@ export class BatchMessageProcessor {
     conversation: ConversationGroup,
     batchId: string
   ): Promise<number> {
-    logger.info(
+    logger.debug(
       `Processing conversation ${conversation.id} (${conversation.messageCount} messages)`
     );
 
@@ -865,8 +1072,11 @@ export class BatchMessageProcessor {
     });
 
     // 3. Generate changeset proposals for the conversation
-    const { proposals, proposalsRejected, rejectionReason } =
-      await this.generateConversationProposals(conversation, ragDocs);
+    const {
+      proposals: rawProposals,
+      proposalsRejected,
+      rejectionReason,
+    } = await this.generateConversationProposals(conversation, ragDocs);
 
     // 3.5. Update RAG context with rejection info if proposals were rejected
     if (proposalsRejected || rejectionReason) {
@@ -879,6 +1089,9 @@ export class BatchMessageProcessor {
       });
     }
 
+    // 3.6. Run pipeline post-processing (VALIDATE, CONDENSE steps if enabled)
+    const proposals = await this.runPipelinePostProcessing(rawProposals, conversation, batchId);
+
     // 4. Store proposals (multiple proposals per conversation)
     // NOTE: Store ALL proposals including NONE type to capture LLM reasoning
     let proposalCount = 0;
@@ -887,11 +1100,7 @@ export class BatchMessageProcessor {
       const postProcessed = postProcessProposal(proposal.suggestedText, proposal.page);
 
       if (postProcessed.wasModified) {
-        logger.info(`Post-processed proposal for ${proposal.page}:`);
-        logger.debug(
-          `  Before: ${proposal.suggestedText?.substring(0, 100).replace(/\n/g, '\\n')}`
-        );
-        logger.debug(`  After:  ${postProcessed.text?.substring(0, 100).replace(/\n/g, '\\n')}`);
+        logger.debug(`Post-processed proposal for ${proposal.page} (content modified)`);
       }
 
       await this.db.docProposal.create({
@@ -907,6 +1116,10 @@ export class BatchMessageProcessor {
           reasoning: proposal.reasoning || null,
           sourceMessages: proposal.sourceMessages ?? Prisma.DbNull,
           modelUsed: this.config.proposalModel,
+          warnings:
+            postProcessed.warnings?.length || proposal.warnings?.length
+              ? [...(proposal.warnings || []), ...(postProcessed.warnings || [])]
+              : Prisma.DbNull,
         },
       });
       proposalCount++;
@@ -1029,9 +1242,9 @@ export class BatchMessageProcessor {
 
     const dedupedDocs = Array.from(uniqueByBasePath.values()).slice(0, this.config.ragTopK); // Limit to original topK after deduplication
 
-    logger.debug(
-      `Retrieved ${results.length} docs, deduplicated to ${dedupedDocs.length} unique docs (removed ${results.length - dedupedDocs.length} translations)`
-    );
+    if (results.length > dedupedDocs.length) {
+      logger.debug(`RAG: ${results.length} -> ${dedupedDocs.length} docs (deduped translations)`);
+    }
     return dedupedDocs;
   }
 
@@ -1082,7 +1295,7 @@ Content: ${msg.content}`;
       ragContext: ragContext || '(No relevant docs found)',
     });
 
-    logger.info(`Generating changeset for conversation ${conversation.id}`);
+    logger.debug(`Generating changeset for conversation ${conversation.id}`);
 
     const responseSchema = z.object({
       proposals: z.array(ProposalGenerationSchema).max(10, 'Maximum 10 proposals per conversation'),

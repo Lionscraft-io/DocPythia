@@ -116,3 +116,4 @@ export class PostProcessorPipeline {
 export { HtmlToMarkdownPostProcessor } from './HtmlToMarkdownPostProcessor.js';
 export { MarkdownFormattingPostProcessor } from './MarkdownFormattingPostProcessor.js';
 export { ListFormattingPostProcessor } from './ListFormattingPostProcessor.js';
+export { CodeBlockFormattingPostProcessor } from './CodeBlockFormattingPostProcessor.js';

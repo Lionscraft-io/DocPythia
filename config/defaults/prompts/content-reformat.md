@@ -36,6 +36,23 @@ For markdown files:
 - Ensure inline code has matching ` markers
 - Ensure bold/italic markers are balanced (**text** not **text*)
 - Ensure links are complete: [text](url)
+- Ensure headings are on their own line (not concatenated with paragraph text)
+- If a heading is too long or contains sentence breaks, split it properly:
+  - BAD: `## Sync info pageDisplays a page with tracked shards`
+  - GOOD: `## Sync info page\n\nDisplays a page with tracked shards`
+- Look for missing line breaks between headings and following content
+- Look for camelCase that should be separate words (e.g., "pageDisplays" → "page\n\nDisplays")
+- **Tables must have proper structure**: header row, separator row, then data rows
+  - If you see orphan table rows (data rows without headers), add appropriate headers
+  - BAD (orphan row): `| NOT_SYNCED | The node is syncing | Wait for sync |`
+  - GOOD (complete table):
+    ```
+    | Error Code | Description | Solution |
+    |------------|-------------|----------|
+    | NOT_SYNCED | The node is syncing | Wait for sync |
+    ```
+  - Infer column headers from the content context (e.g., error codes, descriptions, solutions)
+  - Keep the separator row simple: `|---|---|---|` (one per column)
 
 For YAML files:
 - Fix indentation issues

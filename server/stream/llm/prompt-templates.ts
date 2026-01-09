@@ -30,7 +30,9 @@ export const PROMPT_TEMPLATES = {
    - Generic messages without technical content
 
 **THREAD GROUPING RULES**:
-- Related messages discussing the same topic form ONE thread
+- Related messages discussing the same semantic topic form ONE thread
+- The [Topic: X] tags are hints from the source system but NOT strict boundaries
+- Group primarily by CONTENT and MEANING - merge messages from different [Topic: X] tags if they discuss the same underlying issue
 - A thread can be 1 message OR multiple messages
 - Single-message threads are ACCEPTABLE and ENCOURAGED
 - If a message stands alone but has doc value, create a 1-message thread

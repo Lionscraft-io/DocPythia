@@ -149,12 +149,8 @@ export default function AdminLegacy() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <div className="container px-6 md:px-8 flex-1 py-8">
-          <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">Loading updates...</p>
-          </div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Loading updates...</p>
       </div>
     );
   }
