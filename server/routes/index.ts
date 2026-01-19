@@ -15,8 +15,9 @@ import { swaggerSpec } from '../swagger/config.js';
 // Import route modules
 import healthRoutes from './health-routes.js';
 import authRoutes from './auth-routes.js';
-import configRoutes from './config-routes.js';
+import configRoutes, { instanceConfigHandler } from './config-routes.js';
 import widgetRoutes from './widget-routes.js';
+import { instanceMiddleware } from '../middleware/instance.js';
 import widgetEmbedRoutes from './widget-embed-routes.js';
 import { createDocsRoutes, createDocsIndexRoutes } from './docs-routes.js';
 import { createAdminPanelRoutes } from './admin-panel-routes.js';
@@ -59,6 +60,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Public configuration endpoint
   app.use('/api/config', configRoutes);
 
+  // Instance-specific configuration endpoint (for multi-tenant access)
+  // Handles requests like /near/api/config when frontend is at /near/admin
+  app.get('/:instance/api/config', instanceMiddleware, instanceConfigHandler);
+
   // Widget embed assets (widget.js and demo page)
   app.use('/', widgetEmbedRoutes);
 
@@ -98,6 +103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quality System routes (prompts, rulesets, feedback)
   const qualitySystemRoutes = createQualitySystemRoutes(adminAuth);
   app.use('/api/quality', qualitySystemRoutes);
+  app.use('/api/admin/quality', qualitySystemRoutes); // Also mount under admin path for multi-instance access
 
   // Register Multi-Stream Scanner admin routes (Phase 1)
   // Routes are now registered with dual registration (instance and non-instance)

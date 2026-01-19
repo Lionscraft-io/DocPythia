@@ -38,6 +38,14 @@ import type {
   ConversationThread,
 } from '../../pipeline/core/interfaces.js';
 import { StepType } from '../../pipeline/core/interfaces.js';
+import { parseRuleset, hasRules, type ParsedRuleset } from '../../pipeline/types/ruleset.js';
+import {
+  type ProposalEnrichment,
+  type RelatedDoc,
+  type StyleMetrics,
+  createEmptyEnrichment,
+  textAnalysis,
+} from '../../pipeline/types/enrichment.js';
 
 const logger = createLogger('BatchProcessor');
 
@@ -83,6 +91,21 @@ const ProposalGenerationSchema = z.object({
 });
 
 type ProposalGeneration = z.infer<typeof ProposalGenerationSchema>;
+
+/**
+ * Extended proposal with enrichment and review data
+ */
+interface EnrichedProposal extends ProposalGeneration {
+  enrichment?: ProposalEnrichment;
+  reviewResult?: {
+    rejected: boolean;
+    rejectionReason?: string;
+    rejectionRule?: string;
+    modificationsApplied: string[];
+    qualityFlags: string[];
+    modifiedContent?: string;
+  };
+}
 
 // ========== Conversation Grouping Types ==========
 
@@ -146,6 +169,11 @@ export class BatchMessageProcessor {
   private llmHandler: GeminiHandler | null = null;
   private pipelineInitialized: boolean = false;
 
+  // Quality system integration
+  private cachedRuleset: ParsedRuleset | null = null;
+  private rulesetLoadedAt: Date | null = null;
+  private readonly RULESET_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
   constructor(instanceId: string, db: PrismaClient, config: Partial<BatchProcessorConfig> = {}) {
     this.instanceId = instanceId;
     this.db = db;
@@ -193,7 +221,488 @@ export class BatchMessageProcessor {
     this.pipelineInitialized = false;
     this.pipelineConfig = null;
     this.promptRegistry = null;
+    this.cachedRuleset = null;
+    this.rulesetLoadedAt = null;
     logger.info('Pipeline cache cleared');
+  }
+
+  /**
+   * Load tenant ruleset for PROMPT_CONTEXT injection
+   * Cached for RULESET_CACHE_TTL_MS to avoid repeated DB queries
+   */
+  private async loadTenantRuleset(): Promise<ParsedRuleset | null> {
+    // Check cache validity
+    if (
+      this.cachedRuleset &&
+      this.rulesetLoadedAt &&
+      Date.now() - this.rulesetLoadedAt.getTime() < this.RULESET_CACHE_TTL_MS
+    ) {
+      return this.cachedRuleset;
+    }
+
+    try {
+      const ruleset = await this.db.tenantRuleset.findFirst({
+        where: { tenantId: this.instanceId },
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      if (!ruleset || !ruleset.content) {
+        logger.debug(`[${this.instanceId}] No tenant ruleset found`);
+        this.cachedRuleset = null;
+        this.rulesetLoadedAt = new Date();
+        return null;
+      }
+
+      this.cachedRuleset = parseRuleset(ruleset.content);
+      this.rulesetLoadedAt = new Date();
+
+      if (this.cachedRuleset.promptContext.length > 0) {
+        logger.info(
+          `[${this.instanceId}] Loaded ruleset with ${this.cachedRuleset.promptContext.length} PROMPT_CONTEXT rules`
+        );
+      }
+
+      return this.cachedRuleset;
+    } catch (error) {
+      logger.warn(`[${this.instanceId}] Failed to load tenant ruleset:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Build system prompt with PROMPT_CONTEXT injection
+   */
+  private buildChangesetSystemPrompt(ruleset: ParsedRuleset | null): string {
+    let systemPrompt = PROMPT_TEMPLATES.changesetGeneration.system;
+
+    // Inject PROMPT_CONTEXT if available
+    if (ruleset && ruleset.promptContext.length > 0) {
+      const contextRules = ruleset.promptContext.map((rule) => `- ${rule}`).join('\n');
+      const promptContextSection = `
+
+## Quality Guidelines (Instance-Specific)
+The following quality guidelines MUST be followed when generating proposals:
+${contextRules}
+`;
+      // Insert before the closing instructions
+      systemPrompt = systemPrompt + promptContextSection;
+      logger.debug(
+        `[${this.instanceId}] Injected ${ruleset.promptContext.length} PROMPT_CONTEXT rules`
+      );
+    }
+
+    return systemPrompt;
+  }
+
+  /**
+   * Run enrichment and ruleset review on proposals
+   * Returns enriched proposals with review results
+   */
+  private async runEnrichmentAndReview(
+    proposals: ProposalGeneration[],
+    conversation: ConversationGroup,
+    ragDocs: any[],
+    ruleset: ParsedRuleset | null
+  ): Promise<EnrichedProposal[]> {
+    const enrichedProposals: EnrichedProposal[] = [];
+
+    // Count pending proposals for context
+    let pendingProposalCount = 0;
+    try {
+      pendingProposalCount = await this.db.docProposal.count({
+        where: { status: 'pending' },
+      });
+    } catch {
+      logger.warn('Could not fetch pending proposal count');
+    }
+
+    for (const proposal of proposals) {
+      const enriched: EnrichedProposal = { ...proposal };
+
+      // Skip enrichment for NONE type proposals
+      if (proposal.updateType === 'NONE') {
+        enrichedProposals.push(enriched);
+        continue;
+      }
+
+      // 1. Run enrichment
+      try {
+        enriched.enrichment = this.enrichProposal(
+          proposal,
+          ragDocs,
+          conversation.messages,
+          pendingProposalCount
+        );
+        logger.debug(`Enriched proposal for ${proposal.page}`, {
+          relatedDocs: enriched.enrichment.relatedDocs.length,
+          duplicationDetected: enriched.enrichment.duplicationWarning.detected,
+        });
+      } catch (error) {
+        logger.warn(`Failed to enrich proposal for ${proposal.page}:`, error);
+        enriched.enrichment = createEmptyEnrichment();
+      }
+
+      // 2. Apply ruleset review if ruleset has rules
+      if (ruleset && hasRules(ruleset)) {
+        try {
+          enriched.reviewResult = this.applyRulesetReview(ruleset, enriched);
+
+          const reviewResult = enriched.reviewResult;
+          if (reviewResult?.rejected) {
+            logger.info(`Proposal for ${proposal.page} rejected by ruleset`, {
+              rule: reviewResult.rejectionRule,
+              reason: reviewResult.rejectionReason,
+            });
+          } else if (reviewResult?.qualityFlags && reviewResult.qualityFlags.length > 0) {
+            logger.debug(`Proposal for ${proposal.page} flagged`, {
+              flags: reviewResult.qualityFlags,
+            });
+          }
+        } catch (error) {
+          logger.warn(`Failed to apply ruleset review for ${proposal.page}:`, error);
+        }
+      }
+
+      enrichedProposals.push(enriched);
+    }
+
+    return enrichedProposals;
+  }
+
+  /**
+   * Enrich a single proposal with context analysis
+   */
+  private enrichProposal(
+    proposal: ProposalGeneration,
+    ragDocs: any[],
+    messages: ConversationGroup['messages'],
+    pendingProposalCount: number
+  ): ProposalEnrichment {
+    const enrichment = createEmptyEnrichment();
+
+    // 1. Find related documentation
+    enrichment.relatedDocs = this.findRelatedDocs(proposal, ragDocs);
+
+    // 2. Check for duplication
+    if (proposal.suggestedText) {
+      enrichment.duplicationWarning = this.checkDuplication(proposal, ragDocs);
+    }
+
+    // 3. Analyze style consistency
+    enrichment.styleAnalysis = this.analyzeStyle(proposal, ragDocs);
+
+    // 4. Calculate change context
+    enrichment.changeContext = this.calculateChangeContext(proposal, ragDocs, pendingProposalCount);
+
+    // 5. Analyze source conversation
+    enrichment.sourceAnalysis = this.analyzeSourceConversation(messages);
+
+    return enrichment;
+  }
+
+  /**
+   * Find related documentation for a proposal
+   */
+  private findRelatedDocs(proposal: ProposalGeneration, ragDocs: any[]): RelatedDoc[] {
+    const relatedDocs: RelatedDoc[] = [];
+    const seenPages = new Set<string>();
+    const minSimilarity = 0.6;
+    const maxDocs = 5;
+
+    for (const doc of ragDocs) {
+      if (doc.similarity >= minSimilarity && !seenPages.has(doc.filePath)) {
+        const matchType =
+          doc.filePath === proposal.page
+            ? 'same-section'
+            : doc.similarity >= 0.8
+              ? 'semantic'
+              : 'keyword';
+
+        relatedDocs.push({
+          page: doc.filePath,
+          section: doc.title,
+          similarityScore: doc.similarity,
+          matchType: matchType as 'semantic' | 'keyword' | 'same-section',
+          snippet: doc.content.slice(0, 200) + (doc.content.length > 200 ? '...' : ''),
+        });
+        seenPages.add(doc.filePath);
+
+        if (relatedDocs.length >= maxDocs) break;
+      }
+    }
+
+    return relatedDocs.sort((a, b) => b.similarityScore - a.similarityScore);
+  }
+
+  /**
+   * Check for duplication with existing documentation
+   */
+  private checkDuplication(
+    proposal: ProposalGeneration,
+    ragDocs: any[]
+  ): ProposalEnrichment['duplicationWarning'] {
+    if (!proposal.suggestedText) {
+      return { detected: false };
+    }
+
+    const duplicationThreshold = 50;
+    let maxOverlap = 0;
+    let matchingPage: string | undefined;
+    let matchingSection: string | undefined;
+
+    for (const doc of ragDocs) {
+      const overlap = textAnalysis.ngramOverlap(proposal.suggestedText, doc.content, 3);
+
+      if (overlap > maxOverlap) {
+        maxOverlap = overlap;
+        matchingPage = doc.filePath;
+        matchingSection = doc.title;
+      }
+    }
+
+    return {
+      detected: maxOverlap >= duplicationThreshold,
+      matchingPage: maxOverlap >= duplicationThreshold ? matchingPage : undefined,
+      matchingSection: maxOverlap >= duplicationThreshold ? matchingSection : undefined,
+      overlapPercentage: maxOverlap,
+    };
+  }
+
+  /**
+   * Analyze style consistency between proposal and target page
+   */
+  private analyzeStyle(
+    proposal: ProposalGeneration,
+    ragDocs: any[]
+  ): ProposalEnrichment['styleAnalysis'] {
+    const targetDoc = ragDocs.find((d) => d.filePath === proposal.page);
+    const targetContent = targetDoc?.content || '';
+    const proposalContent = proposal.suggestedText || '';
+
+    const targetPageStyle: StyleMetrics = {
+      avgSentenceLength: textAnalysis.avgSentenceLength(targetContent),
+      usesCodeExamples: textAnalysis.hasCodeExamples(targetContent),
+      formatPattern: textAnalysis.detectFormatPattern(targetContent),
+      technicalDepth: textAnalysis.estimateTechnicalDepth(targetContent),
+    };
+
+    const proposalStyle: StyleMetrics = {
+      avgSentenceLength: textAnalysis.avgSentenceLength(proposalContent),
+      usesCodeExamples: textAnalysis.hasCodeExamples(proposalContent),
+      formatPattern: textAnalysis.detectFormatPattern(proposalContent),
+      technicalDepth: textAnalysis.estimateTechnicalDepth(proposalContent),
+    };
+
+    const consistencyNotes: string[] = [];
+
+    if (targetContent) {
+      if (targetPageStyle.formatPattern !== proposalStyle.formatPattern) {
+        consistencyNotes.push(
+          `Format mismatch: target uses ${targetPageStyle.formatPattern}, proposal uses ${proposalStyle.formatPattern}`
+        );
+      }
+
+      if (targetPageStyle.technicalDepth !== proposalStyle.technicalDepth) {
+        consistencyNotes.push(
+          `Technical depth mismatch: target is ${targetPageStyle.technicalDepth}, proposal is ${proposalStyle.technicalDepth}`
+        );
+      }
+
+      if (targetPageStyle.usesCodeExamples && !proposalStyle.usesCodeExamples) {
+        consistencyNotes.push('Target page uses code examples but proposal does not');
+      }
+    }
+
+    return { targetPageStyle, proposalStyle, consistencyNotes };
+  }
+
+  /**
+   * Calculate change impact context
+   */
+  private calculateChangeContext(
+    proposal: ProposalGeneration,
+    ragDocs: any[],
+    pendingProposalCount: number
+  ): ProposalEnrichment['changeContext'] {
+    const targetDoc = ragDocs.find((d) => d.filePath === proposal.page);
+    const targetContent = targetDoc?.content || '';
+    const proposalContent = proposal.suggestedText || '';
+
+    const targetCharCount = targetContent.length;
+    const proposalCharCount = proposalContent.length;
+
+    let changePercentage = 0;
+    if (proposal.updateType === 'INSERT' || proposal.updateType === 'DELETE') {
+      changePercentage = 100;
+    } else if (targetCharCount > 0) {
+      const diff = Math.abs(targetCharCount - proposalCharCount);
+      changePercentage = Math.round((diff / targetCharCount) * 100);
+    }
+
+    return {
+      targetSectionCharCount: targetCharCount,
+      proposalCharCount: proposalCharCount,
+      changePercentage: Math.min(changePercentage, 100),
+      lastUpdated: null,
+      otherPendingProposals: pendingProposalCount,
+    };
+  }
+
+  /**
+   * Analyze the source conversation
+   */
+  private analyzeSourceConversation(
+    messages: ConversationGroup['messages']
+  ): ProposalEnrichment['sourceAnalysis'] {
+    if (messages.length === 0) {
+      return {
+        messageCount: 0,
+        uniqueAuthors: 0,
+        threadHadConsensus: false,
+        conversationSummary: '',
+      };
+    }
+
+    const uniqueAuthors = new Set(messages.map((m) => m.author)).size;
+    const threadHadConsensus = uniqueAuthors >= 2 && messages.length >= 3;
+
+    const allContent = messages.map((m) => m.content).join(' ');
+    const conversationSummary =
+      allContent.length > 200 ? allContent.slice(0, 200) + '...' : allContent || 'No content';
+
+    return {
+      messageCount: messages.length,
+      uniqueAuthors,
+      threadHadConsensus,
+      conversationSummary,
+    };
+  }
+
+  /**
+   * Apply ruleset review rules to a proposal
+   */
+  private applyRulesetReview(
+    ruleset: ParsedRuleset,
+    proposal: EnrichedProposal
+  ): EnrichedProposal['reviewResult'] {
+    const result = {
+      rejected: false,
+      modificationsApplied: [] as string[],
+      qualityFlags: [] as string[],
+    };
+
+    const enrichment = proposal.enrichment;
+
+    // 1. Check rejection rules
+    for (const rule of ruleset.rejectionRules) {
+      const ruleLower = rule.toLowerCase();
+
+      // Check duplication-based rules
+      if (enrichment?.duplicationWarning?.detected) {
+        if (ruleLower.includes('duplicationwarning') && ruleLower.includes('overlappercentage')) {
+          const thresholdMatch = rule.match(/>\s*(\d+)/);
+          const threshold = thresholdMatch ? parseInt(thresholdMatch[1], 10) : 80;
+
+          if ((enrichment.duplicationWarning.overlapPercentage || 0) > threshold) {
+            return {
+              ...result,
+              rejected: true,
+              rejectionReason: `Duplicate content detected: ${enrichment.duplicationWarning.overlapPercentage}% overlap with ${enrichment.duplicationWarning.matchingPage}`,
+              rejectionRule: rule,
+            };
+          }
+        }
+      }
+
+      // Check similarity-based rules
+      if (enrichment?.relatedDocs && ruleLower.includes('similarityscore')) {
+        const thresholdMatch = rule.match(/>\s*(\d*\.?\d+)/);
+        const threshold = thresholdMatch ? parseFloat(thresholdMatch[1]) : 0.85;
+
+        for (const doc of enrichment.relatedDocs) {
+          if (doc.similarityScore > threshold) {
+            return {
+              ...result,
+              rejected: true,
+              rejectionReason: `High similarity with existing doc: ${Math.round(doc.similarityScore * 100)}% match with ${doc.page}`,
+              rejectionRule: rule,
+            };
+          }
+        }
+      }
+
+      // Check content pattern rules
+      if (proposal.suggestedText) {
+        if (ruleLower.includes('proposals mentioning') || ruleLower.includes('containing')) {
+          const patternMatch = rule.match(/(?:mentioning|containing)\s+["']?([^"']+)["']?/i);
+          if (patternMatch) {
+            const pattern = patternMatch[1].trim();
+            if (proposal.suggestedText.toLowerCase().includes(pattern.toLowerCase())) {
+              return {
+                ...result,
+                rejected: true,
+                rejectionReason: `Content matches rejection pattern: "${pattern}"`,
+                rejectionRule: rule,
+              };
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Check quality gates (flagging without rejection)
+    for (const gate of ruleset.qualityGates) {
+      const gateLower = gate.toLowerCase();
+
+      if (
+        enrichment?.styleAnalysis &&
+        gateLower.includes('consistencynotes') &&
+        (gateLower.includes('not empty') || gateLower.includes('is not empty'))
+      ) {
+        if (enrichment.styleAnalysis.consistencyNotes.length > 0) {
+          result.qualityFlags.push(
+            `Style review: ${enrichment.styleAnalysis.consistencyNotes.join(', ')}`
+          );
+        }
+      }
+
+      if (enrichment?.changeContext && gateLower.includes('changepercentage')) {
+        const thresholdMatch = gate.match(/>\s*(\d+)/);
+        const threshold = thresholdMatch ? parseInt(thresholdMatch[1], 10) : 50;
+
+        if (enrichment.changeContext.changePercentage > threshold) {
+          result.qualityFlags.push(
+            `Significant change: ${enrichment.changeContext.changePercentage}% modification`
+          );
+        }
+      }
+
+      if (
+        enrichment?.changeContext &&
+        gateLower.includes('otherpendingproposals') &&
+        gateLower.includes('> 0')
+      ) {
+        if (enrichment.changeContext.otherPendingProposals > 0) {
+          result.qualityFlags.push(
+            `Coordination needed: ${enrichment.changeContext.otherPendingProposals} other pending proposals`
+          );
+        }
+      }
+
+      if (enrichment?.sourceAnalysis && gateLower.includes('messagecount')) {
+        const thresholdMatch = gate.match(/<\s*(\d+)/);
+        if (thresholdMatch) {
+          const threshold = parseInt(thresholdMatch[1], 10);
+          if (enrichment.sourceAnalysis.messageCount < threshold) {
+            result.qualityFlags.push(
+              `Limited evidence: only ${enrichment.sourceAnalysis.messageCount} messages`
+            );
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -1090,18 +1599,50 @@ export class BatchMessageProcessor {
     }
 
     // 3.6. Run pipeline post-processing (VALIDATE, CONDENSE steps if enabled)
-    const proposals = await this.runPipelinePostProcessing(rawProposals, conversation, batchId);
+    const postProcessedProposals = await this.runPipelinePostProcessing(
+      rawProposals,
+      conversation,
+      batchId
+    );
+
+    // 3.7. Run enrichment and ruleset review (Quality System integration)
+    const ruleset = await this.loadTenantRuleset();
+    const enrichedProposals = await this.runEnrichmentAndReview(
+      postProcessedProposals,
+      conversation,
+      ragDocs,
+      ruleset
+    );
+
+    // 3.8. Filter out rejected proposals (but count them)
+    const acceptedProposals = enrichedProposals.filter((p) => !p.reviewResult?.rejected);
+    const rejectedByRuleset = enrichedProposals.filter((p) => p.reviewResult?.rejected);
+
+    if (rejectedByRuleset.length > 0) {
+      logger.info(
+        `Ruleset rejected ${rejectedByRuleset.length}/${enrichedProposals.length} proposals for conversation ${conversation.id}`
+      );
+    }
 
     // 4. Store proposals (multiple proposals per conversation)
     // NOTE: Store ALL proposals including NONE type to capture LLM reasoning
+    // Skip proposals rejected by ruleset
     let proposalCount = 0;
-    for (const proposal of proposals) {
+    for (const proposal of acceptedProposals) {
       // Post-process the suggested text to fix markdown formatting issues
-      const postProcessed = postProcessProposal(proposal.suggestedText, proposal.page);
+      const textToProcess = proposal.reviewResult?.modifiedContent || proposal.suggestedText;
+      const postProcessed = postProcessProposal(textToProcess, proposal.page);
 
       if (postProcessed.wasModified) {
         logger.debug(`Post-processed proposal for ${proposal.page} (content modified)`);
       }
+
+      // Build quality flags from review result
+      const qualityWarnings = [
+        ...(proposal.warnings || []),
+        ...(postProcessed.warnings || []),
+        ...(proposal.reviewResult?.qualityFlags || []),
+      ];
 
       await this.db.docProposal.create({
         data: {
@@ -1111,15 +1652,16 @@ export class BatchMessageProcessor {
           updateType: proposal.updateType,
           section: proposal.section || null,
           location: proposal.location ?? Prisma.DbNull,
-          suggestedText: postProcessed.text || proposal.suggestedText || null,
+          suggestedText: postProcessed.text || textToProcess || null,
           rawSuggestedText: proposal.suggestedText || null, // Original LLM output before post-processing
           reasoning: proposal.reasoning || null,
           sourceMessages: proposal.sourceMessages ?? Prisma.DbNull,
           modelUsed: this.config.proposalModel,
-          warnings:
-            postProcessed.warnings?.length || proposal.warnings?.length
-              ? [...(proposal.warnings || []), ...(postProcessed.warnings || [])]
-              : Prisma.DbNull,
+          warnings: qualityWarnings.length > 0 ? qualityWarnings : Prisma.DbNull,
+          // Quality System fields
+          enrichment: proposal.enrichment
+            ? (proposal.enrichment as unknown as Prisma.InputJsonValue)
+            : Prisma.DbNull,
         },
       });
       proposalCount++;
@@ -1250,6 +1792,7 @@ export class BatchMessageProcessor {
 
   /**
    * Generate documentation changesets for a conversation
+   * Injects PROMPT_CONTEXT from tenant ruleset if available
    */
   private async generateConversationProposals(
     conversation: ConversationGroup,
@@ -1259,7 +1802,9 @@ export class BatchMessageProcessor {
     proposalsRejected?: boolean;
     rejectionReason?: string;
   }> {
-    const systemPrompt = PROMPT_TEMPLATES.changesetGeneration.system;
+    // Load tenant ruleset for PROMPT_CONTEXT injection
+    const ruleset = await this.loadTenantRuleset();
+    const systemPrompt = this.buildChangesetSystemPrompt(ruleset);
 
     const ragContext = ragDocs
       .map((doc, idx) => {

@@ -140,7 +140,9 @@
       "Bash(npx eslint:*)",
       "Bash(AWS_PROFILE=default ./deploy.sh:*)",
       "Bash(aws apprunner list-operations:*)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "Bash(git tag:*)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"do it.\" npx prisma migrate reset:*)"
     ],
     "deny": [],
     "ask": []

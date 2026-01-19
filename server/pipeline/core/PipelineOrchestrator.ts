@@ -3,9 +3,11 @@
  *
  * Coordinates execution of pipeline steps in sequence.
  * Handles errors, retries, and metrics collection.
+ * Logs pipeline runs to PipelineRunLog for debugging.
  *
  * @author Wayne
  * @created 2025-12-30
+ * @updated 2026-01-19 - Added PipelineRunLog integration
  */
 
 import type {
@@ -18,11 +20,26 @@ import type {
   IPipelineStep,
   ILLMHandler,
 } from './interfaces.js';
+import type { Prisma } from '@prisma/client';
 import { createLogger, getErrorMessage } from '../../utils/logger.js';
 import { createInitialMetrics, serializeMetrics } from './PipelineContext.js';
 import { StepFactory, getStepFactory } from './StepFactory.js';
 
 const logger = createLogger('PipelineOrchestrator');
+
+/**
+ * Step execution log entry for PipelineRunLog
+ */
+interface StepLogEntry {
+  stepId: string;
+  stepType: string;
+  status: 'completed' | 'failed' | 'skipped';
+  durationMs: number;
+  inputCount?: number;
+  outputCount?: number;
+  promptsUsed?: string[];
+  error?: string;
+}
 
 /**
  * Orchestrates execution of pipeline steps
@@ -31,11 +48,18 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
   private config: PipelineConfig;
   private stepFactory: StepFactory;
   private llmHandler: ILLMHandler;
+  private enableRunLogging: boolean;
 
-  constructor(config: PipelineConfig, llmHandler: ILLMHandler, stepFactory?: StepFactory) {
+  constructor(
+    config: PipelineConfig,
+    llmHandler: ILLMHandler,
+    stepFactory?: StepFactory,
+    options?: { enableRunLogging?: boolean }
+  ) {
     this.config = config;
     this.llmHandler = llmHandler;
     this.stepFactory = stepFactory || getStepFactory();
+    this.enableRunLogging = options?.enableRunLogging ?? true;
   }
 
   /**
@@ -44,6 +68,8 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
   async execute(context: PipelineContext): Promise<PipelineResult> {
     const startTime = Date.now();
     const errors: PipelineError[] = [];
+    const stepLogs: StepLogEntry[] = [];
+    let runLogId: number | null = null;
 
     logger.info(`Starting pipeline execution`, {
       instanceId: context.instanceId,
@@ -52,17 +78,44 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
       messageCount: context.messages.length,
     });
 
+    // Create initial PipelineRunLog entry
+    if (this.enableRunLogging && context.db) {
+      try {
+        const runLog = await context.db.pipelineRunLog.create({
+          data: {
+            instanceId: context.instanceId,
+            batchId: context.batchId,
+            pipelineId: this.config.pipelineId,
+            status: 'running',
+            inputMessages: context.messages.length,
+            steps: [],
+          },
+        });
+        runLogId = runLog.id;
+        logger.debug(`Created PipelineRunLog entry: ${runLogId}`);
+      } catch (error) {
+        logger.warn('Failed to create PipelineRunLog entry:', error);
+      }
+    }
+
     // Create steps from configuration
     const steps = this.createSteps();
 
     if (steps.length === 0) {
       logger.warn('No enabled steps in pipeline configuration');
+      await this.updateRunLog(context, runLogId, 'completed', stepLogs, errors, startTime);
       return this.buildResult(context, errors, startTime);
     }
 
     // Execute steps in sequence
     for (const step of steps) {
       const stepStartTime = Date.now();
+      const stepLog: StepLogEntry = {
+        stepId: step.stepId,
+        stepType: step.stepType,
+        status: 'completed',
+        durationMs: 0,
+      };
 
       try {
         logger.info(`Executing step: ${step.stepId}`, {
@@ -70,11 +123,21 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
           batchId: context.batchId,
         });
 
+        // Capture input counts before execution
+        stepLog.inputCount = this.getInputCount(step.stepType, context);
+
         // Execute with retry logic
         await this.executeStepWithRetry(step, context);
 
         const stepDuration = Date.now() - stepStartTime;
         context.metrics.stepDurations.set(step.stepId, stepDuration);
+
+        // Capture output counts after execution
+        stepLog.durationMs = stepDuration;
+        stepLog.outputCount = this.getOutputCount(step.stepType, context);
+        stepLog.status = 'completed';
+
+        stepLogs.push(stepLog);
 
         logger.debug(`Step completed: ${step.stepId}`, {
           durationMs: stepDuration,
@@ -84,6 +147,11 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
       } catch (error) {
         const stepDuration = Date.now() - stepStartTime;
         context.metrics.stepDurations.set(step.stepId, stepDuration);
+
+        stepLog.durationMs = stepDuration;
+        stepLog.status = 'failed';
+        stepLog.error = getErrorMessage(error);
+        stepLogs.push(stepLog);
 
         const pipelineError: PipelineError = {
           stepId: step.stepId,
@@ -117,6 +185,16 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
 
     const result = this.buildResult(context, errors, startTime);
 
+    // Update PipelineRunLog with final results
+    await this.updateRunLog(
+      context,
+      runLogId,
+      result.success ? 'completed' : 'failed',
+      stepLogs,
+      errors,
+      startTime
+    );
+
     logger.info('Pipeline execution complete', {
       success: result.success,
       messagesProcessed: result.messagesProcessed,
@@ -127,6 +205,92 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
     });
 
     return result;
+  }
+
+  /**
+   * Update PipelineRunLog with execution results
+   */
+  private async updateRunLog(
+    context: PipelineContext,
+    runLogId: number | null,
+    status: string,
+    stepLogs: StepLogEntry[],
+    errors: PipelineError[],
+    startTime: number
+  ): Promise<void> {
+    if (!this.enableRunLogging || !context.db || !runLogId) {
+      return;
+    }
+
+    try {
+      const proposalsGenerated = Array.from(context.proposals.values()).reduce(
+        (sum, proposals) => sum + proposals.length,
+        0
+      );
+
+      await context.db.pipelineRunLog.update({
+        where: { id: runLogId },
+        data: {
+          status,
+          steps: stepLogs as unknown as Prisma.InputJsonValue,
+          outputThreads: context.threads.length,
+          outputProposals: proposalsGenerated,
+          totalDurationMs: Date.now() - startTime,
+          llmCalls: context.metrics.llmCalls,
+          llmTokensUsed: context.metrics.llmTokensUsed,
+          errorMessage: errors.length > 0 ? errors.map((e) => e.message).join('; ') : null,
+          completedAt: new Date(),
+        },
+      });
+      logger.debug(`Updated PipelineRunLog entry: ${runLogId}`);
+    } catch (error) {
+      logger.warn('Failed to update PipelineRunLog entry:', error);
+    }
+  }
+
+  /**
+   * Get input count for a step type
+   */
+  private getInputCount(stepType: string, context: PipelineContext): number {
+    switch (stepType) {
+      case 'filter':
+        return context.messages.length;
+      case 'classify':
+        return context.filteredMessages.length;
+      case 'enrich':
+      case 'context-enrich':
+        return context.threads.length;
+      case 'generate':
+        return context.threads.length;
+      case 'ruleset-review':
+      case 'validate':
+      case 'condense':
+        return Array.from(context.proposals.values()).reduce((sum, p) => sum + p.length, 0);
+      default:
+        return 0;
+    }
+  }
+
+  /**
+   * Get output count for a step type
+   */
+  private getOutputCount(stepType: string, context: PipelineContext): number {
+    switch (stepType) {
+      case 'filter':
+        return context.filteredMessages.length;
+      case 'classify':
+        return context.threads.length;
+      case 'enrich':
+      case 'context-enrich':
+        return context.ragResults.size;
+      case 'generate':
+      case 'ruleset-review':
+      case 'validate':
+      case 'condense':
+        return Array.from(context.proposals.values()).reduce((sum, p) => sum + p.length, 0);
+      default:
+        return 0;
+    }
   }
 
   /**

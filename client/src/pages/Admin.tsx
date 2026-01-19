@@ -1,7 +1,7 @@
 import * as React from 'react';
 const { useState, useEffect } = React;
 import { useLocation } from 'wouter';
-import { UpdateCard } from '@/components/UpdateCard';
+import { UpdateCard, type ProposalFeedback } from '@/components/UpdateCard';
 import { StatsCard } from '@/components/StatsCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -25,6 +25,8 @@ import {
   Loader2,
   ArrowUp,
   ArrowDown,
+  FileCode,
+  Play,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -350,6 +352,31 @@ export default function Admin() {
       });
     },
   });
+
+  // Save ruleset feedback for quality improvement
+  const feedbackMutation = useMutation({
+    mutationFn: async (feedback: ProposalFeedback) => {
+      return await adminApiRequest('POST', `${apiPrefix}/api/admin/quality/feedback`, {
+        proposalId: feedback.proposalId,
+        action: feedback.action,
+        feedbackText: feedback.feedbackText,
+        useForImprovement: feedback.useForImprovement,
+      });
+    },
+    onSuccess: () => {
+      // Feedback saved silently - no toast unless user wants it
+    },
+    onError: (error: Error) => {
+      console.error('Failed to save feedback:', error);
+      // Silent failure - feedback is optional enhancement
+    },
+  });
+
+  const handleFeedback = (feedback: ProposalFeedback) => {
+    if (feedback.feedbackText.trim() || feedback.useForImprovement) {
+      feedbackMutation.mutate(feedback);
+    }
+  };
 
   const syncDocsMutation = useMutation({
     mutationFn: async (force: boolean = false) => {
@@ -680,15 +707,37 @@ export default function Admin() {
               </h1>
               <p className="text-gray-600">Review and manage AI-suggested documentation updates</p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLocation('/logout')}
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Quality Tools */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation(`${apiPrefix}/admin/ruleset`)}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <FileCode className="h-4 w-4 mr-2" />
+                Rulesets
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation(`${apiPrefix}/admin/pipeline`)}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Pipeline Debugger
+              </Button>
+              <div className="h-6 w-px bg-gray-300 mx-1" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation('/logout')}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
 
           {/* Control Panel */}
@@ -977,9 +1026,11 @@ export default function Admin() {
                               after: proposal.edited_text || proposal.suggested_text || '',
                             }}
                             gitUrl={gitStats?.gitUrl}
+                            enrichment={proposal.enrichment}
                             onApprove={handleApprove}
                             onReject={(id) => handleReject(id, proposal.status)}
                             onEdit={handleEdit}
+                            onFeedback={handleFeedback}
                           />
                         ))}
                       </CardContent>
@@ -1084,8 +1135,10 @@ export default function Admin() {
                               after: proposal.edited_text || proposal.suggested_text || '',
                             }}
                             gitUrl={gitStats?.gitUrl}
+                            enrichment={proposal.enrichment}
                             onEdit={handleEdit}
                             onReject={(id) => handleReject(id, proposal.status)}
+                            onFeedback={handleFeedback}
                           />
                         ))}
                       </CardContent>
@@ -1190,7 +1243,9 @@ export default function Admin() {
                               after: proposal.edited_text || proposal.suggested_text || '',
                             }}
                             gitUrl={gitStats?.gitUrl}
+                            enrichment={proposal.enrichment}
                             onReject={(id) => handleReject(id, proposal.status)}
+                            onFeedback={handleFeedback}
                           />
                         ))}
                       </CardContent>
@@ -1287,9 +1342,11 @@ export default function Admin() {
                               after: proposal.edited_text || proposal.suggested_text || '',
                             }}
                             gitUrl={gitStats?.gitUrl}
+                            enrichment={proposal.enrichment}
                             onApprove={proposal.status === 'pending' ? handleApprove : undefined}
                             onReject={(id) => handleReject(id, proposal.status)}
                             onEdit={proposal.status !== 'ignored' ? handleEdit : undefined}
+                            onFeedback={handleFeedback}
                           />
                         ))}
                       </CardContent>

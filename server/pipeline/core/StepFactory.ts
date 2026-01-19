@@ -12,9 +12,11 @@ import { StepType, type StepConfig, type IPipelineStep, type ILLMHandler } from 
 import { KeywordFilterStep } from '../steps/filter/KeywordFilterStep.js';
 import { BatchClassifyStep } from '../steps/classify/BatchClassifyStep.js';
 import { RagEnrichStep } from '../steps/enrich/RagEnrichStep.js';
+import { ContextEnrichmentStep } from '../steps/enrich/ContextEnrichmentStep.js';
 import { ProposalGenerateStep } from '../steps/generate/ProposalGenerateStep.js';
 import { ContentValidationStep } from '../steps/transform/ContentValidationStep.js';
 import { LengthReductionStep } from '../steps/transform/LengthReductionStep.js';
+import { RulesetReviewStep } from '../steps/review/RulesetReviewStep.js';
 import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger('StepFactory');
@@ -66,6 +68,15 @@ export class StepFactory {
     this.register(
       StepType.CONDENSE,
       (config, llmHandler) => new LengthReductionStep(config, llmHandler)
+    );
+
+    // Context enrichment - proposal analysis
+    this.register(StepType.CONTEXT_ENRICH, (config) => new ContextEnrichmentStep(config));
+
+    // Ruleset review - applies tenant ruleset rules
+    this.register(
+      StepType.RULESET_REVIEW,
+      (config, llmHandler) => new RulesetReviewStep(config, llmHandler)
     );
 
     logger.debug('Registered built-in steps', {

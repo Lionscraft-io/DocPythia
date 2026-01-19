@@ -11,6 +11,7 @@ import {
   FileText,
   FileCode,
 } from 'lucide-react';
+import { ReviewContextPanel, type ProposalEnrichment } from './ReviewContextPanel';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -157,6 +159,16 @@ function ContentRenderer({ content, className }: { content: string; className?: 
   );
 }
 
+/**
+ * Feedback data for ruleset improvement
+ */
+export interface ProposalFeedback {
+  proposalId: string;
+  action: 'approved' | 'rejected' | 'ignored';
+  feedbackText: string;
+  useForImprovement: boolean;
+}
+
 interface UpdateCardProps {
   id: string;
   type: 'minor' | 'major' | 'add' | 'delete';
@@ -170,10 +182,12 @@ interface UpdateCardProps {
     after: string;
   };
   gitUrl?: string;
+  enrichment?: ProposalEnrichment | null;
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
   onEdit?: (id: string, data: { summary?: string; diffAfter?: string }) => void;
   onViewContext?: () => void;
+  onFeedback?: (feedback: ProposalFeedback) => void;
 }
 
 export function UpdateCard({
@@ -186,10 +200,12 @@ export function UpdateCard({
   status,
   diff,
   gitUrl,
+  enrichment,
   onApprove,
   onReject,
   onEdit,
   onViewContext,
+  onFeedback,
 }: UpdateCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [editedContent, setEditedContent] = useState(diff?.after || '');
@@ -197,6 +213,14 @@ export function UpdateCard({
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileLoading, setFileLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+
+  // Feedback dialog state
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [useForImprovement, setUseForImprovement] = useState(true);
+  const [pendingAction, setPendingAction] = useState<'approved' | 'rejected' | 'ignored' | null>(
+    null
+  );
 
   // Build the GitHub URL for the file
   const buildGitHubUrl = (filePath: string): string => {
@@ -238,6 +262,66 @@ export function UpdateCard({
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
+  };
+
+  // Handle approve with optional feedback
+  const handleApproveClick = () => {
+    if (onFeedback) {
+      setPendingAction('approved');
+      setFeedbackOpen(true);
+    } else {
+      onApprove?.(id);
+    }
+  };
+
+  // Handle reject with optional feedback
+  const handleRejectClick = () => {
+    if (onFeedback) {
+      setPendingAction(
+        status === 'approved' ? 'approved' : status === 'rejected' ? 'ignored' : 'rejected'
+      );
+      setFeedbackOpen(true);
+    } else {
+      onReject?.(id);
+    }
+  };
+
+  // Submit feedback and complete the action
+  const handleFeedbackSubmit = () => {
+    if (pendingAction && onFeedback) {
+      onFeedback({
+        proposalId: id,
+        action: pendingAction,
+        feedbackText: feedbackText.trim(),
+        useForImprovement,
+      });
+    }
+
+    // Complete the original action
+    if (pendingAction === 'approved') {
+      onApprove?.(id);
+    } else if (pendingAction === 'rejected' || pendingAction === 'ignored') {
+      onReject?.(id);
+    }
+
+    // Reset state
+    setFeedbackOpen(false);
+    setFeedbackText('');
+    setUseForImprovement(true);
+    setPendingAction(null);
+  };
+
+  // Skip feedback and just do the action
+  const handleSkipFeedback = () => {
+    if (pendingAction === 'approved') {
+      onApprove?.(id);
+    } else if (pendingAction === 'rejected' || pendingAction === 'ignored') {
+      onReject?.(id);
+    }
+
+    setFeedbackOpen(false);
+    setFeedbackText('');
+    setPendingAction(null);
   };
 
   return (
@@ -299,7 +383,7 @@ export function UpdateCard({
               <Button
                 size="sm"
                 variant="default"
-                onClick={() => onApprove?.(id)}
+                onClick={handleApproveClick}
                 data-testid={`button-approve-${id}`}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
@@ -311,7 +395,7 @@ export function UpdateCard({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onReject?.(id)}
+                onClick={handleRejectClick}
                 data-testid={`button-reject-${id}`}
                 className="border-gray-500 text-gray-900 hover:bg-gray-100 hover:border-gray-600"
               >
@@ -346,6 +430,9 @@ export function UpdateCard({
             <span data-testid="text-timestamp">{timestamp}</span>
           </div>
         </div>
+
+        {/* Review Context Panel with enrichment data */}
+        {enrichment && <ReviewContextPanel enrichment={enrichment} className="mt-3" />}
 
         {onViewContext && (
           <div>
@@ -491,6 +578,69 @@ export function UpdateCard({
               className="border-gray-300 text-gray-700"
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Feedback Dialog */}
+      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+        <DialogContent className="max-w-md bg-white [&>button]:text-gray-900 [&>button]:hover:bg-gray-100">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900">
+              {pendingAction === 'approved' ? 'Approve Proposal' : 'Reject Proposal'}
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Optionally provide feedback to help improve future proposals.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="feedback" className="text-gray-900">
+                Feedback (optional)
+              </Label>
+              <Textarea
+                id="feedback"
+                placeholder={
+                  pendingAction === 'approved'
+                    ? 'What made this proposal good? Any suggestions for similar proposals?'
+                    : 'Why was this proposal rejected? What would make it better?'
+                }
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                rows={4}
+                className="border-gray-300 text-gray-900 bg-white"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="useForImprovement"
+                checked={useForImprovement}
+                onCheckedChange={(checked) => setUseForImprovement(checked === true)}
+              />
+              <Label htmlFor="useForImprovement" className="text-sm text-gray-700 cursor-pointer">
+                Use this feedback to improve the ruleset
+              </Label>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="ghost"
+              onClick={handleSkipFeedback}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={handleFeedbackSubmit}
+              className={
+                pendingAction === 'approved'
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-red-600 hover:bg-red-700 text-white'
+              }
+            >
+              {pendingAction === 'approved' ? 'Approve' : 'Reject'}
+              {feedbackText.trim() && ' with Feedback'}
             </Button>
           </DialogFooter>
         </DialogContent>

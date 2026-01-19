@@ -466,13 +466,14 @@ model TenantPromptOverride {
 
 // Feedback collected during proposal review for ruleset improvement
 model RulesetFeedback {
-  id           Int       @id @default(autoincrement())
-  tenantId     String    @map("tenant_id")
-  proposalId   Int?      @map("proposal_id") // Nullable - could be general feedback
-  actionTaken  String    @map("action_taken") // approved | rejected | ignored
-  feedbackText String    @map("feedback_text") @db.Text
-  createdAt    DateTime  @default(now()) @map("created_at")
-  processedAt  DateTime? @map("processed_at") // When consumed by ruleset improvement
+  id                Int       @id @default(autoincrement())
+  tenantId          String    @map("tenant_id")
+  proposalId        Int?      @map("proposal_id") // Nullable - could be general feedback
+  actionTaken       String    @map("action_taken") // approved | rejected | ignored
+  feedbackText      String    @map("feedback_text") @db.Text
+  useForImprovement Boolean   @default(true) @map("use_for_improvement") // Whether to use for ruleset improvement
+  createdAt         DateTime  @default(now()) @map("created_at")
+  processedAt       DateTime? @map("processed_at") // When consumed by ruleset improvement
 
   ruleset  TenantRuleset? @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   proposal DocProposal?   @relation(fields: [proposalId], references: [id], onDelete: SetNull)
@@ -480,6 +481,7 @@ model RulesetFeedback {
   @@index([tenantId])
   @@index([proposalId])
   @@index([processedAt])
+  @@index([useForImprovement])
   @@map("ruleset_feedback")
 }
 
@@ -499,4 +501,40 @@ model ProposalReviewLog {
 
   @@index([proposalId])
   @@map("proposal_review_logs")
+}
+
+// Pipeline run log for debugging
+model PipelineRunLog {
+  id            Int       @id @default(autoincrement())
+  instanceId    String    @map("instance_id")
+  batchId       String    @map("batch_id")
+  pipelineId    String    @map("pipeline_id")
+  status        String    @default("running") // running | completed | failed
+
+  // Input summary
+  inputMessages Int       @map("input_messages")
+
+  // Step execution data (JSON array of step results)
+  steps         Json      @map("steps") // Array of { stepId, stepType, startTime, endTime, inputSummary, outputSummary, promptsUsed, error? }
+
+  // Output summary
+  outputThreads     Int?      @map("output_threads")
+  outputProposals   Int?      @map("output_proposals")
+
+  // Metrics
+  totalDurationMs   Int?      @map("total_duration_ms")
+  llmCalls          Int?      @map("llm_calls")
+  llmTokensUsed     Int?      @map("llm_tokens_used")
+
+  // Error tracking
+  errorMessage  String?   @map("error_message") @db.Text
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  completedAt   DateTime? @map("completed_at")
+
+  @@index([instanceId])
+  @@index([batchId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("pipeline_run_logs")
 }

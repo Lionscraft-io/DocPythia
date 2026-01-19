@@ -245,11 +245,15 @@ describe('Pipeline E2E Tests', () => {
       const config = await loadPipelineConfig(CONFIG_BASE_PATH, 'default');
 
       expect(config).toBeDefined();
-      expect(config.steps.length).toBe(4);
+      expect(config.steps.length).toBe(8); // filter, classify, enrich, generate, context-enrich, ruleset-review, validate, condense
       expect(config.steps.map((s) => s.stepType)).toContain(StepType.FILTER);
       expect(config.steps.map((s) => s.stepType)).toContain(StepType.CLASSIFY);
       expect(config.steps.map((s) => s.stepType)).toContain(StepType.ENRICH);
       expect(config.steps.map((s) => s.stepType)).toContain(StepType.GENERATE);
+      expect(config.steps.map((s) => s.stepType)).toContain(StepType.CONTEXT_ENRICH);
+      expect(config.steps.map((s) => s.stepType)).toContain(StepType.RULESET_REVIEW);
+      expect(config.steps.map((s) => s.stepType)).toContain(StepType.VALIDATE);
+      expect(config.steps.map((s) => s.stepType)).toContain(StepType.CONDENSE);
     });
 
     it('should handle instance-specific config gracefully when not found', async () => {
@@ -451,15 +455,20 @@ describe('Pipeline E2E Tests', () => {
 
       // Check metrics (totalDurationMs may be 0 in fast test runs)
       expect(result.metrics.totalDurationMs).toBeGreaterThanOrEqual(0);
-      expect(result.metrics.stepDurations.size).toBe(4);
+      expect(result.metrics.stepDurations.size).toBe(8); // All 8 pipeline steps
       expect(result.metrics.llmCalls).toBeGreaterThan(0);
       expect(result.metrics.llmTokensUsed).toBeGreaterThan(0);
 
-      // Check individual step timings
+      // Check individual step timings for core steps
       expect(result.metrics.stepDurations.get('keyword-filter')).toBeDefined();
       expect(result.metrics.stepDurations.get('batch-classify')).toBeDefined();
       expect(result.metrics.stepDurations.get('rag-enrich')).toBeDefined();
       expect(result.metrics.stepDurations.get('proposal-generate')).toBeDefined();
+      // Quality System steps
+      expect(result.metrics.stepDurations.get('context-enrich')).toBeDefined();
+      expect(result.metrics.stepDurations.get('ruleset-review')).toBeDefined();
+      expect(result.metrics.stepDurations.get('content-validate')).toBeDefined();
+      expect(result.metrics.stepDurations.get('length-reduce')).toBeDefined();
     });
   });
 

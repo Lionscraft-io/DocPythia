@@ -13,6 +13,9 @@ import { z } from 'zod';
 import { db } from '../db';
 import { createPromptRegistry } from '../pipeline/prompts/PromptRegistry.js';
 import { createLogger, getErrorMessage } from '../utils/logger.js';
+import { llmService } from '../stream/llm/llm-service.js';
+import { LLMModel } from '../stream/types.js';
+import { getDefaultRulesetTemplate } from '../pipeline/types/ruleset.js';
 import path from 'path';
 
 const logger = createLogger('QualitySystemRoutes');
@@ -42,9 +45,35 @@ const rulesetContentSchema = z.object({
 });
 
 const feedbackSchema = z.object({
-  proposalId: z.number().optional(),
-  actionTaken: z.enum(['approve', 'reject', 'edit']),
-  feedbackText: z.string().min(1, 'Feedback text cannot be empty'),
+  proposalId: z
+    .union([z.string(), z.number()])
+    .transform((val) => {
+      const num = typeof val === 'string' ? parseInt(val, 10) : val;
+      return isNaN(num) ? undefined : num;
+    })
+    .optional(),
+  action: z.enum(['approved', 'rejected', 'ignored']),
+  feedbackText: z.string().default(''), // Allow empty feedback text
+  useForImprovement: z.boolean().default(true),
+});
+
+// Schema for LLM improvement suggestions response
+const improvementResponseSchema = z.object({
+  suggestions: z.array(
+    z.object({
+      section: z.enum([
+        'PROMPT_CONTEXT',
+        'REVIEW_MODIFICATIONS',
+        'REJECTION_RULES',
+        'QUALITY_GATES',
+      ]),
+      action: z.enum(['add', 'modify', 'remove']),
+      currentRule: z.string().optional(),
+      suggestedRule: z.string().optional(),
+      reasoning: z.string(),
+    })
+  ),
+  summary: z.string(),
 });
 
 /**
@@ -253,7 +282,12 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
         });
       }
 
-      const { proposalId, actionTaken, feedbackText } = validation.data;
+      const { proposalId, action, feedbackText, useForImprovement } = validation.data;
+
+      // Only save if there's actual feedback or user wants it used for improvement
+      if (!feedbackText && !useForImprovement) {
+        return res.json({ skipped: true, message: 'No feedback to save' });
+      }
 
       // Ensure tenant ruleset exists (create empty if not)
       await db.tenantRuleset.upsert({
@@ -266,12 +300,15 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
         data: {
           tenantId: instanceId,
           proposalId,
-          actionTaken,
-          feedbackText,
+          actionTaken: action, // Map 'action' to 'actionTaken' for db field
+          feedbackText: feedbackText || '',
+          useForImprovement,
         },
       });
 
-      logger.info(`Feedback submitted for tenant ${instanceId}, action: ${actionTaken}`);
+      logger.info(
+        `Feedback submitted for tenant ${instanceId}, action: ${action}, useForImprovement: ${useForImprovement}`
+      );
       res.json(feedback);
     } catch (error) {
       logger.error('Error submitting feedback:', error);
@@ -312,6 +349,390 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
     } catch (error) {
       logger.error('Error fetching feedback:', error);
       res.status(500).json({ error: 'Failed to fetch feedback', details: getErrorMessage(error) });
+    }
+  });
+
+  // ==================== PIPELINE DEBUGGER ROUTES ====================
+
+  /**
+   * GET /pipeline/runs
+   * List recent pipeline runs for debugging
+   */
+  router.get('/pipeline/runs', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const instanceId = getInstanceId(req);
+      const limit = parseInt(req.query.limit as string) || 20;
+      const status = req.query.status as string;
+
+      const where: any = {};
+      if (instanceId) {
+        where.instanceId = instanceId;
+      }
+      if (status) {
+        where.status = status;
+      }
+
+      const runs = await db.pipelineRunLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        select: {
+          id: true,
+          instanceId: true,
+          batchId: true,
+          pipelineId: true,
+          status: true,
+          inputMessages: true,
+          outputThreads: true,
+          outputProposals: true,
+          totalDurationMs: true,
+          llmCalls: true,
+          createdAt: true,
+          completedAt: true,
+          errorMessage: true,
+        },
+      });
+
+      res.json({
+        instanceId: instanceId || 'all',
+        count: runs.length,
+        runs,
+      });
+    } catch (error) {
+      logger.error('Error fetching pipeline runs:', error);
+      res
+        .status(500)
+        .json({ error: 'Failed to fetch pipeline runs', details: getErrorMessage(error) });
+    }
+  });
+
+  /**
+   * GET /pipeline/runs/:id
+   * Get detailed pipeline run with step-by-step data
+   */
+  router.get('/pipeline/runs/:id', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const runId = parseInt(req.params.id, 10);
+
+      if (isNaN(runId)) {
+        return res.status(400).json({ error: 'Invalid run ID' });
+      }
+
+      const run = await db.pipelineRunLog.findUnique({
+        where: { id: runId },
+      });
+
+      if (!run) {
+        return res.status(404).json({ error: 'Pipeline run not found' });
+      }
+
+      res.json(run);
+    } catch (error) {
+      logger.error('Error fetching pipeline run:', error);
+      res
+        .status(500)
+        .json({ error: 'Failed to fetch pipeline run', details: getErrorMessage(error) });
+    }
+  });
+
+  /**
+   * GET /pipeline/prompts
+   * Get all prompts with override status for debugging
+   */
+  router.get('/pipeline/prompts', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const instanceId = getInstanceId(req) || undefined;
+      const configBasePath = path.join(process.cwd(), 'config');
+      const registry = createPromptRegistry(configBasePath, instanceId);
+      await registry.load();
+
+      const prompts = registry.list();
+
+      // Check for tenant overrides
+      const overrides = instanceId
+        ? await db.tenantPromptOverride.findMany({
+            where: { tenantId: instanceId },
+          })
+        : [];
+
+      const overrideMap = new Map(overrides.map((o) => [o.promptKey, o]));
+
+      const promptsWithOverrides = prompts.map((prompt) => ({
+        ...prompt,
+        hasOverride: overrideMap.has(prompt.id),
+        override: overrideMap.get(prompt.id) || null,
+        validation: registry.validate(prompt),
+      }));
+
+      res.json({
+        instanceId: instanceId || 'default',
+        count: prompts.length,
+        overrideCount: overrides.length,
+        prompts: promptsWithOverrides,
+      });
+    } catch (error) {
+      logger.error('Error fetching prompts for debugger:', error);
+      res.status(500).json({ error: 'Failed to fetch prompts', details: getErrorMessage(error) });
+    }
+  });
+
+  /**
+   * PUT /pipeline/prompts/:promptId/override
+   * Create or update a prompt override for the tenant
+   */
+  router.put(
+    '/pipeline/prompts/:promptId/override',
+    adminAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const instanceId = getInstanceId(req);
+        const { promptId } = req.params;
+        const { content } = req.body as { content?: string };
+
+        if (!instanceId) {
+          return res.status(400).json({ error: 'Instance ID required for prompt override' });
+        }
+
+        if (!content || typeof content !== 'string') {
+          return res.status(400).json({ error: 'Prompt content is required' });
+        }
+
+        const override = await db.tenantPromptOverride.upsert({
+          where: {
+            tenantId_promptKey: {
+              tenantId: instanceId,
+              promptKey: promptId,
+            },
+          },
+          update: {
+            content,
+            updatedAt: new Date(),
+          },
+          create: {
+            tenantId: instanceId,
+            promptKey: promptId,
+            content,
+          },
+        });
+
+        logger.info(`Prompt override saved for ${instanceId}/${promptId}`);
+        res.json(override);
+      } catch (error) {
+        logger.error('Error saving prompt override:', error);
+        res
+          .status(500)
+          .json({ error: 'Failed to save prompt override', details: getErrorMessage(error) });
+      }
+    }
+  );
+
+  /**
+   * DELETE /pipeline/prompts/:promptId/override
+   * Delete a prompt override (revert to default)
+   */
+  router.delete(
+    '/pipeline/prompts/:promptId/override',
+    adminAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const instanceId = getInstanceId(req);
+        const { promptId } = req.params;
+
+        if (!instanceId) {
+          return res.status(400).json({ error: 'Instance ID required' });
+        }
+
+        await db.tenantPromptOverride.deleteMany({
+          where: {
+            tenantId: instanceId,
+            promptKey: promptId,
+          },
+        });
+
+        logger.info(`Prompt override deleted for ${instanceId}/${promptId}`);
+        res.json({ success: true, message: 'Prompt override deleted, reverted to default' });
+      } catch (error) {
+        logger.error('Error deleting prompt override:', error);
+        res
+          .status(500)
+          .json({ error: 'Failed to delete prompt override', details: getErrorMessage(error) });
+      }
+    }
+  );
+
+  // ==================== IMPROVEMENT GENERATION ROUTES ====================
+
+  /**
+   * POST /improvements/generate
+   * Generate ruleset improvement suggestions from unprocessed feedback
+   */
+  router.post('/improvements/generate', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const instanceId = getInstanceId(req);
+
+      if (!instanceId) {
+        return res.status(400).json({ error: 'Instance ID required for improvement generation' });
+      }
+
+      // Load unprocessed feedback (useForImprovement=true and processedAt=null)
+      const unprocessedFeedback = await db.rulesetFeedback.findMany({
+        where: {
+          tenantId: instanceId,
+          useForImprovement: true,
+          processedAt: null,
+        },
+        include: {
+          proposal: {
+            select: {
+              id: true,
+              page: true,
+              section: true,
+              updateType: true,
+              reasoning: true,
+              suggestedText: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50, // Limit to last 50 feedback items
+      });
+
+      if (unprocessedFeedback.length === 0) {
+        return res.json({
+          message: 'No unprocessed feedback available',
+          suggestions: [],
+          summary: 'No feedback to process',
+          feedbackCount: 0,
+        });
+      }
+
+      // Load current ruleset
+      const currentRuleset = await db.tenantRuleset.findUnique({
+        where: { tenantId: instanceId },
+      });
+
+      const currentContent = currentRuleset?.content || getDefaultRulesetTemplate();
+
+      // Format feedback for LLM
+      const feedbackSummary = unprocessedFeedback
+        .map((fb, idx) => {
+          const proposalInfo = fb.proposal
+            ? `Proposal: ${fb.proposal.updateType} on ${fb.proposal.page}${fb.proposal.section ? ` (${fb.proposal.section})` : ''}`
+            : 'General feedback';
+          return `[${idx + 1}] Action: ${fb.actionTaken.toUpperCase()}\n${proposalInfo}\nFeedback: ${fb.feedbackText || '(no text)'}`;
+        })
+        .join('\n\n');
+
+      // Generate improvements using LLM
+      const systemPrompt = `You are an expert at improving documentation quality rulesets.
+Analyze the feedback from documentation proposal reviews and suggest improvements to the ruleset.
+
+The ruleset has 4 sections:
+1. PROMPT_CONTEXT - Context injected into generation prompts to guide AI proposal creation
+2. REVIEW_MODIFICATIONS - Rules for modifying proposals after enrichment analysis
+3. REJECTION_RULES - Rules for auto-rejecting proposals (based on duplication, similarity, patterns)
+4. QUALITY_GATES - Rules for flagging proposals for human review without rejecting them
+
+Return JSON with structured suggestions. Each suggestion should identify:
+- Which section it applies to
+- Whether to add a new rule, modify an existing rule, or remove a rule
+- The specific rule text
+- Clear reasoning based on the feedback patterns`;
+
+      const userPrompt = `## Current Ruleset
+
+${currentContent}
+
+## Recent Feedback (${unprocessedFeedback.length} items)
+
+${feedbackSummary}
+
+Based on this feedback, suggest improvements to the ruleset. Look for patterns such as:
+- Frequently rejected proposals that could be caught by rejection rules
+- Commonly needed modifications that could be automated
+- Quality concerns that should flag proposals for review
+- Context that would help generate better proposals initially
+
+Provide specific, actionable rule suggestions.`;
+
+      try {
+        const { data } = await llmService.requestJSON(
+          {
+            model: LLMModel.FLASH,
+            systemPrompt,
+            userPrompt,
+            temperature: 0.3,
+            maxTokens: 4096,
+          },
+          improvementResponseSchema
+        );
+
+        logger.info(
+          `Generated ${data.suggestions.length} improvement suggestions for tenant ${instanceId}`
+        );
+
+        res.json({
+          instanceId,
+          feedbackCount: unprocessedFeedback.length,
+          feedbackIds: unprocessedFeedback.map((fb) => fb.id),
+          suggestions: data.suggestions,
+          summary: data.summary,
+          currentRuleset: currentContent,
+        });
+      } catch (llmError) {
+        logger.error('LLM error generating improvements:', llmError);
+        return res.status(500).json({
+          error: 'Failed to generate improvements',
+          details: getErrorMessage(llmError),
+        });
+      }
+    } catch (error) {
+      logger.error('Error generating improvements:', error);
+      res
+        .status(500)
+        .json({ error: 'Failed to generate improvements', details: getErrorMessage(error) });
+    }
+  });
+
+  /**
+   * POST /improvements/apply
+   * Mark feedback as processed after improvements are applied
+   */
+  router.post('/improvements/apply', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const instanceId = getInstanceId(req);
+      const { feedbackIds } = req.body as { feedbackIds?: number[] };
+
+      if (!instanceId) {
+        return res.status(400).json({ error: 'Instance ID required' });
+      }
+
+      if (!feedbackIds || !Array.isArray(feedbackIds) || feedbackIds.length === 0) {
+        return res.status(400).json({ error: 'feedbackIds array required' });
+      }
+
+      // Mark feedback as processed
+      const result = await db.rulesetFeedback.updateMany({
+        where: {
+          id: { in: feedbackIds },
+          tenantId: instanceId,
+        },
+        data: {
+          processedAt: new Date(),
+        },
+      });
+
+      logger.info(`Marked ${result.count} feedback items as processed for tenant ${instanceId}`);
+
+      res.json({
+        success: true,
+        processedCount: result.count,
+      });
+    } catch (error) {
+      logger.error('Error applying improvements:', error);
+      res
+        .status(500)
+        .json({ error: 'Failed to apply improvements', details: getErrorMessage(error) });
     }
   });
 

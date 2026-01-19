@@ -13,13 +13,18 @@ This directory contains the customizable analysis pipeline implementation as def
 │  └───────────────┘  └──────────────┘  └─────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                               ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    Pipeline Layer                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │ Filter   │→ │ Classify │→ │ Enrich   │→ │ Generate │   │
-│  │ Step     │  │ Step     │  │ Step     │  │ Step     │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Pipeline Layer                                     │
+│  ┌────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌─────────────┐           │
+│  │ Filter │→│ Classify │→│ Enrich │→│ Generate │→│ Context     │→          │
+│  │ Step   │ │ Step     │ │ (RAG)  │ │ Step     │ │ Enrichment  │           │
+│  └────────┘ └──────────┘ └────────┘ └──────────┘ └─────────────┘           │
+│                                                        ↓                     │
+│  ┌──────────┐ ┌──────────┐ ┌─────────────────┐                              │
+│  │ Condense │←│ Validate │←│ Ruleset Review  │                              │
+│  │ Step     │ │ Step     │ │ Step            │                              │
+│  └──────────┘ └──────────┘ └─────────────────┘                              │
+└─────────────────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                   Execution Layer                            │
@@ -39,7 +44,7 @@ pipeline/
 ├── core/
 │   ├── interfaces.ts          # All interface definitions
 │   ├── PipelineContext.ts     # Context factory and utilities
-│   ├── PipelineOrchestrator.ts # Step execution coordinator
+│   ├── PipelineOrchestrator.ts # Step execution coordinator (with PipelineRunLog)
 │   └── StepFactory.ts         # Step creation factory
 ├── steps/
 │   ├── base/
@@ -49,9 +54,18 @@ pipeline/
 │   ├── classify/
 │   │   └── BatchClassifyStep.ts
 │   ├── enrich/
-│   │   └── RagEnrichStep.ts
-│   └── generate/
-│       └── ProposalGenerateStep.ts
+│   │   ├── RagEnrichStep.ts           # RAG context enrichment
+│   │   └── ContextEnrichmentStep.ts   # Quality System context analysis
+│   ├── generate/
+│   │   └── ProposalGenerateStep.ts
+│   ├── review/
+│   │   └── RulesetReviewStep.ts       # Quality System ruleset processing
+│   └── transform/
+│       ├── ContentValidationStep.ts   # XML/format validation
+│       └── LengthReductionStep.ts     # Content condensation
+├── types/
+│   ├── enrichment.ts          # ProposalEnrichment types & textAnalysis utils
+│   └── ruleset.ts             # ParsedRuleset types & parsing functions
 ├── handlers/
 │   └── GeminiHandler.ts       # Gemini LLM implementation
 ├── prompts/
@@ -59,8 +73,65 @@ pipeline/
 ├── config/
 │   ├── DomainConfigLoader.ts  # Domain config loading
 │   └── PipelineConfigLoader.ts # Pipeline config loading
+├── utils/
+│   └── ProposalPostProcessor.ts # Markdown formatting fixes
 ├── index.ts                   # Module exports
 └── README.md                  # This file
+```
+
+## Quality System
+
+The pipeline includes a **Quality System** (Phase 3) for automated proposal quality control:
+
+### Steps
+
+1. **Context Enrichment** (`context-enrich`): Analyzes proposals after generation
+   - Finds related documentation via RAG
+   - Checks for content duplication (n-gram overlap)
+   - Analyzes style consistency with target page
+   - Calculates change impact context
+   - Analyzes source conversation quality
+
+2. **Ruleset Review** (`ruleset-review`): Applies tenant-specific rules
+   - **PROMPT_CONTEXT**: Injected into proposal generation prompts
+   - **REJECTION_RULES**: Auto-reject proposals matching patterns
+   - **QUALITY_GATES**: Flag proposals for human review
+   - **REVIEW_MODIFICATIONS**: Suggest content modifications
+
+3. **Content Validation** (`validate`): Ensures proper formatting
+   - Validates XML/markdown structure
+   - Uses LLM to fix formatting issues
+
+4. **Length Reduction** (`condense`): Shortens overly long proposals
+   - Priority-based length limits
+   - LLM-assisted condensation
+
+### Ruleset Configuration
+
+Instance-specific rulesets are stored at `config/{instanceId}/ruleset.md`:
+
+```markdown
+## PROMPT_CONTEXT
+- Use formal technical writing style
+- Always use "validator" instead of "node operator"
+
+## REJECTION_RULES
+- If duplicationWarning.overlapPercentage > 80%, reject as duplicate
+- Proposals mentioning "competitor"
+
+## QUALITY_GATES
+- If changePercentage > 50%, flag as significant_change
+- If otherPendingProposals > 0, flag as needs_coordination
+
+## REVIEW_MODIFICATIONS
+- Adjust format to match target page
+```
+
+### Testing Quality System
+
+```bash
+# Run Quality System tests
+npm test -- quality-system-integration.test.ts quality-system-flow.test.ts ruleset-parser.test.ts
 ```
 
 ## Configuration Files
@@ -266,15 +337,23 @@ Tests are located in `/tests/`:
 - `tests/pipeline-config.test.ts` - Unit tests for configuration loaders
 - `tests/pipeline-integration.test.ts` - Integration tests
 - `tests/pipeline-e2e.test.ts` - End-to-end tests
+- `tests/transform-steps.test.ts` - Transform step tests (validate, condense)
+- `tests/quality-system-integration.test.ts` - Quality System unit tests
+- `tests/quality-system-flow.test.ts` - Quality System integration tests
+- `tests/ruleset-parser.test.ts` - Ruleset parsing tests
 
 ```bash
 # Run all pipeline tests
-npm test -- tests/pipeline-steps.test.ts tests/pipeline-config.test.ts tests/pipeline-integration.test.ts tests/pipeline-e2e.test.ts
+npm test -- pipeline-steps.test.ts pipeline-config.test.ts pipeline-integration.test.ts pipeline-e2e.test.ts
 
-# Or run individually
-npm test -- tests/pipeline-steps.test.ts
+# Run Quality System tests
+npm test -- quality-system-integration.test.ts quality-system-flow.test.ts ruleset-parser.test.ts
+
+# Run transform step tests
+npm test -- transform-steps.test.ts
 ```
 
 ## Author
 
 Wayne - 2025-12-30
+Updated: 2026-01-19 - Added Quality System documentation

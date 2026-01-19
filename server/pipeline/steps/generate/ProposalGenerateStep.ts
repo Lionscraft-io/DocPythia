@@ -21,6 +21,7 @@ import {
   type ILLMHandler,
 } from '../../core/interfaces.js';
 import { postProcessProposal } from '../../utils/ProposalPostProcessor.js';
+import { parseRuleset, type ParsedRuleset } from '../../types/ruleset.js';
 
 /**
  * Configuration for ProposalGenerateStep
@@ -64,6 +65,7 @@ export class ProposalGenerateStep extends BasePipelineStep {
   private temperature: number;
   private maxTokens: number;
   private maxProposalsPerThread: number;
+  private cachedRuleset: ParsedRuleset | null = null;
 
   constructor(config: StepConfig, llmHandler: ILLMHandler) {
     super(config, llmHandler);
@@ -79,6 +81,14 @@ export class ProposalGenerateStep extends BasePipelineStep {
   async execute(context: PipelineContext): Promise<PipelineContext> {
     const startTime = Date.now();
     const llmHandler = this.requireLLMHandler();
+
+    // Load tenant ruleset for PROMPT_CONTEXT injection
+    this.cachedRuleset = await this.loadRuleset(context);
+    if (this.cachedRuleset?.promptContext.length) {
+      this.logger.info(
+        `Loaded ${this.cachedRuleset.promptContext.length} PROMPT_CONTEXT rules from ruleset`
+      );
+    }
 
     // Only process threads with RAG context
     const threadsWithRag = context.threads.filter(
@@ -157,11 +167,19 @@ export class ProposalGenerateStep extends BasePipelineStep {
       messages: this.formatThreadMessages(thread, context),
     });
 
+    // Inject PROMPT_CONTEXT from tenant ruleset if available
+    let systemPrompt = rendered.system;
+    if (this.cachedRuleset?.promptContext.length) {
+      const contextRules = this.cachedRuleset.promptContext.map((rule) => `- ${rule}`).join('\n');
+      systemPrompt += `\n\n## Tenant-Specific Guidelines\n\nFollow these additional guidelines when generating proposals:\n${contextRules}`;
+      this.logger.debug('Injected PROMPT_CONTEXT into system prompt');
+    }
+
     // Call LLM for proposal generation
     const { data, response } = await llmHandler.requestJSON<ProposalResponse>(
       {
         model: this.model,
-        systemPrompt: rendered.system,
+        systemPrompt,
         userPrompt: rendered.user,
         temperature: this.temperature,
         maxTokens: this.maxTokens,
@@ -289,6 +307,32 @@ export class ProposalGenerateStep extends BasePipelineStep {
 
       return proposal;
     });
+  }
+
+  /**
+   * Load tenant ruleset for PROMPT_CONTEXT injection
+   */
+  private async loadRuleset(context: PipelineContext): Promise<ParsedRuleset | null> {
+    try {
+      const ruleset = await context.db.tenantRuleset.findFirst({
+        where: {
+          tenantId: context.instanceId,
+        },
+        orderBy: {
+          updatedAt: 'desc',
+        },
+      });
+
+      if (!ruleset || !ruleset.content) {
+        this.logger.debug('No tenant ruleset found for PROMPT_CONTEXT injection');
+        return null;
+      }
+
+      return parseRuleset(ruleset.content);
+    } catch (error) {
+      this.logger.warn('Failed to load tenant ruleset:', error);
+      return null;
+    }
   }
 
   validateConfig(config: StepConfig): boolean {

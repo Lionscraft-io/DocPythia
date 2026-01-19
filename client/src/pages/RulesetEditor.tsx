@@ -8,11 +8,27 @@
 
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { FileText, Save, ArrowLeft, AlertCircle, CheckCircle2, Info, Loader2 } from 'lucide-react';
+import {
+  FileText,
+  Save,
+  ArrowLeft,
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  Loader2,
+  Sparkles,
+  MessageSquare,
+  Plus,
+  Pencil,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { adminApiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -53,6 +69,44 @@ interface Ruleset {
   updatedAt: string;
 }
 
+interface Feedback {
+  id: number;
+  actionTaken: string;
+  feedbackText: string;
+  useForImprovement: boolean;
+  createdAt: string;
+  processedAt: string | null;
+  proposal?: {
+    id: number;
+    page: string;
+    section?: string;
+    updateType: string;
+  };
+}
+
+interface FeedbackResponse {
+  instanceId: string;
+  count: number;
+  feedback: Feedback[];
+}
+
+interface ImprovementSuggestion {
+  section: 'PROMPT_CONTEXT' | 'REVIEW_MODIFICATIONS' | 'REJECTION_RULES' | 'QUALITY_GATES';
+  action: 'add' | 'modify' | 'remove';
+  currentRule?: string;
+  suggestedRule?: string;
+  reasoning: string;
+}
+
+interface ImprovementResponse {
+  instanceId: string;
+  feedbackCount: number;
+  feedbackIds: number[];
+  suggestions: ImprovementSuggestion[];
+  summary: string;
+  currentRuleset: string;
+}
+
 const DEFAULT_RULESET_TEMPLATE = `# Tenant Ruleset
 # This ruleset defines quality control rules for proposal review
 
@@ -81,6 +135,74 @@ export default function RulesetEditor() {
 
   const [content, setContent] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showFeedbackPanel, setShowFeedbackPanel] = useState(false);
+  const [improvements, setImprovements] = useState<ImprovementResponse | null>(null);
+
+  // Fetch feedback for this tenant
+  const { data: feedbackData } = useQuery<FeedbackResponse>({
+    queryKey: [`${apiPrefix}/api/quality/feedback`],
+    queryFn: async () => {
+      const response = await adminApiRequest('GET', `${apiPrefix}/api/quality/feedback`);
+      return response.json();
+    },
+  });
+
+  // Count unprocessed feedback
+  const unprocessedFeedbackCount =
+    feedbackData?.feedback?.filter((f) => f.useForImprovement && !f.processedAt).length || 0;
+
+  // Generate improvements mutation
+  const generateImprovementsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await adminApiRequest(
+        'POST',
+        `${apiPrefix}/api/quality/improvements/generate`,
+        {}
+      );
+      return response.json() as Promise<ImprovementResponse>;
+    },
+    onSuccess: (data) => {
+      setImprovements(data);
+      if (data.suggestions.length === 0) {
+        toast({
+          title: 'No suggestions',
+          description: data.summary || 'No improvement suggestions based on current feedback.',
+        });
+      } else {
+        toast({
+          title: 'Improvements generated',
+          description: `Generated ${data.suggestions.length} suggestions from ${data.feedbackCount} feedback items.`,
+        });
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: 'Generation failed',
+        description: error instanceof Error ? error.message : 'Failed to generate improvements',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mark feedback as processed mutation
+  const markProcessedMutation = useMutation({
+    mutationFn: async (feedbackIds: number[]) => {
+      const response = await adminApiRequest(
+        'POST',
+        `${apiPrefix}/api/quality/improvements/apply`,
+        { feedbackIds }
+      );
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`${apiPrefix}/api/quality/feedback`] });
+      setImprovements(null);
+      toast({
+        title: 'Feedback processed',
+        description: 'Feedback items have been marked as processed.',
+      });
+    },
+  });
 
   // Fetch existing ruleset
   const {
@@ -321,6 +443,168 @@ export default function RulesetEditor() {
               </div>
             </div>
           </CardContent>
+        </Card>
+
+        {/* Feedback & Improvements Panel */}
+        <Card className="mt-6">
+          <CardHeader
+            className="cursor-pointer"
+            onClick={() => setShowFeedbackPanel(!showFeedbackPanel)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-600" />
+                <CardTitle className="text-lg">AI-Powered Improvements</CardTitle>
+                {unprocessedFeedbackCount > 0 && (
+                  <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                    {unprocessedFeedbackCount} feedback items
+                  </Badge>
+                )}
+              </div>
+              {showFeedbackPanel ? (
+                <ChevronUp className="w-5 h-5 text-gray-500" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-500" />
+              )}
+            </div>
+            <CardDescription>
+              Generate ruleset improvements based on approval/rejection feedback
+            </CardDescription>
+          </CardHeader>
+
+          {showFeedbackPanel && (
+            <CardContent className="space-y-4">
+              {/* Feedback Summary */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="w-5 h-5 text-gray-600" />
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {unprocessedFeedbackCount} unprocessed feedback items
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Total: {feedbackData?.count || 0} feedback entries
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => generateImprovementsMutation.mutate()}
+                  disabled={
+                    generateImprovementsMutation.isPending || unprocessedFeedbackCount === 0
+                  }
+                >
+                  {generateImprovementsMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Improvements
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Improvements Display */}
+              {improvements && improvements.suggestions.length > 0 && (
+                <div className="space-y-4">
+                  <Alert className="border-purple-200 bg-purple-50">
+                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    <AlertDescription className="text-purple-800">
+                      <strong>AI Summary:</strong> {improvements.summary}
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="space-y-3">
+                    {improvements.suggestions.map((suggestion, idx) => (
+                      <div key={idx} className="p-4 border border-gray-200 rounded-lg bg-white">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              suggestion.action === 'add'
+                                ? 'border-green-300 text-green-700 bg-green-50'
+                                : suggestion.action === 'modify'
+                                  ? 'border-amber-300 text-amber-700 bg-amber-50'
+                                  : 'border-red-300 text-red-700 bg-red-50'
+                            }
+                          >
+                            {suggestion.action === 'add' && <Plus className="w-3 h-3 mr-1" />}
+                            {suggestion.action === 'modify' && <Pencil className="w-3 h-3 mr-1" />}
+                            {suggestion.action === 'remove' && <Trash2 className="w-3 h-3 mr-1" />}
+                            {suggestion.action.toUpperCase()}
+                          </Badge>
+                          <Badge variant="secondary">{suggestion.section}</Badge>
+                        </div>
+
+                        {suggestion.currentRule && (
+                          <div className="mb-2">
+                            <span className="text-xs text-gray-500">Current:</span>
+                            <p className="text-sm font-mono bg-red-50 text-red-800 p-2 rounded mt-1">
+                              - {suggestion.currentRule}
+                            </p>
+                          </div>
+                        )}
+
+                        {suggestion.suggestedRule && (
+                          <div className="mb-2">
+                            <span className="text-xs text-gray-500">Suggested:</span>
+                            <p className="text-sm font-mono bg-green-50 text-green-800 p-2 rounded mt-1">
+                              + {suggestion.suggestedRule}
+                            </p>
+                          </div>
+                        )}
+
+                        <p className="text-sm text-gray-600 mt-2">
+                          <strong>Reasoning:</strong> {suggestion.reasoning}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t">
+                    <p className="text-sm text-gray-500">
+                      Apply these suggestions manually by editing the ruleset above, then mark
+                      feedback as processed.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (improvements.feedbackIds.length > 0) {
+                          markProcessedMutation.mutate(improvements.feedbackIds);
+                        }
+                      }}
+                      disabled={markProcessedMutation.isPending}
+                    >
+                      {markProcessedMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Marking...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Mark as Processed
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* No suggestions state */}
+              {improvements && improvements.suggestions.length === 0 && (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    {improvements.summary || 'No improvement suggestions at this time.'}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          )}
         </Card>
       </main>
     </div>

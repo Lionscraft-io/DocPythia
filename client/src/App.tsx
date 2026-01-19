@@ -8,6 +8,7 @@ import AdminLogin from '@/pages/AdminLogin';
 import AdminLegacy from '@/pages/AdminLegacy';
 import PromptsOverview from '@/pages/PromptsOverview';
 import RulesetEditor from '@/pages/RulesetEditor';
+import PipelineDebugger from '@/pages/PipelineDebugger';
 import Logout from '@/pages/Logout';
 import NotFound from '@/pages/not-found';
 import { useConfig } from '@/hooks/useConfig';
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/:instance/admin/legacy" component={AdminLegacy} />
       <Route path="/:instance/admin/prompts" component={PromptsOverview} />
       <Route path="/:instance/admin/ruleset" component={RulesetEditor} />
+      <Route path="/:instance/admin/pipeline" component={PipelineDebugger} />
       <Route path="/:instance/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>

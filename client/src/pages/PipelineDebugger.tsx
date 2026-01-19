@@ -1,0 +1,712 @@
+/**
+ * Pipeline Debugger Page
+ * Debug pipeline runs, view step execution details, manage prompt overrides
+ *
+ * @author Wayne
+ * @created 2026-01-19
+ */
+
+import { useState } from 'react';
+import { useLocation } from 'wouter';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowLeft,
+  Play,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  Edit,
+  X,
+  Save,
+  Trash2,
+  RefreshCw,
+  Zap,
+  MessageSquare,
+  Database,
+} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { adminApiRequest } from '@/lib/queryClient';
+
+// Get instance prefix from URL (e.g., /near/admin -> /near)
+function getInstancePrefix(): string {
+  const pathParts = window.location.pathname.split('/');
+  if (
+    pathParts.length >= 2 &&
+    pathParts[1] &&
+    pathParts[1] !== 'admin' &&
+    pathParts[1] !== 'login'
+  ) {
+    return `/${pathParts[1]}`;
+  }
+  return '';
+}
+
+interface PipelineStep {
+  stepName: string;
+  status: 'completed' | 'failed' | 'skipped';
+  durationMs: number;
+  inputCount?: number;
+  outputCount?: number;
+  promptUsed?: string;
+  error?: string;
+}
+
+interface PipelineRun {
+  id: number;
+  instanceId: string;
+  batchId: string;
+  pipelineId: string;
+  status: string;
+  inputMessages: number;
+  steps: PipelineStep[];
+  outputThreads?: number;
+  outputProposals?: number;
+  totalDurationMs?: number;
+  llmCalls?: number;
+  llmTokensUsed?: number;
+  errorMessage?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+interface PipelineRunsResponse {
+  runs: PipelineRun[];
+  total: number;
+}
+
+interface PromptWithOverride {
+  id: string;
+  version: string;
+  hasOverride: boolean;
+  override?: {
+    system?: string;
+    user?: string;
+    createdAt: string;
+  };
+  metadata: {
+    description: string;
+    tags: string[];
+  };
+  system: string;
+  user: string;
+}
+
+interface PromptsWithOverridesResponse {
+  prompts: PromptWithOverride[];
+}
+
+export default function PipelineDebugger() {
+  const [, setLocation] = useLocation();
+  useQueryClient(); // Used for cache invalidation
+  const apiPrefix = getInstancePrefix();
+
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+  const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
+  const [editedSystem, setEditedSystem] = useState('');
+  const [editedUser, setEditedUser] = useState('');
+
+  // Fetch pipeline runs
+  const {
+    data: runsData,
+    isLoading: runsLoading,
+    error: runsError,
+    refetch: refetchRuns,
+  } = useQuery<PipelineRunsResponse>({
+    queryKey: [`${apiPrefix}/api/admin/quality/pipeline/runs`],
+    queryFn: async () => {
+      const response = await adminApiRequest(
+        'GET',
+        `${apiPrefix}/api/admin/quality/pipeline/runs?limit=50`
+      );
+      return response.json();
+    },
+  });
+
+  // Fetch selected run details
+  const { data: selectedRun } = useQuery<PipelineRun>({
+    queryKey: [`${apiPrefix}/api/admin/quality/pipeline/runs/${selectedRunId}`],
+    queryFn: async () => {
+      const response = await adminApiRequest(
+        'GET',
+        `${apiPrefix}/api/admin/quality/pipeline/runs/${selectedRunId}`
+      );
+      return response.json();
+    },
+    enabled: selectedRunId !== null,
+  });
+
+  // Fetch prompts with override status
+  const {
+    data: promptsData,
+    isLoading: promptsLoading,
+    refetch: refetchPrompts,
+  } = useQuery<PromptsWithOverridesResponse>({
+    queryKey: [`${apiPrefix}/api/admin/quality/pipeline/prompts`],
+    queryFn: async () => {
+      const response = await adminApiRequest(
+        'GET',
+        `${apiPrefix}/api/admin/quality/pipeline/prompts`
+      );
+      return response.json();
+    },
+  });
+
+  // Save prompt override mutation
+  const saveOverrideMutation = useMutation({
+    mutationFn: async (data: { promptId: string; system?: string; user?: string }) => {
+      return adminApiRequest(
+        'PUT',
+        `${apiPrefix}/api/admin/quality/pipeline/prompts/${data.promptId}/override`,
+        { system: data.system, user: data.user }
+      );
+    },
+    onSuccess: () => {
+      refetchPrompts();
+      setEditingPrompt(null);
+    },
+  });
+
+  // Delete prompt override mutation
+  const deleteOverrideMutation = useMutation({
+    mutationFn: async (promptId: string) => {
+      return adminApiRequest(
+        'DELETE',
+        `${apiPrefix}/api/admin/quality/pipeline/prompts/${promptId}/override`
+      );
+    },
+    onSuccess: () => {
+      refetchPrompts();
+    },
+  });
+
+  const navigateBack = () => {
+    const basePath = apiPrefix ? `${apiPrefix}/admin` : '/admin';
+    setLocation(basePath);
+  };
+
+  const toggleStep = (stepName: string) => {
+    const newExpanded = new Set(expandedSteps);
+    if (newExpanded.has(stepName)) {
+      newExpanded.delete(stepName);
+    } else {
+      newExpanded.add(stepName);
+    }
+    setExpandedSteps(newExpanded);
+  };
+
+  const startEditingPrompt = (prompt: PromptWithOverride) => {
+    setEditingPrompt(prompt.id);
+    setEditedSystem(prompt.override?.system || prompt.system);
+    setEditedUser(prompt.override?.user || prompt.user);
+  };
+
+  const cancelEditing = () => {
+    setEditingPrompt(null);
+    setEditedSystem('');
+    setEditedUser('');
+  };
+
+  const saveOverride = () => {
+    if (editingPrompt) {
+      saveOverrideMutation.mutate({
+        promptId: editingPrompt,
+        system: editedSystem,
+        user: editedUser,
+      });
+    }
+  };
+
+  const formatDuration = (ms?: number): string => {
+    if (!ms) return '-';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
+  };
+
+  const formatDate = (date: string): string => {
+    return new Date(date).toLocaleString();
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return (
+          <Badge className="bg-green-100 text-green-800">
+            <CheckCircle2 className="w-3 h-3 mr-1" />
+            Completed
+          </Badge>
+        );
+      case 'failed':
+        return (
+          <Badge className="bg-red-100 text-red-800">
+            <AlertCircle className="w-3 h-3 mr-1" />
+            Failed
+          </Badge>
+        );
+      case 'running':
+        return (
+          <Badge className="bg-blue-100 text-blue-800">
+            <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+            Running
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  if (runsLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-24 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (runsError) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Failed to load pipeline runs:{' '}
+              {runsError instanceof Error ? runsError.message : 'Unknown error'}
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={navigateBack}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Pipeline Debugger</h1>
+              <p className="text-sm text-gray-600">
+                Debug pipeline runs and manage prompt overrides
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="max-w-7xl mx-auto p-6">
+        <Tabs defaultValue="runs" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="runs" className="flex items-center gap-2">
+              <Play className="w-4 h-4" />
+              Pipeline Runs
+            </TabsTrigger>
+            <TabsTrigger value="prompts" className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Prompt Overrides
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Pipeline Runs Tab */}
+          <TabsContent value="runs" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Runs List */}
+              <div className="lg:col-span-1">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Layers className="w-5 h-5" />
+                        Recent Runs
+                      </CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => refetchRuns()}>
+                        <RefreshCw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <CardDescription>{runsData?.total || 0} pipeline runs</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y max-h-[600px] overflow-y-auto">
+                      {runsData?.runs.map((run) => (
+                        <div
+                          key={run.id}
+                          className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
+                            selectedRunId === run.id
+                              ? 'bg-blue-50 border-l-2 border-l-blue-500'
+                              : ''
+                          }`}
+                          onClick={() => setSelectedRunId(run.id)}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <span className="font-mono text-sm font-medium truncate max-w-[180px]">
+                              {run.pipelineId}
+                            </span>
+                            {getStatusBadge(run.status)}
+                          </div>
+                          <div className="text-xs text-gray-500 space-y-1">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatDate(run.createdAt)}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span>{run.inputMessages} inputs</span>
+                              <span>→</span>
+                              <span>{run.outputProposals ?? '-'} proposals</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {(!runsData?.runs || runsData.runs.length === 0) && (
+                        <div className="p-8 text-center text-gray-500">
+                          <Play className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                          <p>No pipeline runs found</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Run Details */}
+              <div className="lg:col-span-2">
+                {selectedRunId && selectedRun ? (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="flex items-center gap-2">
+                            <span className="font-mono">{selectedRun.pipelineId}</span>
+                            {getStatusBadge(selectedRun.status)}
+                          </CardTitle>
+                          <CardDescription className="mt-1">
+                            Batch: {selectedRun.batchId}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {/* Metrics */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-gray-600 mb-1">
+                            <Clock className="w-4 h-4" />
+                            <span className="text-sm">Duration</span>
+                          </div>
+                          <span className="text-lg font-semibold">
+                            {formatDuration(selectedRun.totalDurationMs)}
+                          </span>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-gray-600 mb-1">
+                            <MessageSquare className="w-4 h-4" />
+                            <span className="text-sm">Input</span>
+                          </div>
+                          <span className="text-lg font-semibold">
+                            {selectedRun.inputMessages} msgs
+                          </span>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-gray-600 mb-1">
+                            <Zap className="w-4 h-4" />
+                            <span className="text-sm">LLM Calls</span>
+                          </div>
+                          <span className="text-lg font-semibold">
+                            {selectedRun.llmCalls ?? '-'}
+                          </span>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-gray-600 mb-1">
+                            <Database className="w-4 h-4" />
+                            <span className="text-sm">Output</span>
+                          </div>
+                          <span className="text-lg font-semibold">
+                            {selectedRun.outputProposals ?? '-'} proposals
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Error Message */}
+                      {selectedRun.errorMessage && (
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription className="font-mono text-sm whitespace-pre-wrap">
+                            {selectedRun.errorMessage}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      {/* Steps */}
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-3">Pipeline Steps</h4>
+                        <div className="space-y-2">
+                          {selectedRun.steps.map((step, index) => {
+                            const isExpanded = expandedSteps.has(step.stepName);
+                            return (
+                              <div
+                                key={index}
+                                className={`border rounded-lg overflow-hidden ${
+                                  step.status === 'failed'
+                                    ? 'border-red-200'
+                                    : step.status === 'skipped'
+                                      ? 'border-gray-200 bg-gray-50'
+                                      : 'border-gray-200'
+                                }`}
+                              >
+                                <div
+                                  className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
+                                  onClick={() => toggleStep(step.stepName)}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
+                                      {index + 1}
+                                    </span>
+                                    <span className="font-medium">{step.stepName}</span>
+                                    {step.status === 'completed' && (
+                                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                    )}
+                                    {step.status === 'failed' && (
+                                      <AlertCircle className="w-4 h-4 text-red-500" />
+                                    )}
+                                    {step.status === 'skipped' && (
+                                      <span className="text-xs text-gray-500">skipped</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-500">
+                                      {formatDuration(step.durationMs)}
+                                    </span>
+                                    {isExpanded ? (
+                                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                                    ) : (
+                                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                                    )}
+                                  </div>
+                                </div>
+
+                                {isExpanded && (
+                                  <div className="border-t p-3 bg-gray-50 space-y-2">
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                      {step.inputCount !== undefined && (
+                                        <div>
+                                          <span className="text-gray-500">Input:</span>
+                                          <span className="ml-2 font-medium">
+                                            {step.inputCount} items
+                                          </span>
+                                        </div>
+                                      )}
+                                      {step.outputCount !== undefined && (
+                                        <div>
+                                          <span className="text-gray-500">Output:</span>
+                                          <span className="ml-2 font-medium">
+                                            {step.outputCount} items
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {step.promptUsed && (
+                                      <div className="text-sm">
+                                        <span className="text-gray-500">Prompt used:</span>
+                                        <code className="ml-2 px-1.5 py-0.5 bg-gray-200 rounded text-xs">
+                                          {step.promptUsed}
+                                        </code>
+                                      </div>
+                                    )}
+                                    {step.error && (
+                                      <Alert variant="destructive" className="mt-2">
+                                        <AlertDescription className="text-sm font-mono">
+                                          {step.error}
+                                        </AlertDescription>
+                                      </Alert>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="h-full flex items-center justify-center">
+                    <CardContent className="text-center py-16">
+                      <Layers className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">Select a pipeline run to view details</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Prompt Overrides Tab */}
+          <TabsContent value="prompts" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Edit className="w-5 h-5" />
+                      Prompt Overrides
+                    </CardTitle>
+                    <CardDescription>
+                      Create temporary overrides to test prompt changes without modifying defaults
+                    </CardDescription>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => refetchPrompts()}>
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {promptsLoading ? (
+                  <div className="animate-pulse space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-20 bg-gray-200 rounded"></div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {promptsData?.prompts.map((prompt) => {
+                      const isEditing = editingPrompt === prompt.id;
+
+                      return (
+                        <div key={prompt.id} className="border rounded-lg overflow-hidden">
+                          <div className="flex items-start justify-between p-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-medium">{prompt.id}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  v{prompt.version}
+                                </Badge>
+                                {prompt.hasOverride && (
+                                  <Badge className="bg-orange-100 text-orange-800">
+                                    <Edit className="w-3 h-3 mr-1" />
+                                    Override Active
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {prompt.metadata.description}
+                              </p>
+                              {prompt.metadata.tags.length > 0 && (
+                                <div className="flex gap-1 mt-2">
+                                  {prompt.metadata.tags.map((tag) => (
+                                    <Badge key={tag} variant="secondary" className="text-xs">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              {!isEditing && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => startEditingPrompt(prompt)}
+                                  >
+                                    <Edit className="w-4 h-4 mr-1" />
+                                    {prompt.hasOverride ? 'Edit Override' : 'Create Override'}
+                                  </Button>
+                                  {prompt.hasOverride && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-red-600 hover:text-red-700"
+                                      onClick={() => deleteOverrideMutation.mutate(prompt.id)}
+                                      disabled={deleteOverrideMutation.isPending}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {isEditing && (
+                            <div className="border-t p-4 bg-gray-50 space-y-4">
+                              <div>
+                                <Label htmlFor={`${prompt.id}-system`}>System Prompt</Label>
+                                <Textarea
+                                  id={`${prompt.id}-system`}
+                                  value={editedSystem}
+                                  onChange={(e) => setEditedSystem(e.target.value)}
+                                  rows={6}
+                                  className="mt-1 font-mono text-sm"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`${prompt.id}-user`}>User Prompt</Label>
+                                <Textarea
+                                  id={`${prompt.id}-user`}
+                                  value={editedUser}
+                                  onChange={(e) => setEditedUser(e.target.value)}
+                                  rows={6}
+                                  className="mt-1 font-mono text-sm"
+                                />
+                              </div>
+                              <div className="flex gap-2 justify-end">
+                                <Button variant="outline" onClick={cancelEditing}>
+                                  <X className="w-4 h-4 mr-1" />
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={saveOverride}
+                                  disabled={saveOverrideMutation.isPending}
+                                >
+                                  <Save className="w-4 h-4 mr-1" />
+                                  Save Override
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {(!promptsData?.prompts || promptsData.prompts.length === 0) && (
+                      <div className="text-center py-8">
+                        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-500">No prompts found</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+}

@@ -28,6 +28,10 @@ export enum StepType {
   VALIDATE = 'validate',
   /** Condenses overly long proposals using LLM */
   CONDENSE = 'condense',
+  /** Enriches proposals with context analysis for review */
+  CONTEXT_ENRICH = 'context-enrich',
+  /** Applies tenant ruleset: rejection, modifications, quality gates */
+  RULESET_REVIEW = 'ruleset-review',
 }
 
 /**
