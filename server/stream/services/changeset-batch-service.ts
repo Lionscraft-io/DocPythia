@@ -164,6 +164,15 @@ export class ChangesetBatchService {
           console.log(`   Full path: ${fullPath}`);
           console.log(`   Proposals: ${fileProposals.length}`);
 
+          // Log proposal details for debugging
+          for (const p of fileProposals) {
+            console.log(`   📋 Proposal #${p.id}:`);
+            console.log(`      updateType: ${p.updateType}`);
+            console.log(`      section: ${p.section || '(null)'}`);
+            console.log(`      location: ${JSON.stringify(p.location) || '(null)'}`);
+            console.log(`      suggestedText length: ${p.suggestedText?.length || 0} chars`);
+          }
+
           const originalContent = await fs.readFile(fullPath, 'utf-8');
 
           let modifiedContent: string;
