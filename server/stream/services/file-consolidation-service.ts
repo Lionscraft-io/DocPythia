@@ -174,11 +174,6 @@ ${text}
    * @returns Whether to use LLM consolidation
    */
   shouldConsolidate(proposals: DocProposal[], fileContent: string): boolean {
-    // Don't consolidate if only one proposal
-    if (proposals.length <= 1) {
-      return false;
-    }
-
     // Don't consolidate if file is too large (>50KB)
     const MAX_FILE_SIZE = 50_000;
     if (fileContent.length > MAX_FILE_SIZE) {
@@ -186,10 +181,30 @@ ${text}
       return false;
     }
 
-    // Always consolidate if there are UPDATE operations (to avoid replacement issue)
-    const hasUpdate = proposals.some((p) => p.updateType === 'UPDATE');
-    if (hasUpdate) {
+    // Check if any proposal would fail mechanical application
+    // UPDATE/DELETE without section or location requires LLM consolidation
+    const hasProposalRequiringLLM = proposals.some((p) => {
+      const location = p.location as { lineStart?: number; lineEnd?: number } | null;
+      const hasLocation = location?.lineStart !== undefined && location?.lineEnd !== undefined;
+      const hasSection = !!p.section;
+
+      // UPDATE and DELETE require either location or section for mechanical application
+      if ((p.updateType === 'UPDATE' || p.updateType === 'DELETE') && !hasLocation && !hasSection) {
+        console.log(
+          `📋 Proposal for ${p.page} requires LLM consolidation (${p.updateType} without section/location)`
+        );
+        return true;
+      }
+      return false;
+    });
+
+    if (hasProposalRequiringLLM) {
       return true;
+    }
+
+    // For single proposals with valid section/location, use mechanical application
+    if (proposals.length <= 1) {
+      return false;
     }
 
     // Consolidate if multiple proposals (for better coherence)
