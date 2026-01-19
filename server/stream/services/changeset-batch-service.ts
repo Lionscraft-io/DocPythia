@@ -159,6 +159,11 @@ export class ChangesetBatchService {
           const fs = await import('fs/promises');
           const path = await import('path');
           const fullPath = path.join(repoPath, filePath);
+
+          console.log(`\n📄 Processing file: ${filePath}`);
+          console.log(`   Full path: ${fullPath}`);
+          console.log(`   Proposals: ${fileProposals.length}`);
+
           const originalContent = await fs.readFile(fullPath, 'utf-8');
 
           let modifiedContent: string;
@@ -200,6 +205,9 @@ export class ChangesetBatchService {
             appliedProposals.push(proposal.id);
           }
         } catch (error: any) {
+          console.error(`\n❌ Failed to process file: ${filePath}`);
+          console.error(`   Error: ${error.message}`);
+
           // Track failures for this file's proposals
           for (const proposal of fileProposals) {
             const errorType = this.classifyError(error);
@@ -236,7 +244,14 @@ export class ChangesetBatchService {
 
       // Check if any proposals were successfully applied
       if (appliedProposals.length === 0) {
-        throw new Error('No proposals could be applied. All failed.');
+        // Include actual failure reasons in the error
+        const failureDetails = failedProposals
+          .slice(0, 3) // Limit to first 3 failures
+          .map((f) => `${f.errorType}: ${f.error}`)
+          .join('; ');
+        throw new Error(
+          `No proposals could be applied. All failed. Errors: ${failureDetails || 'Unknown'}`
+        );
       }
 
       // Create branch
