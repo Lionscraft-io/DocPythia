@@ -20,6 +20,7 @@ import widgetRoutes from './widget-routes.js';
 import widgetEmbedRoutes from './widget-embed-routes.js';
 import { createDocsRoutes, createDocsIndexRoutes } from './docs-routes.js';
 import { createAdminPanelRoutes } from './admin-panel-routes.js';
+import { createQualitySystemRoutes } from './quality-system-routes.js';
 
 // Import swagger path definitions
 import '../swagger/paths/index.js';
@@ -93,6 +94,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const adminPanelRoutes = createAdminPanelRoutes(adminAuth);
   app.use('/api', adminPanelRoutes);
   app.use('/api/admin', adminPanelRoutes);
+
+  // Quality System routes (prompts, rulesets, feedback)
+  const qualitySystemRoutes = createQualitySystemRoutes(adminAuth);
+  app.use('/api/quality', qualitySystemRoutes);
 
   // Register Multi-Stream Scanner admin routes (Phase 1)
   // Routes are now registered with dual registration (instance and non-instance)

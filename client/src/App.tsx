@@ -6,6 +6,8 @@ import Admin from '@/pages/Admin';
 import AdminAdvanced from '@/pages/AdminAdvanced';
 import AdminLogin from '@/pages/AdminLogin';
 import AdminLegacy from '@/pages/AdminLegacy';
+import PromptsOverview from '@/pages/PromptsOverview';
+import RulesetEditor from '@/pages/RulesetEditor';
 import Logout from '@/pages/Logout';
 import NotFound from '@/pages/not-found';
 import { useConfig } from '@/hooks/useConfig';
@@ -22,6 +24,8 @@ function Router() {
       <Route path="/:instance/admin/login" component={AdminLogin} />
       <Route path="/:instance/admin/advanced" component={AdminAdvanced} />
       <Route path="/:instance/admin/legacy" component={AdminLegacy} />
+      <Route path="/:instance/admin/prompts" component={PromptsOverview} />
+      <Route path="/:instance/admin/ruleset" component={RulesetEditor} />
       <Route path="/:instance/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
