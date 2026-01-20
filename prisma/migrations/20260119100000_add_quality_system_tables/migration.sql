@@ -52,84 +52,22 @@ CREATE TABLE IF NOT EXISTS "proposal_review_logs" (
     CONSTRAINT "proposal_review_logs_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex (idempotent using DO block)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'tenant_rulesets_tenant_id_key') THEN
-        CREATE UNIQUE INDEX "tenant_rulesets_tenant_id_key" ON "tenant_rulesets"("tenant_id");
-    END IF;
-END $$;
+-- CreateIndex (using IF NOT EXISTS)
+CREATE UNIQUE INDEX IF NOT EXISTS "tenant_rulesets_tenant_id_key" ON "tenant_rulesets"("tenant_id");
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'tenant_prompt_overrides_tenant_id_idx') THEN
-        CREATE INDEX "tenant_prompt_overrides_tenant_id_idx" ON "tenant_prompt_overrides"("tenant_id");
-    END IF;
-END $$;
+CREATE INDEX IF NOT EXISTS "tenant_prompt_overrides_tenant_id_idx" ON "tenant_prompt_overrides"("tenant_id");
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'tenant_prompt_overrides_tenant_id_prompt_key_key') THEN
-        CREATE UNIQUE INDEX "tenant_prompt_overrides_tenant_id_prompt_key_key" ON "tenant_prompt_overrides"("tenant_id", "prompt_key");
-    END IF;
-END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS "tenant_prompt_overrides_tenant_id_prompt_key_key" ON "tenant_prompt_overrides"("tenant_id", "prompt_key");
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ruleset_feedback_tenant_id_idx') THEN
-        CREATE INDEX "ruleset_feedback_tenant_id_idx" ON "ruleset_feedback"("tenant_id");
-    END IF;
-END $$;
+CREATE INDEX IF NOT EXISTS "ruleset_feedback_tenant_id_idx" ON "ruleset_feedback"("tenant_id");
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ruleset_feedback_proposal_id_idx') THEN
-        CREATE INDEX "ruleset_feedback_proposal_id_idx" ON "ruleset_feedback"("proposal_id");
-    END IF;
-END $$;
+CREATE INDEX IF NOT EXISTS "ruleset_feedback_proposal_id_idx" ON "ruleset_feedback"("proposal_id");
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ruleset_feedback_processed_at_idx') THEN
-        CREATE INDEX "ruleset_feedback_processed_at_idx" ON "ruleset_feedback"("processed_at");
-    END IF;
-END $$;
+CREATE INDEX IF NOT EXISTS "ruleset_feedback_processed_at_idx" ON "ruleset_feedback"("processed_at");
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'proposal_review_logs_proposal_id_key') THEN
-        CREATE UNIQUE INDEX "proposal_review_logs_proposal_id_key" ON "proposal_review_logs"("proposal_id");
-    END IF;
-END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS "proposal_review_logs_proposal_id_key" ON "proposal_review_logs"("proposal_id");
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'proposal_review_logs_proposal_id_idx') THEN
-        CREATE INDEX "proposal_review_logs_proposal_id_idx" ON "proposal_review_logs"("proposal_id");
-    END IF;
-END $$;
-
--- AddForeignKey (idempotent)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ruleset_feedback_tenant_id_fkey') THEN
-        ALTER TABLE "ruleset_feedback" ADD CONSTRAINT "ruleset_feedback_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenant_rulesets"("tenant_id") ON DELETE CASCADE ON UPDATE CASCADE;
-    END IF;
-END $$;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ruleset_feedback_proposal_id_fkey') THEN
-        ALTER TABLE "ruleset_feedback" ADD CONSTRAINT "ruleset_feedback_proposal_id_fkey" FOREIGN KEY ("proposal_id") REFERENCES "doc_proposals"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-    END IF;
-END $$;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'proposal_review_logs_proposal_id_fkey') THEN
-        ALTER TABLE "proposal_review_logs" ADD CONSTRAINT "proposal_review_logs_proposal_id_fkey" FOREIGN KEY ("proposal_id") REFERENCES "doc_proposals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-    END IF;
-END $$;
+CREATE INDEX IF NOT EXISTS "proposal_review_logs_proposal_id_idx" ON "proposal_review_logs"("proposal_id");
 
 -- Add use_for_improvement column to ruleset_feedback (for Phase 1)
 ALTER TABLE "ruleset_feedback" ADD COLUMN IF NOT EXISTS "use_for_improvement" BOOLEAN NOT NULL DEFAULT true;

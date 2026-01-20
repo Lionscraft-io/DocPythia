@@ -40,10 +40,5 @@ CREATE INDEX IF NOT EXISTS "ruleset_feedback_use_for_improvement_idx" ON "rulese
 -- AlterTable: Add stream_id column to processing_watermark
 ALTER TABLE "processing_watermark" ADD COLUMN IF NOT EXISTS "stream_id" TEXT;
 
--- CreateIndex (conditional - only if not exists)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'processing_watermark_stream_id_key') THEN
-        CREATE UNIQUE INDEX "processing_watermark_stream_id_key" ON "processing_watermark"("stream_id");
-    END IF;
-END $$;
+-- CreateIndex (using IF NOT EXISTS)
+CREATE UNIQUE INDEX IF NOT EXISTS "processing_watermark_stream_id_key" ON "processing_watermark"("stream_id");
