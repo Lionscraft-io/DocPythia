@@ -231,12 +231,15 @@ export default function RulesetEditor() {
 
   // Initialize content from fetched ruleset or template
   useEffect(() => {
-    if (ruleset?.content) {
-      setContent(ruleset.content);
-    } else if (!isLoading && !ruleset) {
-      setContent(DEFAULT_RULESET_TEMPLATE);
+    if (!isLoading) {
+      if (ruleset?.content) {
+        setContent(ruleset.content);
+      } else {
+        // No ruleset or empty content - show template
+        setContent(DEFAULT_RULESET_TEMPLATE);
+      }
+      setHasUnsavedChanges(false);
     }
-    setHasUnsavedChanges(false);
   }, [ruleset, isLoading]);
 
   // Save mutation
@@ -365,9 +368,7 @@ export default function RulesetEditor() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  <span className="text-sm font-medium text-gray-900">
-                    Ruleset exists for this tenant
-                  </span>
+                  <span className="text-sm font-medium text-gray-900">Ruleset saved</span>
                 </div>
                 <span className="text-xs text-gray-500">
                   Last updated: {new Date(ruleset.updatedAt).toLocaleString()}
@@ -404,41 +405,106 @@ export default function RulesetEditor() {
           </CardContent>
         </Card>
 
-        {/* Help Section */}
+        {/* Pipeline Overview */}
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle className="text-lg">Section Reference</CardTitle>
-            <CardDescription>How each section is used during proposal processing</CardDescription>
+            <CardTitle className="text-lg">How the Pipeline Works</CardTitle>
+            <CardDescription>Understanding the documentation update workflow</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4 text-sm">
-              <div>
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-blue-900 mb-2">Pipeline Flow</h4>
+                <ol className="list-decimal list-inside space-y-2 text-blue-800">
+                  <li>
+                    <strong>Message Collection</strong> — Messages are collected from community
+                    channels (Zulip, Telegram)
+                  </li>
+                  <li>
+                    <strong>Thread Detection</strong> — AI groups related messages into conversation
+                    threads
+                  </li>
+                  <li>
+                    <strong>Proposal Generation</strong> — AI analyzes threads and generates
+                    documentation update proposals
+                  </li>
+                  <li>
+                    <strong>Ruleset Application</strong> — Your ruleset filters, modifies, or flags
+                    proposals
+                  </li>
+                  <li>
+                    <strong>Human Review</strong> — You approve, reject, or edit proposals in the
+                    dashboard
+                  </li>
+                  <li>
+                    <strong>PR Generation</strong> — Approved proposals are turned into GitHub pull
+                    requests
+                  </li>
+                </ol>
+              </div>
+
+              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <h4 className="font-semibold text-purple-900 mb-2">Feedback Learning Loop</h4>
+                <p className="text-purple-800 mb-2">
+                  When you approve or reject proposals, your feedback is stored. The AI can analyze
+                  this feedback to suggest ruleset improvements:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-purple-800">
+                  <li>Frequently rejected proposals → New rejection rules</li>
+                  <li>Common edits you make → Automatic modifications</li>
+                  <li>Quality issues you flag → Quality gate rules</li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Section Reference */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Ruleset Section Reference</CardTitle>
+            <CardDescription>How each section affects proposal processing</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 text-sm">
+              <div className="p-3 border-l-4 border-green-500 bg-green-50">
                 <h4 className="font-semibold text-gray-900">## PROMPT_CONTEXT</h4>
                 <p className="text-gray-600 mt-1">
-                  Content injected into the LLM prompt during changeset generation. Use this to
-                  provide project-specific context, terminology definitions, or writing style
-                  guidelines.
+                  <strong>When applied:</strong> During proposal generation (Step 3)
+                </p>
+                <p className="text-gray-600 mt-1">
+                  Add project-specific context, terminology, or writing style guidelines that the AI
+                  should follow when creating proposals.
                 </p>
               </div>
-              <div>
+              <div className="p-3 border-l-4 border-amber-500 bg-amber-50">
                 <h4 className="font-semibold text-gray-900">## REVIEW_MODIFICATIONS</h4>
                 <p className="text-gray-600 mt-1">
-                  Rules for automatic text modifications. Define find/replace patterns to enforce
-                  consistent terminology or formatting across all proposals.
+                  <strong>When applied:</strong> After proposal generation (Step 4)
+                </p>
+                <p className="text-gray-600 mt-1">
+                  Define find/replace patterns to automatically fix terminology, formatting, or
+                  common issues in generated proposals.
                 </p>
               </div>
-              <div>
+              <div className="p-3 border-l-4 border-red-500 bg-red-50">
                 <h4 className="font-semibold text-gray-900">## REJECTION_RULES</h4>
                 <p className="text-gray-600 mt-1">
-                  Criteria that cause automatic proposal rejection. Define patterns or keywords that
-                  indicate low-quality or inappropriate content.
+                  <strong>When applied:</strong> After proposal generation (Step 4)
+                </p>
+                <p className="text-gray-600 mt-1">
+                  Criteria that automatically reject proposals. Use for duplicates, off-topic
+                  content, or patterns that indicate low-quality suggestions.
                 </p>
               </div>
-              <div>
+              <div className="p-3 border-l-4 border-blue-500 bg-blue-50">
                 <h4 className="font-semibold text-gray-900">## QUALITY_GATES</h4>
                 <p className="text-gray-600 mt-1">
-                  Quality requirements that proposals must meet. Define minimum content length,
-                  required sections, or other quality metrics.
+                  <strong>When applied:</strong> After proposal generation (Step 4)
+                </p>
+                <p className="text-gray-600 mt-1">
+                  Quality checks that flag proposals for careful review without rejecting them. Use
+                  for content length, required sections, or complexity thresholds.
                 </p>
               </div>
             </div>
