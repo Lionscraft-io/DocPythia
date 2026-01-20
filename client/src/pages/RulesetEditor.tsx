@@ -558,6 +558,7 @@ export default function RulesetEditor() {
                   disabled={
                     generateImprovementsMutation.isPending || unprocessedFeedbackCount === 0
                   }
+                  className="bg-purple-600 hover:bg-purple-700 text-white border-purple-700"
                 >
                   {generateImprovementsMutation.isPending ? (
                     <>

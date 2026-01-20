@@ -142,7 +142,21 @@
       "Bash(aws apprunner list-operations:*)",
       "Bash(npx prettier:*)",
       "Bash(git tag:*)",
-      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"do it.\" npx prisma migrate reset:*)"
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"do it.\" npx prisma migrate reset:*)",
+      "Bash(pm2 logs:*)",
+      "Bash(jq:*)",
+      "Bash(aws rds describe-db-instances:*)",
+      "Bash(aws secretsmanager list-secrets:*)",
+      "Bash(aws ssm get-parameters-by-path:*)",
+      "Bash(aws apprunner list-services:*)",
+      "Bash(for i in 1 2 3 4 5 6)",
+      "Bash(do)",
+      "Bash(for i in 1 2 3 4 5 6 7 8)",
+      "Bash(then)",
+      "Bash(break)",
+      "Bash(fi)",
+      "Bash(export:*)",
+      "Bash(__NEW_LINE_da3b618518c4c3d3__ echo \"\")"
     ],
     "deny": [],
     "ask": []
