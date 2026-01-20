@@ -77,11 +77,20 @@ router.post('/run-migrations', async (req: Request, res: Response) => {
 
       try {
         const sql = fs.readFileSync(migrationPath, 'utf-8');
-        // Split by semicolons but handle PL/pgSQL blocks
+        // Split by semicolons but handle PL/pgSQL blocks (DO $$ ... $$)
         const statements = sql
           .split(/;(?![^$]*\$\$)/)
           .map((s) => s.trim())
-          .filter((s) => s.length > 0 && !s.startsWith('--'));
+          .filter((s) => {
+            if (s.length === 0) return false;
+            // Remove leading comment lines to check if there's actual SQL
+            const withoutComments = s
+              .split('\n')
+              .filter((line) => !line.trim().startsWith('--'))
+              .join('\n')
+              .trim();
+            return withoutComments.length > 0;
+          });
 
         for (const statement of statements) {
           if (statement.length > 0) {
