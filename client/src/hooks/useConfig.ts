@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 
 export interface ProjectConfig {
   name: string;
@@ -48,17 +49,16 @@ export interface AppConfig {
 }
 
 /**
- * Get the instance ID from the current URL path
+ * Get the instance ID from a URL path
  * e.g., /near/admin -> "near", /admin -> null
  */
-function getInstanceFromPath(): string | null {
-  const path = window.location.pathname;
+function getInstanceFromPath(path: string): string | null {
   // Match /:instance/... pattern (but not /admin, /api, etc.)
   const match = path.match(/^\/([a-zA-Z0-9_-]+)\//);
   if (match) {
     const potentialInstance = match[1];
     // Exclude known non-instance routes
-    const nonInstanceRoutes = ['api', 'admin', 'docs', 'assets', 'static'];
+    const nonInstanceRoutes = ['api', 'admin', 'docs', 'assets', 'static', 'login', 'logout'];
     if (!nonInstanceRoutes.includes(potentialInstance)) {
       return potentialInstance;
     }
@@ -66,23 +66,34 @@ function getInstanceFromPath(): string | null {
   return null;
 }
 
-async function fetchConfig(): Promise<AppConfig> {
-  // Determine the correct config endpoint based on current URL
-  const instance = getInstanceFromPath();
+async function fetchConfig(instance: string | null): Promise<AppConfig> {
+  // Determine the correct config endpoint based on instance
   const configUrl = instance ? `/${instance}/api/config` : '/api/config';
+
+  console.log(`[useConfig] Fetching config from: ${configUrl} (instance: ${instance})`);
 
   const response = await fetch(configUrl);
   if (!response.ok) {
     throw new Error('Failed to fetch configuration');
   }
-  return response.json();
+  const data = await response.json();
+  console.log(`[useConfig] Config loaded:`, {
+    instance,
+    targetRepo: data.repository?.targetRepo,
+    projectName: data.project?.name,
+  });
+  return data;
 }
 
 export function useConfig() {
-  const instance = getInstanceFromPath();
+  // Use wouter's useLocation to ensure we re-render when the URL changes
+  // This is critical for proper instance detection after navigation
+  const [location] = useLocation();
+  const instance = getInstanceFromPath(location);
+
   return useQuery({
     queryKey: ['config', instance], // Include instance in key for proper caching per-instance
-    queryFn: fetchConfig,
+    queryFn: () => fetchConfig(instance),
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     retry: 3,
   });

@@ -15,6 +15,11 @@ import { useConfig, type AppConfig } from '../../../client/src/hooks/useConfig';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+// Mock wouter's useLocation hook
+vi.mock('wouter', () => ({
+  useLocation: () => ['/admin', vi.fn()], // Default to non-instance path
+}));
+
 const mockConfig: AppConfig = {
   project: {
     name: 'Test Project',
