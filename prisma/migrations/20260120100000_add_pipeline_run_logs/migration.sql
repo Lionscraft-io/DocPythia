@@ -1,3 +1,6 @@
+-- Drop and recreate pipeline_run_logs with correct schema
+DROP TABLE IF EXISTS "pipeline_run_logs";
+
 -- CreateTable: pipeline_run_logs
 CREATE TABLE IF NOT EXISTS "pipeline_run_logs" (
     "id" SERIAL NOT NULL,
@@ -5,13 +8,16 @@ CREATE TABLE IF NOT EXISTS "pipeline_run_logs" (
     "batch_id" TEXT NOT NULL,
     "pipeline_id" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'running',
-    "input_data" JSONB,
-    "output_data" JSONB,
-    "debug_snapshots" JSONB,
+    "input_messages" INTEGER NOT NULL DEFAULT 0,
+    "steps" JSONB NOT NULL DEFAULT '[]',
+    "output_threads" INTEGER,
+    "output_proposals" INTEGER,
+    "total_duration_ms" INTEGER,
+    "llm_calls" INTEGER,
+    "llm_tokens_used" INTEGER,
     "error_message" TEXT,
-    "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "completed_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completed_at" TIMESTAMP(3),
 
     CONSTRAINT "pipeline_run_logs_pkey" PRIMARY KEY ("id")
 );
