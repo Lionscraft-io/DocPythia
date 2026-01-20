@@ -101,9 +101,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/admin', adminPanelRoutes);
 
   // Quality System routes (prompts, rulesets, feedback)
+  // Registered three times:
+  // 1. /api/quality (non-instance)
+  // 2. /api/admin/quality (admin path for multi-instance access)
+  // 3. /:instance/api/quality (instance-specific)
+  // 4. /:instance/api/admin/quality (instance-specific admin path)
   const qualitySystemRoutes = createQualitySystemRoutes(adminAuth);
   app.use('/api/quality', qualitySystemRoutes);
-  app.use('/api/admin/quality', qualitySystemRoutes); // Also mount under admin path for multi-instance access
+  app.use('/api/admin/quality', qualitySystemRoutes);
+  app.use('/:instance/api/quality', instanceMiddleware, qualitySystemRoutes);
+  app.use('/:instance/api/admin/quality', instanceMiddleware, qualitySystemRoutes);
 
   // Register Multi-Stream Scanner admin routes (Phase 1)
   // Routes are now registered with dual registration (instance and non-instance)

@@ -1494,8 +1494,12 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
   /**
    * POST /api/admin/stream/batches
    * Create a draft changeset batch from approved proposals
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/batches (non-instance)
+   * 2. /:instance/api/admin/stream/batches (instance-specific)
    */
-  app.post('/api/admin/stream/batches', adminAuth, async (req: Request, res: Response) => {
+  const createBatchHandler = async (req: Request, res: Response) => {
     try {
       const db = getDb(req);
 
@@ -1518,49 +1522,67 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       logger.error('Error creating draft batch:', error);
       res.status(500).json({ error: error.message || 'Failed to create draft batch' });
     }
-  });
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.post('/api/admin/stream/batches', adminAuth, createBatchHandler);
+  app.post(
+    '/:instance/api/admin/stream/batches',
+    instanceMiddleware,
+    adminAuth,
+    createBatchHandler
+  );
 
   /**
    * POST /api/admin/stream/batches/:id/generate-pr
    * Generate a pull request from a draft batch
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/batches/:id/generate-pr (non-instance)
+   * 2. /:instance/api/admin/stream/batches/:id/generate-pr (instance-specific)
    */
-  app.post(
-    '/api/admin/stream/batches/:id/generate-pr',
-    adminAuth,
-    async (req: Request, res: Response) => {
-      try {
-        const db = getDb(req);
+  const generatePRHandler = async (req: Request, res: Response) => {
+    try {
+      const db = getDb(req);
 
-        const batchId = parseInt(req.params.id);
-        const options = z
-          .object({
-            proposalIds: z.array(z.number().int()),
-            targetRepo: z.string(),
-            sourceRepo: z.string(),
-            baseBranch: z.string().optional(),
-            prTitle: z.string(),
-            prBody: z.string(),
-            submittedBy: z.string(),
-          })
-          .parse(req.body);
+      const batchId = parseInt(req.params.id);
+      const options = z
+        .object({
+          proposalIds: z.array(z.number().int()),
+          targetRepo: z.string(),
+          sourceRepo: z.string(),
+          baseBranch: z.string().optional(),
+          prTitle: z.string(),
+          prBody: z.string(),
+          submittedBy: z.string(),
+        })
+        .parse(req.body);
 
-        const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
-        const batchService = new ChangesetBatchService(db);
+      const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
+      const batchService = new ChangesetBatchService(db);
 
-        const result = await batchService.generatePR(batchId, options);
+      const result = await batchService.generatePR(batchId, options);
 
-        res.status(200).json({
-          message: 'Pull request created successfully',
-          batch: result.batch,
-          pr: result.pr,
-          appliedProposals: result.appliedProposals,
-          failedProposals: result.failedProposals,
-        });
-      } catch (error: any) {
-        logger.error('Error generating PR:', error);
-        res.status(500).json({ error: error.message || 'Failed to generate pull request' });
-      }
+      res.status(200).json({
+        message: 'Pull request created successfully',
+        batch: result.batch,
+        pr: result.pr,
+        appliedProposals: result.appliedProposals,
+        failedProposals: result.failedProposals,
+      });
+    } catch (error: any) {
+      logger.error('Error generating PR:', error);
+      res.status(500).json({ error: error.message || 'Failed to generate pull request' });
     }
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.post('/api/admin/stream/batches/:id/generate-pr', adminAuth, generatePRHandler);
+  app.post(
+    '/:instance/api/admin/stream/batches/:id/generate-pr',
+    instanceMiddleware,
+    adminAuth,
+    generatePRHandler
   );
 
   // Note: GET /api/admin/stream/batches is handled by batchesHandler at line 613
@@ -1568,8 +1590,12 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
   /**
    * GET /api/admin/stream/batches/:id
    * Get detailed information about a specific batch
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/batches/:id (non-instance)
+   * 2. /:instance/api/admin/stream/batches/:id (instance-specific)
    */
-  app.get('/api/admin/stream/batches/:id', adminAuth, async (req: Request, res: Response) => {
+  const getBatchHandler = async (req: Request, res: Response) => {
     try {
       const db = getDb(req);
 
@@ -1589,13 +1615,26 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       logger.error('Error fetching batch:', error);
       res.status(500).json({ error: error.message || 'Failed to fetch batch' });
     }
-  });
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.get('/api/admin/stream/batches/:id', adminAuth, getBatchHandler);
+  app.get(
+    '/:instance/api/admin/stream/batches/:id',
+    instanceMiddleware,
+    adminAuth,
+    getBatchHandler
+  );
 
   /**
    * DELETE /api/admin/stream/batches/:id
    * Delete a draft batch (only allowed for draft status)
+   *
+   * Registered twice:
+   * 1. /api/admin/stream/batches/:id (non-instance)
+   * 2. /:instance/api/admin/stream/batches/:id (instance-specific)
    */
-  app.delete('/api/admin/stream/batches/:id', adminAuth, async (req: Request, res: Response) => {
+  const deleteBatchHandler = async (req: Request, res: Response) => {
     try {
       const db = getDb(req);
 
@@ -1611,7 +1650,16 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       logger.error('Error deleting batch:', error);
       res.status(500).json({ error: error.message || 'Failed to delete batch' });
     }
-  });
+  };
+
+  // Register both non-instance and instance-specific versions
+  app.delete('/api/admin/stream/batches/:id', adminAuth, deleteBatchHandler);
+  app.delete(
+    '/:instance/api/admin/stream/batches/:id',
+    instanceMiddleware,
+    adminAuth,
+    deleteBatchHandler
+  );
 
   logger.info('Multi-stream scanner admin routes registered');
 }
