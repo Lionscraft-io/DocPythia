@@ -88,6 +88,7 @@ ENV PORT=8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8080/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-# Start the application with database migration
-# Run prisma migrate deploy to apply any pending migrations before starting the server
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# Start the application
+# Note: Migrations should be run manually or via CI/CD pipeline due to DATABASE_URL containing
+# special characters that require URL encoding for Prisma CLI but not for the runtime connection
+CMD ["node", "dist/index.js"]
