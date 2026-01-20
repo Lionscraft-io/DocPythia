@@ -225,7 +225,8 @@ describe('useConfig', () => {
     renderHook(() => useConfig(), { wrapper });
 
     await waitFor(() => {
-      const queryState = queryClient.getQueryState(['config']);
+      // Query key now includes instance (null when not on instance route)
+      const queryState = queryClient.getQueryState(['config', null]);
       expect(queryState).toBeDefined();
     });
   });
