@@ -543,7 +543,7 @@ export default function AdminAdvanced() {
     },
   });
 
-  // Change proposal status mutation
+  // Change proposal status mutation with optimistic updates
   const changeProposalStatusMutation = useMutation({
     mutationFn: async ({
       proposalId,
@@ -551,6 +551,7 @@ export default function AdminAdvanced() {
     }: {
       proposalId: number;
       status: 'approved' | 'ignored' | 'pending';
+      sourceTab?: 'pending' | 'changeset' | 'discarded';
     }) => {
       const response = await adminApiRequest(
         'POST',
@@ -562,23 +563,38 @@ export default function AdminAdvanced() {
       );
       return await response.json();
     },
-    onSuccess: (data, variables) => {
-      const statusLabel =
-        variables.status === 'approved'
-          ? 'approved and added to changeset'
-          : variables.status === 'ignored'
-            ? 'ignored'
-            : 'reset to pending';
-      toast({
-        title: 'Proposal Status Changed',
-        description: `Proposal has been ${statusLabel}.`,
+    onMutate: async ({ proposalId, sourceTab }) => {
+      // Determine source query key
+      const sourceKey =
+        sourceTab === 'changeset'
+          ? changesetUrl
+          : sourceTab === 'discarded'
+            ? discardedConvsUrl
+            : suggestedChangesUrl;
+
+      await queryClient.cancelQueries({ queryKey: [sourceKey] });
+      const prevSource = queryClient.getQueryData([sourceKey]);
+
+      // Optimistically remove proposal from source tab
+      queryClient.setQueryData([sourceKey], (old: any) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data
+            .map((conv: any) => ({
+              ...conv,
+              proposals: conv.proposals?.filter((p: any) => p.id !== proposalId),
+            }))
+            .filter((conv: any) => conv.proposals?.length > 0),
+        };
       });
-      queryClient.invalidateQueries({ queryKey: [suggestedChangesUrl] });
-      queryClient.invalidateQueries({ queryKey: [changesetUrl] });
-      queryClient.invalidateQueries({ queryKey: [discardedConvsUrl] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/stats'] });
+
+      return { prevSource, sourceKey };
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _vars, context) => {
+      if (context?.prevSource) {
+        queryClient.setQueryData([context.sourceKey], context.prevSource);
+      }
       if (error.message.includes('401') || error.message.includes('403')) {
         sessionStorage.removeItem('admin_token');
         setLocation('/admin/login');
@@ -589,6 +605,24 @@ export default function AdminAdvanced() {
           variant: 'destructive',
         });
       }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: [suggestedChangesUrl] });
+      queryClient.invalidateQueries({ queryKey: [changesetUrl] });
+      queryClient.invalidateQueries({ queryKey: [discardedConvsUrl] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stream/stats'] });
+    },
+    onSuccess: (_data, variables) => {
+      const statusLabel =
+        variables.status === 'approved'
+          ? 'approved and added to changeset'
+          : variables.status === 'ignored'
+            ? 'ignored'
+            : 'reset to pending';
+      toast({
+        title: 'Proposal Status Changed',
+        description: `Proposal has been ${statusLabel}.`,
+      });
     },
   });
 
@@ -649,16 +683,25 @@ export default function AdminAdvanced() {
     editProposalMutation.mutate({ proposalId, text });
   };
 
-  const handleApproveProposal = (proposalId: number) => {
-    changeProposalStatusMutation.mutate({ proposalId, status: 'approved' });
+  const handleApproveProposal = (
+    proposalId: number,
+    sourceTab: 'pending' | 'changeset' | 'discarded' = 'pending'
+  ) => {
+    changeProposalStatusMutation.mutate({ proposalId, status: 'approved', sourceTab });
   };
 
-  const handleIgnoreProposal = (proposalId: number) => {
-    changeProposalStatusMutation.mutate({ proposalId, status: 'ignored' });
+  const handleIgnoreProposal = (
+    proposalId: number,
+    sourceTab: 'pending' | 'changeset' | 'discarded' = 'pending'
+  ) => {
+    changeProposalStatusMutation.mutate({ proposalId, status: 'ignored', sourceTab });
   };
 
-  const handleResetProposal = (proposalId: number) => {
-    changeProposalStatusMutation.mutate({ proposalId, status: 'pending' });
+  const handleResetProposal = (
+    proposalId: number,
+    sourceTab: 'pending' | 'changeset' | 'discarded' = 'changeset'
+  ) => {
+    changeProposalStatusMutation.mutate({ proposalId, status: 'pending', sourceTab });
   };
 
   const handlePRSubmit = async (prData: PRSubmitData) => {

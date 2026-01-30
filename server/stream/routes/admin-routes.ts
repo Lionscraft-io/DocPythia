@@ -1109,10 +1109,11 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const hasProposals = req.query.hasProposals === 'true';
       const statusFilter = req.query.status as 'pending' | 'changeset' | 'discarded' | undefined;
       const hideEmptyProposals = req.query.hideEmptyProposals !== 'false'; // Default to true
+      const search = req.query.search as string | undefined;
       const offset = (page - 1) * limit;
 
       logger.debug(
-        `Query params - category: ${category}, hasProposals: ${req.query.hasProposals}, status: ${statusFilter}, hideEmptyProposals: ${hideEmptyProposals}`
+        `Query params - category: ${category}, hasProposals: ${req.query.hasProposals}, status: ${statusFilter}, hideEmptyProposals: ${hideEmptyProposals}, search: ${search || 'none'}`
       );
 
       // Build where clause for filtering
@@ -1121,6 +1122,60 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       };
       if (category && category !== 'all') {
         where.category = category;
+      }
+
+      // Search: find matching conversationIds from proposals and messages
+      if (search && search.trim()) {
+        const searchTerm = search.trim();
+
+        // Find proposals matching search text
+        const matchingProposals = await db.docProposal.findMany({
+          where: {
+            OR: [
+              { suggestedText: { contains: searchTerm, mode: 'insensitive' } },
+              { reasoning: { contains: searchTerm, mode: 'insensitive' } },
+              { page: { contains: searchTerm, mode: 'insensitive' } },
+            ],
+          },
+          select: { conversationId: true },
+          distinct: ['conversationId'],
+        });
+
+        // Find messages matching search text
+        const matchingMessages = await db.messageClassification.findMany({
+          where: {
+            message: {
+              content: { contains: searchTerm, mode: 'insensitive' },
+            },
+          },
+          select: { conversationId: true },
+          distinct: ['conversationId'],
+        });
+
+        const matchedIds = new Set([
+          ...matchingProposals.map((p) => p.conversationId),
+          ...matchingMessages
+            .map((m) => m.conversationId)
+            .filter((id): id is string => id !== null),
+        ]);
+
+        // Short-circuit if no matches
+        if (matchedIds.size === 0) {
+          return res.json({
+            data: [],
+            totals: {
+              total_messages: await db.unifiedMessage.count(),
+              total_processed: 0,
+              total_messages_in_conversations: 0,
+            },
+            pagination: { page, limit, total: 0, totalPages: 0 },
+          });
+        }
+
+        where.conversationId = {
+          not: null,
+          in: Array.from(matchedIds),
+        };
       }
 
       // Get all unique conversation IDs with message counts

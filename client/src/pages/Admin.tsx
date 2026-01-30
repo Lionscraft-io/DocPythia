@@ -27,6 +27,7 @@ import {
   ArrowDown,
   FileCode,
   Play,
+  Search,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -77,6 +78,23 @@ export default function Admin() {
   const [ignoredPage, setIgnoredPage] = useState(1);
   const [allPage, setAllPage] = useState(1);
 
+  // Search state with debounce
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset pages when search changes
+  useEffect(() => {
+    setPendingPage(1);
+    setApprovedPage(1);
+    setIgnoredPage(1);
+    setAllPage(1);
+  }, [debouncedSearch]);
+
   // Track scroll position for scroll buttons
   useEffect(() => {
     const handleScroll = () => {
@@ -106,19 +124,45 @@ export default function Admin() {
     }
   }, [setLocation]);
 
-  // Fetch all conversations (pending, approved, ignored)
-  const { data: pendingConvs, isLoading: loadingPending } = useQuery<{ data: any[] }>({
-    queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
+  // Build search param for queries
+  const searchParam = debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : '';
+
+  // Query keys for each tab (used for cache manipulation)
+  const pendingQueryKey = `${apiPrefix}/api/admin/stream/conversations?status=pending&limit=${ITEMS_PER_PAGE}&page=${pendingPage}${searchParam}`;
+  const changesetQueryKey = `${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=${ITEMS_PER_PAGE}&page=${approvedPage}${searchParam}`;
+  const discardedQueryKey = `${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=${ITEMS_PER_PAGE}&page=${ignoredPage}${searchParam}`;
+  const allQueryKey = `${apiPrefix}/api/admin/stream/conversations?limit=${ITEMS_PER_PAGE}&page=${allPage}${searchParam}`;
+
+  // Fetch conversations with server-side pagination
+  const { data: pendingConvs, isLoading: loadingPending } = useQuery<{
+    data: any[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }>({
+    queryKey: [pendingQueryKey],
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
-  const { data: approvedConvs, isLoading: loadingApproved } = useQuery<{ data: any[] }>({
-    queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
+  const { data: approvedConvs, isLoading: loadingApproved } = useQuery<{
+    data: any[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }>({
+    queryKey: [changesetQueryKey],
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
-  const { data: ignoredConvs, isLoading: loadingIgnored } = useQuery<{ data: any[] }>({
-    queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
+  const { data: ignoredConvs, isLoading: loadingIgnored } = useQuery<{
+    data: any[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }>({
+    queryKey: [discardedQueryKey],
+    queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
+  });
+
+  const { data: allConvs, isLoading: loadingAll } = useQuery<{
+    data: any[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }>({
+    queryKey: [allQueryKey],
     queryFn: getQueryFn({ on401: 'throw', requiresAuth: true }),
   });
 
@@ -175,10 +219,10 @@ export default function Admin() {
           setProcessingOverlay({ visible: false, title: '', message: '' });
           // Refresh conversations
           queryClient.invalidateQueries({
-            queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
+            queryKey: [pendingQueryKey],
           });
           queryClient.invalidateQueries({
-            queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
+            queryKey: [changesetQueryKey],
           });
         }, 1500);
       } else {
@@ -191,49 +235,19 @@ export default function Admin() {
     }
   }, [streamStats, processingOverlay.visible, processingOverlay.title]);
 
-  // Get conversations (not flattened) so we can group proposals
+  // Get conversations from server responses
   const pendingConversations = pendingConvs?.data || [];
   const approvedConversations = approvedConvs?.data || [];
   const ignoredConversations = ignoredConvs?.data || [];
+  const allConversations = allConvs?.data || [];
 
-  // Merge conversations from all statuses, deduplicating by conversation_id and combining proposals
-  const allConversationsMap = new Map();
-  [...pendingConversations, ...approvedConversations, ...ignoredConversations].forEach(
-    (conv: any) => {
-      if (!conv) return;
-      const existing = allConversationsMap.get(conv.conversation_id);
-      if (existing) {
-        // Merge proposals, avoiding duplicates
-        const existingProposalIds = new Set(existing.proposals?.map((p: any) => p.id) || []);
-        const newProposals = (conv.proposals || []).filter(
-          (p: any) => !existingProposalIds.has(p.id)
-        );
-        existing.proposals = [...(existing.proposals || []), ...newProposals];
-      } else {
-        allConversationsMap.set(conv.conversation_id, { ...conv });
-      }
-    }
-  );
-  const allConversations = Array.from(allConversationsMap.values()).filter((conv) => {
-    return conv.proposals && conv.proposals.length > 0;
-  });
+  // Use server pagination totals for counts
+  const pendingCount = pendingConvs?.pagination?.total || 0;
+  const approvedCount = approvedConvs?.pagination?.total || 0;
+  const ignoredCount = ignoredConvs?.pagination?.total || 0;
+  const totalCount = allConvs?.pagination?.total || 0;
 
-  // Count proposals by status across all conversations
-  const countProposalsByStatus = (convs: any[], status: string) => {
-    return convs.reduce((sum, conv) => {
-      const matchingProposals = conv.proposals?.filter((p: any) => p.status === status) || [];
-      return sum + matchingProposals.length;
-    }, 0);
-  };
-
-  const pendingCount = countProposalsByStatus(pendingConversations, 'pending');
-  const approvedCount = countProposalsByStatus(approvedConversations, 'approved');
-  const ignoredCount = countProposalsByStatus(ignoredConversations, 'ignored');
-
-  // Total count is all proposals regardless of status
-  const totalCount = allConversations.reduce((sum, conv) => sum + (conv.proposals?.length || 0), 0);
-
-  const isLoading = loadingPending || loadingApproved || loadingIgnored;
+  const isLoading = loadingPending || loadingApproved || loadingIgnored || loadingAll;
 
   // Mutations (approve, reject, edit)
   const approveMutation = useMutation({
@@ -243,26 +257,41 @@ export default function Admin() {
         reviewedBy: 'admin',
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
+    onMutate: async (proposalId) => {
+      await queryClient.cancelQueries({ queryKey: [pendingQueryKey] });
+      const prevPending = queryClient.getQueryData([pendingQueryKey]);
+      // Optimistically remove proposal from pending tab
+      queryClient.setQueryData([pendingQueryKey], (old: any) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data
+            .map((conv: any) => ({
+              ...conv,
+              proposals: conv.proposals?.filter((p: any) => p.id.toString() !== proposalId),
+            }))
+            .filter((conv: any) => conv.proposals?.length > 0),
+        };
       });
-      queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
-      });
-      toast({
-        title: 'Update Approved',
-        description: 'The proposal has been approved and added to changeset.',
-      });
+      return { prevPending };
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _id, context) => {
+      if (context?.prevPending) queryClient.setQueryData([pendingQueryKey], context.prevPending);
       toast({
         title: 'Error',
         description: error.message || 'Failed to approve update.',
         variant: 'destructive',
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: [pendingQueryKey] });
+      queryClient.invalidateQueries({ queryKey: [changesetQueryKey] });
+      queryClient.invalidateQueries({ queryKey: [allQueryKey] });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Update Approved',
+        description: 'The proposal has been approved and added to changeset.',
       });
     },
   });
@@ -277,17 +306,48 @@ export default function Admin() {
         reviewedBy: 'admin',
       });
     },
-    onSuccess: (data, variables) => {
-      // Invalidate all conversation queries to refetch with updated proposal statuses
-      queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
+    onMutate: async ({ id: proposalId, currentStatus }) => {
+      // Determine which tab the proposal is currently in
+      const sourceKey =
+        currentStatus === 'approved'
+          ? changesetQueryKey
+          : currentStatus === 'ignored'
+            ? discardedQueryKey
+            : pendingQueryKey;
+
+      await queryClient.cancelQueries({ queryKey: [sourceKey] });
+      const prevSource = queryClient.getQueryData([sourceKey]);
+
+      // Optimistically remove proposal from source tab
+      queryClient.setQueryData([sourceKey], (old: any) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data
+            .map((conv: any) => ({
+              ...conv,
+              proposals: conv.proposals?.filter((p: any) => p.id.toString() !== proposalId),
+            }))
+            .filter((conv: any) => conv.proposals?.length > 0),
+        };
       });
-      queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
+      return { prevSource, sourceKey };
+    },
+    onError: (error: Error, _vars, context) => {
+      if (context?.prevSource) queryClient.setQueryData([context.sourceKey], context.prevSource);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update proposal.',
+        variant: 'destructive',
       });
-      queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
-      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: [pendingQueryKey] });
+      queryClient.invalidateQueries({ queryKey: [changesetQueryKey] });
+      queryClient.invalidateQueries({ queryKey: [discardedQueryKey] });
+      queryClient.invalidateQueries({ queryKey: [allQueryKey] });
+    },
+    onSuccess: (_data, variables) => {
       let title, message, variant;
 
       if (variables.currentStatus === 'approved') {
@@ -306,13 +366,6 @@ export default function Admin() {
 
       toast({ title, description: message, variant: variant as any });
     },
-    onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to update proposal.',
-        variant: 'destructive',
-      });
-    },
   });
 
   const editMutation = useMutation({
@@ -329,16 +382,12 @@ export default function Admin() {
         editedBy: 'admin',
       });
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: [pendingQueryKey] });
+      queryClient.invalidateQueries({ queryKey: [changesetQueryKey] });
+      queryClient.invalidateQueries({ queryKey: [allQueryKey] });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
-      });
       toast({
         title: 'Update Edited',
         description: 'The change proposal has been updated.',
@@ -516,10 +565,10 @@ export default function Admin() {
       });
       refetchStreamStats();
       queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
+        queryKey: [pendingQueryKey],
       });
       queryClient.invalidateQueries({
-        queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
+        queryKey: [changesetQueryKey],
       });
     },
     onError: (error: Error) => {
@@ -593,15 +642,10 @@ export default function Admin() {
       }
     );
 
-    queryClient.invalidateQueries({
-      queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=pending&limit=100`],
-    });
-    queryClient.invalidateQueries({
-      queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=changeset&limit=100`],
-    });
-    queryClient.invalidateQueries({
-      queryKey: [`${apiPrefix}/api/admin/stream/conversations?status=discarded&limit=100`],
-    });
+    queryClient.invalidateQueries({ queryKey: [pendingQueryKey] });
+    queryClient.invalidateQueries({ queryKey: [changesetQueryKey] });
+    queryClient.invalidateQueries({ queryKey: [discardedQueryKey] });
+    queryClient.invalidateQueries({ queryKey: [allQueryKey] });
     setPrModalOpen(false);
     toast({
       title: 'Pull Request Created',
@@ -620,19 +664,6 @@ export default function Admin() {
     if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
     if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
     return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
-  };
-
-  // Pagination helper - returns paginated items and total pages
-  const paginate = <T,>(items: T[], page: number, perPage: number) => {
-    const totalPages = Math.ceil(items.length / perPage);
-    const start = (page - 1) * perPage;
-    const end = start + perPage;
-    return {
-      items: items.slice(start, end),
-      totalPages,
-      totalItems: items.length,
-      currentPage: Math.min(page, totalPages || 1),
-    };
   };
 
   // Pagination controls component
@@ -898,6 +929,26 @@ export default function Admin() {
           />
         </div>
 
+        {/* Search */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search proposals and messages..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <XCircle className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
         {/* Tabs */}
         <Tabs defaultValue="pending" className="space-y-6">
           <TabsList className="bg-gray-100 border-gray-200">
@@ -939,428 +990,356 @@ export default function Admin() {
           </TabsList>
 
           <TabsContent value="pending" className="space-y-6">
-            {(() => {
-              const filteredConvs = pendingConversations
-                .map((conv: any) => ({
-                  ...conv,
-                  filteredProposals:
-                    conv.proposals?.filter((p: any) => p.status === 'pending') || [],
-                }))
-                .filter((conv: any) => conv.filteredProposals.length > 0);
-
-              if (filteredConvs.length === 0) {
-                return (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500">No pending updates</p>
-                  </div>
-                );
-              }
-
-              const {
-                items: paginatedConvs,
-                totalPages,
-                totalItems,
-              } = paginate(filteredConvs, pendingPage, ITEMS_PER_PAGE);
-
-              return (
-                <>
-                  {paginatedConvs.map((conv: any) => (
-                    <Card key={conv.conversation_id} className="bg-white border-gray-200">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-gray-500">Conversation</span>
-                            <span className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                              {conv.conversation_id.substring(0, 8)}
-                            </span>
-                            <span className="text-xs text-gray-500">•</span>
-                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                              {conv.filteredProposals.length} proposal
-                              {conv.filteredProposals.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              handleViewContext({
-                                conversation_id: conv.conversation_id,
-                                category: conv.category,
-                                messages: conv.messages || [],
-                              })
-                            }
-                            className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
-                          >
-                            <MessageSquare className="mr-1 h-3 w-3" />
-                            View Conversation Context
-                          </Button>
+            {pendingConversations.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No pending updates</p>
+              </div>
+            ) : (
+              <>
+                {pendingConversations.map((conv: any) => (
+                  <Card key={conv.conversation_id} className="bg-white border-gray-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-500">Conversation</span>
+                          <span className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                            {conv.conversation_id.substring(0, 8)}
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.proposals?.length || 0} proposal
+                            {conv.proposals?.length !== 1 ? 's' : ''}
+                          </span>
                         </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {conv.filteredProposals.map((proposal: any) => (
-                          <UpdateCard
-                            key={proposal.id}
-                            id={proposal.id.toString()}
-                            type={
-                              proposal.update_type === 'INSERT'
-                                ? 'add'
-                                : proposal.update_type === 'DELETE'
-                                  ? 'delete'
-                                  : proposal.update_type === 'UPDATE'
-                                    ? 'major'
-                                    : 'minor'
-                            }
-                            section={proposal.page || 'Unknown section'}
-                            summary={proposal.reasoning || 'Documentation update'}
-                            source={`${conv.category || 'Chat'}`}
-                            timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
-                            status={
-                              proposal.status === 'approved'
-                                ? 'approved'
-                                : proposal.status === 'ignored'
-                                  ? 'rejected'
-                                  : 'pending'
-                            }
-                            diff={{
-                              before: '',
-                              after: proposal.edited_text || proposal.suggested_text || '',
-                            }}
-                            gitUrl={gitStats?.gitUrl}
-                            enrichment={proposal.enrichment}
-                            onApprove={handleApprove}
-                            onReject={(id) => handleReject(id, proposal.status)}
-                            onEdit={handleEdit}
-                            onFeedback={handleFeedback}
-                          />
-                        ))}
-                      </CardContent>
-                    </Card>
-                  ))}
-                  <PaginationControls
-                    currentPage={pendingPage}
-                    totalPages={totalPages}
-                    totalItems={totalItems}
-                    onPageChange={setPendingPage}
-                  />
-                </>
-              );
-            })()}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleViewContext({
+                              conversation_id: conv.conversation_id,
+                              category: conv.category,
+                              messages: conv.messages || [],
+                            })
+                          }
+                          className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          <MessageSquare className="mr-1 h-3 w-3" />
+                          View Conversation Context
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {conv.proposals?.map((proposal: any) => (
+                        <UpdateCard
+                          key={proposal.id}
+                          id={proposal.id.toString()}
+                          type={
+                            proposal.update_type === 'INSERT'
+                              ? 'add'
+                              : proposal.update_type === 'DELETE'
+                                ? 'delete'
+                                : proposal.update_type === 'UPDATE'
+                                  ? 'major'
+                                  : 'minor'
+                          }
+                          section={proposal.page || 'Unknown section'}
+                          summary={proposal.reasoning || 'Documentation update'}
+                          source={`${conv.category || 'Chat'}`}
+                          timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
+                          status={
+                            proposal.status === 'approved'
+                              ? 'approved'
+                              : proposal.status === 'ignored'
+                                ? 'rejected'
+                                : 'pending'
+                          }
+                          diff={{
+                            before: '',
+                            after: proposal.edited_text || proposal.suggested_text || '',
+                          }}
+                          gitUrl={gitStats?.gitUrl}
+                          enrichment={proposal.enrichment}
+                          onApprove={handleApprove}
+                          onReject={(id) => handleReject(id, proposal.status)}
+                          onEdit={handleEdit}
+                          onFeedback={handleFeedback}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+                <PaginationControls
+                  currentPage={pendingPage}
+                  totalPages={pendingConvs?.pagination?.totalPages || 1}
+                  totalItems={pendingCount}
+                  onPageChange={setPendingPage}
+                />
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="approved" className="space-y-6">
-            {(() => {
-              const filteredConvs = approvedConversations
-                .map((conv: any) => ({
-                  ...conv,
-                  filteredProposals:
-                    conv.proposals?.filter((p: any) => p.status === 'approved') || [],
-                }))
-                .filter((conv: any) => conv.filteredProposals.length > 0);
-
-              if (filteredConvs.length === 0) {
-                return (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500">No approved updates</p>
-                  </div>
-                );
-              }
-
-              const {
-                items: paginatedConvs,
-                totalPages,
-                totalItems,
-              } = paginate(filteredConvs, approvedPage, ITEMS_PER_PAGE);
-
-              return (
-                <>
-                  {paginatedConvs.map((conv: any) => (
-                    <Card key={conv.conversation_id} className="bg-white border-gray-200">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-gray-500">Conversation</span>
-                            <span className="text-xs font-mono bg-green-50 text-green-700 px-2 py-0.5 rounded">
-                              {conv.conversation_id.substring(0, 8)}
-                            </span>
-                            <span className="text-xs text-gray-500">•</span>
-                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                              {conv.filteredProposals.length} proposal
-                              {conv.filteredProposals.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              handleViewContext({
-                                conversation_id: conv.conversation_id,
-                                category: conv.category,
-                                messages: conv.messages || [],
-                              })
-                            }
-                            className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
-                          >
-                            <MessageSquare className="mr-1 h-3 w-3" />
-                            View Conversation Context
-                          </Button>
+            {approvedConversations.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No approved updates</p>
+              </div>
+            ) : (
+              <>
+                {approvedConversations.map((conv: any) => (
+                  <Card key={conv.conversation_id} className="bg-white border-gray-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-500">Conversation</span>
+                          <span className="text-xs font-mono bg-green-50 text-green-700 px-2 py-0.5 rounded">
+                            {conv.conversation_id.substring(0, 8)}
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.proposals?.length || 0} proposal
+                            {conv.proposals?.length !== 1 ? 's' : ''}
+                          </span>
                         </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {conv.filteredProposals.map((proposal: any) => (
-                          <UpdateCard
-                            key={proposal.id}
-                            id={proposal.id.toString()}
-                            type={
-                              proposal.update_type === 'INSERT'
-                                ? 'add'
-                                : proposal.update_type === 'DELETE'
-                                  ? 'delete'
-                                  : proposal.update_type === 'UPDATE'
-                                    ? 'major'
-                                    : 'minor'
-                            }
-                            section={proposal.page || 'Unknown section'}
-                            summary={proposal.reasoning || 'Documentation update'}
-                            source={`${conv.category || 'Chat'}`}
-                            timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
-                            status={
-                              proposal.status === 'approved'
-                                ? 'approved'
-                                : proposal.status === 'ignored'
-                                  ? 'rejected'
-                                  : 'pending'
-                            }
-                            diff={{
-                              before: '',
-                              after: proposal.edited_text || proposal.suggested_text || '',
-                            }}
-                            gitUrl={gitStats?.gitUrl}
-                            enrichment={proposal.enrichment}
-                            onEdit={handleEdit}
-                            onReject={(id) => handleReject(id, proposal.status)}
-                            onFeedback={handleFeedback}
-                          />
-                        ))}
-                      </CardContent>
-                    </Card>
-                  ))}
-                  <PaginationControls
-                    currentPage={approvedPage}
-                    totalPages={totalPages}
-                    totalItems={totalItems}
-                    onPageChange={setApprovedPage}
-                  />
-                </>
-              );
-            })()}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleViewContext({
+                              conversation_id: conv.conversation_id,
+                              category: conv.category,
+                              messages: conv.messages || [],
+                            })
+                          }
+                          className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          <MessageSquare className="mr-1 h-3 w-3" />
+                          View Conversation Context
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {conv.proposals?.map((proposal: any) => (
+                        <UpdateCard
+                          key={proposal.id}
+                          id={proposal.id.toString()}
+                          type={
+                            proposal.update_type === 'INSERT'
+                              ? 'add'
+                              : proposal.update_type === 'DELETE'
+                                ? 'delete'
+                                : proposal.update_type === 'UPDATE'
+                                  ? 'major'
+                                  : 'minor'
+                          }
+                          section={proposal.page || 'Unknown section'}
+                          summary={proposal.reasoning || 'Documentation update'}
+                          source={`${conv.category || 'Chat'}`}
+                          timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
+                          status={
+                            proposal.status === 'approved'
+                              ? 'approved'
+                              : proposal.status === 'ignored'
+                                ? 'rejected'
+                                : 'pending'
+                          }
+                          diff={{
+                            before: '',
+                            after: proposal.edited_text || proposal.suggested_text || '',
+                          }}
+                          gitUrl={gitStats?.gitUrl}
+                          enrichment={proposal.enrichment}
+                          onEdit={handleEdit}
+                          onReject={(id) => handleReject(id, proposal.status)}
+                          onFeedback={handleFeedback}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+                <PaginationControls
+                  currentPage={approvedPage}
+                  totalPages={approvedConvs?.pagination?.totalPages || 1}
+                  totalItems={approvedCount}
+                  onPageChange={setApprovedPage}
+                />
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="ignored" className="space-y-6">
-            {(() => {
-              const filteredConvs = ignoredConversations
-                .map((conv: any) => ({
-                  ...conv,
-                  filteredProposals:
-                    conv.proposals?.filter((p: any) => p.status === 'ignored') || [],
-                }))
-                .filter((conv: any) => conv.filteredProposals.length > 0);
-
-              if (filteredConvs.length === 0) {
-                return (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500">No ignored updates</p>
-                  </div>
-                );
-              }
-
-              const {
-                items: paginatedConvs,
-                totalPages,
-                totalItems,
-              } = paginate(filteredConvs, ignoredPage, ITEMS_PER_PAGE);
-
-              return (
-                <>
-                  {paginatedConvs.map((conv: any) => (
-                    <Card key={conv.conversation_id} className="bg-white border-gray-200">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-gray-500">Conversation</span>
-                            <span className="text-xs font-mono bg-gray-50 text-gray-700 px-2 py-0.5 rounded">
-                              {conv.conversation_id.substring(0, 8)}
-                            </span>
-                            <span className="text-xs text-gray-500">•</span>
-                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                              {conv.filteredProposals.length} proposal
-                              {conv.filteredProposals.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              handleViewContext({
-                                conversation_id: conv.conversation_id,
-                                category: conv.category,
-                                messages: conv.messages || [],
-                              })
-                            }
-                            className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
-                          >
-                            <MessageSquare className="mr-1 h-3 w-3" />
-                            View Conversation Context
-                          </Button>
+            {ignoredConversations.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No ignored updates</p>
+              </div>
+            ) : (
+              <>
+                {ignoredConversations.map((conv: any) => (
+                  <Card key={conv.conversation_id} className="bg-white border-gray-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-500">Conversation</span>
+                          <span className="text-xs font-mono bg-gray-50 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.conversation_id.substring(0, 8)}
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.proposals?.length || 0} proposal
+                            {conv.proposals?.length !== 1 ? 's' : ''}
+                          </span>
                         </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {conv.filteredProposals.map((proposal: any) => (
-                          <UpdateCard
-                            key={proposal.id}
-                            id={proposal.id.toString()}
-                            type={
-                              proposal.update_type === 'INSERT'
-                                ? 'add'
-                                : proposal.update_type === 'DELETE'
-                                  ? 'delete'
-                                  : proposal.update_type === 'UPDATE'
-                                    ? 'major'
-                                    : 'minor'
-                            }
-                            section={proposal.page || 'Unknown section'}
-                            summary={proposal.reasoning || 'Documentation update'}
-                            source={`${conv.category || 'Chat'}`}
-                            timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
-                            status={
-                              proposal.status === 'approved'
-                                ? 'approved'
-                                : proposal.status === 'ignored'
-                                  ? 'rejected'
-                                  : 'pending'
-                            }
-                            diff={{
-                              before: '',
-                              after: proposal.edited_text || proposal.suggested_text || '',
-                            }}
-                            gitUrl={gitStats?.gitUrl}
-                            enrichment={proposal.enrichment}
-                            onReject={(id) => handleReject(id, proposal.status)}
-                            onFeedback={handleFeedback}
-                          />
-                        ))}
-                      </CardContent>
-                    </Card>
-                  ))}
-                  <PaginationControls
-                    currentPage={ignoredPage}
-                    totalPages={totalPages}
-                    totalItems={totalItems}
-                    onPageChange={setIgnoredPage}
-                  />
-                </>
-              );
-            })()}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleViewContext({
+                              conversation_id: conv.conversation_id,
+                              category: conv.category,
+                              messages: conv.messages || [],
+                            })
+                          }
+                          className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          <MessageSquare className="mr-1 h-3 w-3" />
+                          View Conversation Context
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {conv.proposals?.map((proposal: any) => (
+                        <UpdateCard
+                          key={proposal.id}
+                          id={proposal.id.toString()}
+                          type={
+                            proposal.update_type === 'INSERT'
+                              ? 'add'
+                              : proposal.update_type === 'DELETE'
+                                ? 'delete'
+                                : proposal.update_type === 'UPDATE'
+                                  ? 'major'
+                                  : 'minor'
+                          }
+                          section={proposal.page || 'Unknown section'}
+                          summary={proposal.reasoning || 'Documentation update'}
+                          source={`${conv.category || 'Chat'}`}
+                          timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
+                          status={
+                            proposal.status === 'approved'
+                              ? 'approved'
+                              : proposal.status === 'ignored'
+                                ? 'rejected'
+                                : 'pending'
+                          }
+                          diff={{
+                            before: '',
+                            after: proposal.edited_text || proposal.suggested_text || '',
+                          }}
+                          gitUrl={gitStats?.gitUrl}
+                          enrichment={proposal.enrichment}
+                          onReject={(id) => handleReject(id, proposal.status)}
+                          onFeedback={handleFeedback}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+                <PaginationControls
+                  currentPage={ignoredPage}
+                  totalPages={ignoredConvs?.pagination?.totalPages || 1}
+                  totalItems={ignoredCount}
+                  onPageChange={setIgnoredPage}
+                />
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="all" className="space-y-6">
-            {(() => {
-              if (allConversations.length === 0) {
-                return (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500">No updates</p>
-                  </div>
-                );
-              }
-
-              const {
-                items: paginatedConvs,
-                totalPages,
-                totalItems,
-              } = paginate(allConversations, allPage, ITEMS_PER_PAGE);
-
-              return (
-                <>
-                  {paginatedConvs.map((conv: any) => (
-                    <Card key={conv.conversation_id} className="bg-white border-gray-200">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-gray-500">Conversation</span>
-                            <span className="text-xs font-mono bg-gray-50 text-gray-700 px-2 py-0.5 rounded">
-                              {conv.conversation_id.substring(0, 8)}
-                            </span>
-                            <span className="text-xs text-gray-500">•</span>
-                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                              {conv.proposals?.length || 0} proposal
-                              {conv.proposals?.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              handleViewContext({
-                                conversation_id: conv.conversation_id,
-                                category: conv.category,
-                                messages: conv.messages || [],
-                              })
-                            }
-                            className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
-                          >
-                            <MessageSquare className="mr-1 h-3 w-3" />
-                            View Conversation Context
-                          </Button>
+            {allConversations.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No updates</p>
+              </div>
+            ) : (
+              <>
+                {allConversations.map((conv: any) => (
+                  <Card key={conv.conversation_id} className="bg-white border-gray-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-500">Conversation</span>
+                          <span className="text-xs font-mono bg-gray-50 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.conversation_id.substring(0, 8)}
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                            {conv.proposals?.length || 0} proposal
+                            {conv.proposals?.length !== 1 ? 's' : ''}
+                          </span>
                         </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {conv.proposals?.map((proposal: any) => (
-                          <UpdateCard
-                            key={proposal.id}
-                            id={proposal.id.toString()}
-                            type={
-                              proposal.update_type === 'INSERT'
-                                ? 'add'
-                                : proposal.update_type === 'DELETE'
-                                  ? 'delete'
-                                  : proposal.update_type === 'UPDATE'
-                                    ? 'major'
-                                    : 'minor'
-                            }
-                            section={proposal.page || 'Unknown section'}
-                            summary={proposal.reasoning || 'Documentation update'}
-                            source={`${conv.category || 'Chat'}`}
-                            timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
-                            status={
-                              proposal.status === 'approved'
-                                ? 'approved'
-                                : proposal.status === 'ignored'
-                                  ? 'rejected'
-                                  : 'pending'
-                            }
-                            diff={{
-                              before: '',
-                              after: proposal.edited_text || proposal.suggested_text || '',
-                            }}
-                            gitUrl={gitStats?.gitUrl}
-                            enrichment={proposal.enrichment}
-                            onApprove={proposal.status === 'pending' ? handleApprove : undefined}
-                            onReject={(id) => handleReject(id, proposal.status)}
-                            onEdit={proposal.status !== 'ignored' ? handleEdit : undefined}
-                            onFeedback={handleFeedback}
-                          />
-                        ))}
-                      </CardContent>
-                    </Card>
-                  ))}
-                  <PaginationControls
-                    currentPage={allPage}
-                    totalPages={totalPages}
-                    totalItems={totalItems}
-                    onPageChange={setAllPage}
-                  />
-                </>
-              );
-            })()}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            handleViewContext({
+                              conversation_id: conv.conversation_id,
+                              category: conv.category,
+                              messages: conv.messages || [],
+                            })
+                          }
+                          className="text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          <MessageSquare className="mr-1 h-3 w-3" />
+                          View Conversation Context
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {conv.proposals?.map((proposal: any) => (
+                        <UpdateCard
+                          key={proposal.id}
+                          id={proposal.id.toString()}
+                          type={
+                            proposal.update_type === 'INSERT'
+                              ? 'add'
+                              : proposal.update_type === 'DELETE'
+                                ? 'delete'
+                                : proposal.update_type === 'UPDATE'
+                                  ? 'major'
+                                  : 'minor'
+                          }
+                          section={proposal.page || 'Unknown section'}
+                          summary={proposal.reasoning || 'Documentation update'}
+                          source={`${conv.category || 'Chat'}`}
+                          timestamp={formatTimestamp(proposal.created_at || conv.created_at)}
+                          status={
+                            proposal.status === 'approved'
+                              ? 'approved'
+                              : proposal.status === 'ignored'
+                                ? 'rejected'
+                                : 'pending'
+                          }
+                          diff={{
+                            before: '',
+                            after: proposal.edited_text || proposal.suggested_text || '',
+                          }}
+                          gitUrl={gitStats?.gitUrl}
+                          enrichment={proposal.enrichment}
+                          onApprove={proposal.status === 'pending' ? handleApprove : undefined}
+                          onReject={(id) => handleReject(id, proposal.status)}
+                          onEdit={proposal.status !== 'ignored' ? handleEdit : undefined}
+                          onFeedback={handleFeedback}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+                <PaginationControls
+                  currentPage={allPage}
+                  totalPages={allConvs?.pagination?.totalPages || 1}
+                  totalItems={totalCount}
+                  onPageChange={setAllPage}
+                />
+              </>
+            )}
           </TabsContent>
 
           {/* PR HISTORY TAB */}

@@ -66,17 +66,33 @@ vi.mock('@tanstack/react-query', async () => {
     useQuery: vi.fn().mockImplementation(({ queryKey }) => {
       const key = queryKey[0];
       const data = mockQueryDataHolder.current;
-      if (key.includes('pending')) {
-        return { data: data.pending || { data: [] }, isLoading: data.isLoading || false };
+      const defaultPagination = { page: 1, limit: 10, total: 0, totalPages: 0 };
+      const withPagination = (d: any) => {
+        if (!d || !d.data) return { data: [], pagination: defaultPagination };
+        const total = d.data.length;
+        return {
+          ...d,
+          pagination: d.pagination || {
+            ...defaultPagination,
+            total,
+            totalPages: total > 0 ? 1 : 0,
+          },
+        };
+      };
+      if (key.includes('status=pending')) {
+        return { data: withPagination(data.pending), isLoading: data.isLoading || false };
       }
-      if (key.includes('changeset')) {
-        return { data: data.approved || { data: [] }, isLoading: data.isLoading || false };
+      if (key.includes('status=changeset')) {
+        return { data: withPagination(data.approved), isLoading: data.isLoading || false };
       }
-      if (key.includes('discarded')) {
-        return { data: data.ignored || { data: [] }, isLoading: data.isLoading || false };
+      if (key.includes('status=discarded')) {
+        return { data: withPagination(data.ignored), isLoading: data.isLoading || false };
       }
       if (key.includes('batches')) {
         return { data: data.batches || { batches: [] }, isLoading: false };
+      }
+      if (key.includes('conversations')) {
+        return { data: withPagination(data.all), isLoading: data.isLoading || false };
       }
       return { data: null, isLoading: false };
     }),
@@ -228,6 +244,14 @@ describe('Admin Page', () => {
         },
         ignored: {
           data: [createMockConversation('conv-3', [createMockProposal(3, 'ignored')])],
+        },
+        all: {
+          data: [
+            createMockConversation('conv-1', [createMockProposal(1, 'pending')]),
+            createMockConversation('conv-2', [createMockProposal(2, 'approved')]),
+            createMockConversation('conv-3', [createMockProposal(3, 'ignored')]),
+          ],
+          pagination: { page: 1, limit: 10, total: 3, totalPages: 1 },
         },
         batches: { batches: [] },
       };
