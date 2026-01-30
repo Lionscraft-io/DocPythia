@@ -53,17 +53,16 @@ function AppContent() {
         metaDescription.setAttribute('content', config.project.description);
       }
 
-      // Update favicon if provided
-      if (config.branding.favicon) {
-        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
-        if (favicon) {
-          favicon.href = config.branding.favicon;
-        } else {
-          const newFavicon = document.createElement('link');
-          newFavicon.rel = 'icon';
-          newFavicon.href = config.branding.favicon;
-          document.head.appendChild(newFavicon);
-        }
+      // Update favicon — use config value or fall back to default
+      const faviconHref = config.branding.favicon || '/ico.png';
+      const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+      if (favicon) {
+        favicon.href = faviconHref;
+      } else {
+        const newFavicon = document.createElement('link');
+        newFavicon.rel = 'icon';
+        newFavicon.href = faviconHref;
+        document.head.appendChild(newFavicon);
       }
     }
   }, [config]);
