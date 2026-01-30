@@ -387,6 +387,7 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
           outputProposals: true,
           totalDurationMs: true,
           llmCalls: true,
+          llmTokensUsed: true,
           createdAt: true,
           completedAt: true,
           errorMessage: true,
@@ -395,7 +396,7 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
 
       res.json({
         instanceId: instanceId || 'all',
-        count: runs.length,
+        total: runs.length,
         runs,
       });
     } catch (error) {
@@ -457,12 +458,33 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
 
       const overrideMap = new Map(overrides.map((o) => [o.promptKey, o]));
 
-      const promptsWithOverrides = prompts.map((prompt) => ({
-        ...prompt,
-        hasOverride: overrideMap.has(prompt.id),
-        override: overrideMap.get(prompt.id) || null,
-        validation: registry.validate(prompt),
-      }));
+      const promptsWithOverrides = prompts.map((prompt) => {
+        const rawOverride = overrideMap.get(prompt.id);
+        let parsedOverride = null;
+        if (rawOverride) {
+          try {
+            const parsed = JSON.parse(rawOverride.content);
+            parsedOverride = {
+              system: parsed.system || '',
+              user: parsed.user || '',
+              createdAt: rawOverride.createdAt,
+            };
+          } catch {
+            // If content is not JSON, treat as system prompt
+            parsedOverride = {
+              system: rawOverride.content,
+              user: '',
+              createdAt: rawOverride.createdAt,
+            };
+          }
+        }
+        return {
+          ...prompt,
+          hasOverride: overrideMap.has(prompt.id),
+          override: parsedOverride,
+          validation: registry.validate(prompt),
+        };
+      });
 
       res.json({
         instanceId: instanceId || 'default',
@@ -487,14 +509,30 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
       try {
         const instanceId = getInstanceId(req);
         const { promptId } = req.params;
-        const { content } = req.body as { content?: string };
+        const {
+          system,
+          user,
+          content: rawContent,
+        } = req.body as {
+          system?: string;
+          user?: string;
+          content?: string;
+        };
 
         if (!instanceId) {
           return res.status(400).json({ error: 'Instance ID required for prompt override' });
         }
 
+        // Accept either { system, user } from frontend or { content } directly
+        const content =
+          system !== undefined || user !== undefined
+            ? JSON.stringify({ system: system || '', user: user || '' })
+            : rawContent;
+
         if (!content || typeof content !== 'string') {
-          return res.status(400).json({ error: 'Prompt content is required' });
+          return res
+            .status(400)
+            .json({ error: 'Prompt content is required (provide system/user or content)' });
         }
 
         const override = await db.tenantPromptOverride.upsert({

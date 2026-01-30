@@ -31,13 +31,13 @@ const logger = createLogger('PipelineOrchestrator');
  * Step execution log entry for PipelineRunLog
  */
 interface StepLogEntry {
-  stepId: string;
+  stepName: string;
   stepType: string;
   status: 'completed' | 'failed' | 'skipped';
   durationMs: number;
   inputCount?: number;
   outputCount?: number;
-  promptsUsed?: string[];
+  promptUsed?: string;
   error?: string;
 }
 
@@ -111,7 +111,7 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
     for (const step of steps) {
       const stepStartTime = Date.now();
       const stepLog: StepLogEntry = {
-        stepId: step.stepId,
+        stepName: step.stepId,
         stepType: step.stepType,
         status: 'completed',
         durationMs: 0,
