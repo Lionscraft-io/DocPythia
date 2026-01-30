@@ -127,7 +127,7 @@ describe('UpdateCard', () => {
 
     // Approved status
     rerender(<UpdateCard {...defaultProps} status="approved" onReject={onReject} />);
-    expect(screen.getByTestId('button-reject-update-1')).toHaveTextContent('Unapprove');
+    expect(screen.getByTestId('button-reject-update-1')).toHaveTextContent('Reset to Pending');
 
     // Rejected status
     rerender(<UpdateCard {...defaultProps} status="rejected" onReject={onReject} />);

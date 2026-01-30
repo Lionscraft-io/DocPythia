@@ -351,8 +351,8 @@ export default function Admin() {
       let title, message, variant;
 
       if (variables.currentStatus === 'approved') {
-        title = 'Update Unapproved';
-        message = 'The proposal has been unapproved and moved back to pending.';
+        title = 'Reset to Pending';
+        message = 'The proposal has been moved back to pending.';
         variant = 'default';
       } else if (variables.currentStatus === 'ignored') {
         title = 'Update Reset';

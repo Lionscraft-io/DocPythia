@@ -387,11 +387,7 @@ export function UpdateCard({
                 className="border-gray-500 text-gray-900 hover:bg-gray-100 hover:border-gray-600"
               >
                 <X className="mr-1 h-4 w-4" />
-                {status === 'approved'
-                  ? 'Unapprove'
-                  : status === 'rejected'
-                    ? 'Reset to Pending'
-                    : 'Ignore'}
+                {status === 'approved' || status === 'rejected' ? 'Reset to Pending' : 'Ignore'}
               </Button>
             )}
           </div>
@@ -577,8 +573,8 @@ export function UpdateCard({
             <DialogTitle className="text-gray-900">
               {pendingAction === 'approved'
                 ? 'Approve Proposal'
-                : status === 'approved'
-                  ? 'Unapprove Proposal'
+                : status === 'approved' || status === 'rejected'
+                  ? 'Reset to Pending'
                   : 'Ignore Proposal'}
             </DialogTitle>
             <DialogDescription className="text-gray-600">
@@ -595,7 +591,7 @@ export function UpdateCard({
                 placeholder={
                   pendingAction === 'approved'
                     ? 'What made this proposal good? Any suggestions for similar proposals?'
-                    : status === 'approved'
+                    : status === 'approved' || status === 'rejected'
                       ? 'Why should this proposal be sent back to pending?'
                       : 'Why was this proposal ignored? What would make it better?'
                 }
@@ -622,15 +618,15 @@ export function UpdateCard({
               className={
                 pendingAction === 'approved'
                   ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : status === 'approved'
+                  : status === 'approved' || status === 'rejected'
                     ? 'bg-orange-600 hover:bg-orange-700 text-white'
                     : 'bg-red-600 hover:bg-red-700 text-white'
               }
             >
               {pendingAction === 'approved'
                 ? 'Approve'
-                : status === 'approved'
-                  ? 'Unapprove'
+                : status === 'approved' || status === 'rejected'
+                  ? 'Reset to Pending'
                   : 'Ignore'}
             </Button>
           </DialogFooter>
