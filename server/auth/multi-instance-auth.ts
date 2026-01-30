@@ -18,8 +18,8 @@ export interface AuthResult {
  * Returns the matching instance ID or null
  */
 export async function authenticateAnyInstance(password: string): Promise<AuthResult> {
-  // Get all available instances
-  const availableInstances = InstanceConfigLoader.getAvailableInstances();
+  // Get all available instances (async for S3 support)
+  const availableInstances = await InstanceConfigLoader.getAvailableInstancesAsync();
 
   if (availableInstances.length === 0) {
     return {
@@ -31,10 +31,10 @@ export async function authenticateAnyInstance(password: string): Promise<AuthRes
   // Try password against each instance
   for (const instanceId of availableInstances) {
     try {
-      // Load instance config
+      // Load instance config (async for S3 support)
       const config = InstanceConfigLoader.has(instanceId)
         ? InstanceConfigLoader.get(instanceId)
-        : InstanceConfigLoader.load(instanceId);
+        : await InstanceConfigLoader.loadAsync(instanceId);
 
       // Check if password matches
       if (await verifyPassword(password, config.admin.passwordHash)) {
@@ -63,7 +63,7 @@ export async function authenticateInstance(password: string, instanceId: string)
   try {
     const config = InstanceConfigLoader.has(instanceId)
       ? InstanceConfigLoader.get(instanceId)
-      : InstanceConfigLoader.load(instanceId);
+      : await InstanceConfigLoader.loadAsync(instanceId);
 
     return await verifyPassword(password, config.admin.passwordHash);
   } catch (error) {

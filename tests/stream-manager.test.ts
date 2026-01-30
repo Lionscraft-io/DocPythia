@@ -82,7 +82,10 @@ vi.mock('../server/stream/adapters/zulip-bot-adapter.js', () => {
 vi.mock('../server/config/instance-loader.js', () => ({
   InstanceConfigLoader: {
     getAvailableInstances: vi.fn().mockReturnValue([]),
+    getAvailableInstancesAsync: vi.fn().mockResolvedValue([]),
+    has: vi.fn().mockReturnValue(false),
     get: vi.fn().mockReturnValue({ streams: [] }),
+    loadAsync: vi.fn().mockResolvedValue({ streams: [] }),
   },
 }));
 
@@ -1141,10 +1144,12 @@ describe('StreamManager - Initialize with instances', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     process.env.STREAM_SCHEDULING_ENABLED = 'false';
+    // Default: configs are cached so get() is used
+    InstanceConfigLoader.has.mockReturnValue(true);
   });
 
   it('should load streams from available instances', async () => {
-    InstanceConfigLoader.getAvailableInstances.mockReturnValue(['test-instance']);
+    InstanceConfigLoader.getAvailableInstancesAsync.mockResolvedValue(['test-instance']);
     InstanceConfigLoader.get.mockReturnValue({
       streams: [
         {
@@ -1160,14 +1165,14 @@ describe('StreamManager - Initialize with instances', () => {
     const manager = new StreamManager();
     await manager.initialize();
 
-    expect(InstanceConfigLoader.getAvailableInstances).toHaveBeenCalled();
+    expect(InstanceConfigLoader.getAvailableInstancesAsync).toHaveBeenCalled();
     expect(InstanceConfigLoader.get).toHaveBeenCalledWith('test-instance');
     expect(manager.getAdapter('instance-stream-1')).toBeDefined();
     expect(manager.getAdapters().size).toBe(1);
   });
 
   it('should only load enabled streams', async () => {
-    InstanceConfigLoader.getAvailableInstances.mockReturnValue(['test-instance']);
+    InstanceConfigLoader.getAvailableInstancesAsync.mockResolvedValue(['test-instance']);
     InstanceConfigLoader.get.mockReturnValue({
       streams: [
         {
@@ -1195,7 +1200,7 @@ describe('StreamManager - Initialize with instances', () => {
   });
 
   it('should handle multiple instances', async () => {
-    InstanceConfigLoader.getAvailableInstances.mockReturnValue(['instance-a', 'instance-b']);
+    InstanceConfigLoader.getAvailableInstancesAsync.mockResolvedValue(['instance-a', 'instance-b']);
     InstanceConfigLoader.get
       .mockReturnValueOnce({
         streams: [
@@ -1228,7 +1233,7 @@ describe('StreamManager - Initialize with instances', () => {
   });
 
   it('should handle instance without streams config', async () => {
-    InstanceConfigLoader.getAvailableInstances.mockReturnValue(['empty-instance']);
+    InstanceConfigLoader.getAvailableInstancesAsync.mockResolvedValue(['empty-instance']);
     InstanceConfigLoader.get.mockReturnValue({}); // No streams property
     getInstanceDb.mockReturnValue({});
 
@@ -1239,7 +1244,7 @@ describe('StreamManager - Initialize with instances', () => {
   });
 
   it('should continue loading other instances if one fails', async () => {
-    InstanceConfigLoader.getAvailableInstances.mockReturnValue([
+    InstanceConfigLoader.getAvailableInstancesAsync.mockResolvedValue([
       'failing-instance',
       'working-instance',
     ]);
@@ -1267,7 +1272,7 @@ describe('StreamManager - Initialize with instances', () => {
   });
 
   it('should handle stream registration failure within instance', async () => {
-    InstanceConfigLoader.getAvailableInstances.mockReturnValue(['test-instance']);
+    InstanceConfigLoader.getAvailableInstancesAsync.mockResolvedValue(['test-instance']);
     InstanceConfigLoader.get.mockReturnValue({
       streams: [
         {
@@ -1295,9 +1300,9 @@ describe('StreamManager - Initialize with instances', () => {
   });
 
   it('should throw when initialize itself fails', async () => {
-    InstanceConfigLoader.getAvailableInstances.mockImplementation(() => {
-      throw new Error('Critical initialization failure');
-    });
+    InstanceConfigLoader.getAvailableInstancesAsync.mockRejectedValue(
+      new Error('Critical initialization failure')
+    );
 
     const manager = new StreamManager();
     await expect(manager.initialize()).rejects.toThrow('Critical initialization failure');

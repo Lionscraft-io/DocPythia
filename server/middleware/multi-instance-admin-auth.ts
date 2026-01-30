@@ -23,15 +23,15 @@ export const multiInstanceAdminAuth = async (req: Request, res: Response, next: 
 
   const token = authHeader.substring(7); // Remove "Bearer " prefix
 
-  // Try to authenticate against all available instances
-  const availableInstances = InstanceConfigLoader.getAvailableInstances();
+  // Try to authenticate against all available instances (async for S3 support)
+  const availableInstances = await InstanceConfigLoader.getAvailableInstancesAsync();
   let authenticated = false;
 
   for (const instanceId of availableInstances) {
     try {
       const config = InstanceConfigLoader.has(instanceId)
         ? InstanceConfigLoader.get(instanceId)
-        : InstanceConfigLoader.load(instanceId);
+        : await InstanceConfigLoader.loadAsync(instanceId);
 
       if (await verifyPassword(token, config.admin.passwordHash)) {
         authenticated = true;

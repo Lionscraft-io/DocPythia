@@ -12,9 +12,11 @@ import { hashPassword } from '../server/auth/password.js';
 vi.mock('../server/config/instance-loader.js', () => ({
   InstanceConfigLoader: {
     getAvailableInstances: vi.fn(),
+    getAvailableInstancesAsync: vi.fn(),
     has: vi.fn(),
     get: vi.fn(),
     load: vi.fn(),
+    loadAsync: vi.fn(),
   },
 }));
 
@@ -53,7 +55,7 @@ describe('Multi-Instance Authentication', () => {
 
   describe('authenticateAnyInstance', () => {
     it('should return error when no instances are configured', async () => {
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([]);
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue([]);
 
       const result = await authenticateAnyInstance(testPassword);
 
@@ -62,7 +64,7 @@ describe('Multi-Instance Authentication', () => {
     });
 
     it('should authenticate against matching instance', async () => {
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue([
         'projecta',
         'projectb',
       ]);
@@ -76,7 +78,7 @@ describe('Multi-Instance Authentication', () => {
     });
 
     it('should try all instances until match found', async () => {
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue([
         'wrong1',
         'wrong2',
         'correct',
@@ -94,7 +96,7 @@ describe('Multi-Instance Authentication', () => {
     });
 
     it('should return error when no instance matches', async () => {
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue([
         'instance1',
         'instance2',
       ]);
@@ -108,20 +110,23 @@ describe('Multi-Instance Authentication', () => {
     });
 
     it('should load config if not cached', async () => {
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['uncached']);
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue(['uncached']);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
-      vi.mocked(InstanceConfigLoader.load).mockReturnValue(mockConfig as any);
+      vi.mocked(InstanceConfigLoader.loadAsync).mockResolvedValue(mockConfig as any);
 
       const result = await authenticateAnyInstance(testPassword);
 
-      expect(InstanceConfigLoader.load).toHaveBeenCalledWith('uncached');
+      expect(InstanceConfigLoader.loadAsync).toHaveBeenCalledWith('uncached');
       expect(result.success).toBe(true);
     });
 
     it('should continue to next instance on config load error', async () => {
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['broken', 'working']);
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue([
+        'broken',
+        'working',
+      ]);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
-      vi.mocked(InstanceConfigLoader.load).mockImplementation((id: string) => {
+      vi.mocked(InstanceConfigLoader.loadAsync).mockImplementation((id: string) => {
         if (id === 'broken') throw new Error('Config not found');
         return mockConfig as any;
       });
@@ -154,17 +159,17 @@ describe('Multi-Instance Authentication', () => {
 
     it('should load config if not cached', async () => {
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
-      vi.mocked(InstanceConfigLoader.load).mockReturnValue(mockConfig as any);
+      vi.mocked(InstanceConfigLoader.loadAsync).mockResolvedValue(mockConfig as any);
 
       const result = await authenticateInstance(testPassword, 'test');
 
-      expect(InstanceConfigLoader.load).toHaveBeenCalledWith('test');
+      expect(InstanceConfigLoader.loadAsync).toHaveBeenCalledWith('test');
       expect(result).toBe(true);
     });
 
     it('should return false on config error', async () => {
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
-      vi.mocked(InstanceConfigLoader.load).mockImplementation(() => {
+      vi.mocked(InstanceConfigLoader.loadAsync).mockImplementation(() => {
         throw new Error('Config not found');
       });
 

@@ -41,7 +41,7 @@ router.post('/login', async (req: Request, res: Response) => {
     // Check if auth is disabled (development only)
     if (process.env.DISABLE_ADMIN_AUTH === 'true') {
       logger.warn('ADMIN AUTH DISABLED - Development mode only!');
-      const instances = InstanceConfigLoader.getAvailableInstances();
+      const instances = await InstanceConfigLoader.getAvailableInstancesAsync();
       // Use requested instance if provided, otherwise default
       const instanceId = requestedInstance || instances[0] || 'default';
 
@@ -204,9 +204,9 @@ router.post('/refresh-csrf', (req: Request, res: Response) => {
  * Get available instances (for debugging)
  * GET /api/auth/instances
  */
-router.get('/instances', (req: Request, res: Response) => {
+router.get('/instances', async (req: Request, res: Response) => {
   try {
-    const instances = InstanceConfigLoader.getAvailableInstances();
+    const instances = await InstanceConfigLoader.getAvailableInstancesAsync();
     res.json({ instances });
   } catch {
     res.status(500).json({ error: 'Failed to get instances' });

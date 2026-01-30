@@ -71,8 +71,8 @@ export class StreamManager {
     logger.info('Initializing StreamManager...');
 
     try {
-      // Get all available instances
-      const availableInstances = InstanceConfigLoader.getAvailableInstances();
+      // Get all available instances (async for S3 support)
+      const availableInstances = await InstanceConfigLoader.getAvailableInstancesAsync();
       logger.info(
         `Loading streams from ${availableInstances.length} instances:`,
         availableInstances
@@ -84,7 +84,9 @@ export class StreamManager {
       for (const instanceId of availableInstances) {
         try {
           const instanceDb = getInstanceDb(instanceId);
-          const instanceConfig = InstanceConfigLoader.get(instanceId);
+          const instanceConfig = InstanceConfigLoader.has(instanceId)
+            ? InstanceConfigLoader.get(instanceId)
+            : await InstanceConfigLoader.loadAsync(instanceId);
 
           // Get stream configurations from instance config file
           const streamConfigs = (instanceConfig as any).streams || [];

@@ -18,6 +18,7 @@ vi.mock('../server/auth/multi-instance-auth.js', () => ({
 vi.mock('../server/config/instance-loader.js', () => ({
   InstanceConfigLoader: {
     getAvailableInstances: vi.fn(),
+    getAvailableInstancesAsync: vi.fn(),
   },
 }));
 
@@ -57,7 +58,7 @@ import authRouter from '../server/routes/auth-routes.js';
 
 const mockedAuthenticateAnyInstance = vi.mocked(authenticateAnyInstance);
 const mockedAuthenticateInstance = vi.mocked(authenticateInstance);
-const mockedGetAvailableInstances = vi.mocked(InstanceConfigLoader.getAvailableInstances);
+const mockedGetAvailableInstances = vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync);
 const mockedSetSessionCookies = vi.mocked(setSessionCookies);
 const mockedClearSessionCookies = vi.mocked(clearSessionCookies);
 const mockedGetSessionFromRequest = vi.mocked(getSessionFromRequest);
@@ -95,7 +96,7 @@ describe('Auth Routes', () => {
 
     it('should return success when auth is disabled', async () => {
       process.env.DISABLE_ADMIN_AUTH = 'true';
-      mockedGetAvailableInstances.mockReturnValue(['projecta', 'test']);
+      mockedGetAvailableInstances.mockResolvedValue(['projecta', 'test']);
 
       const response = await request(app)
         .post('/api/auth/login')
@@ -258,7 +259,7 @@ describe('Auth Routes', () => {
 
   describe('GET /api/auth/instances', () => {
     it('should return available instances', async () => {
-      mockedGetAvailableInstances.mockReturnValue(['projecta', 'test', 'demo']);
+      mockedGetAvailableInstances.mockResolvedValue(['projecta', 'test', 'demo']);
 
       const response = await request(app).get('/api/auth/instances');
 
@@ -269,7 +270,7 @@ describe('Auth Routes', () => {
     });
 
     it('should return empty array when no instances', async () => {
-      mockedGetAvailableInstances.mockReturnValue([]);
+      mockedGetAvailableInstances.mockResolvedValue([]);
 
       const response = await request(app).get('/api/auth/instances');
 
@@ -280,9 +281,7 @@ describe('Auth Routes', () => {
     });
 
     it('should return 500 on error', async () => {
-      mockedGetAvailableInstances.mockImplementation(() => {
-        throw new Error('Config error');
-      });
+      mockedGetAvailableInstances.mockRejectedValue(new Error('Config error'));
 
       const response = await request(app).get('/api/auth/instances');
 

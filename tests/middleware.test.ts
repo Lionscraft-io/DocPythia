@@ -14,9 +14,11 @@ vi.mock('../server/config/instance-loader.js', () => ({
   loadInstanceConfig: vi.fn(),
   InstanceConfigLoader: {
     getAvailableInstances: vi.fn(),
+    getAvailableInstancesAsync: vi.fn(),
     has: vi.fn(),
     get: vi.fn(),
     load: vi.fn(),
+    loadAsync: vi.fn(),
   },
 }));
 
@@ -24,7 +26,7 @@ vi.mock('../server/db/instance-db.js', () => ({
   getInstanceDb: vi.fn(),
 }));
 
-import { InstanceConfigLoader, loadInstanceConfig } from '../server/config/instance-loader.js';
+import { InstanceConfigLoader } from '../server/config/instance-loader.js';
 import { getInstanceDb } from '../server/db/instance-db.js';
 import {
   instanceMiddleware,
@@ -66,37 +68,37 @@ describe('Instance Middleware', () => {
   });
 
   describe('instanceMiddleware', () => {
-    it('should skip when no instance in params', () => {
+    it('should skip when no instance in params', async () => {
       const { req, res, next } = createMockReqResNext();
 
-      instanceMiddleware(req, res, next);
+      await instanceMiddleware(req, res, next);
 
       expect(next).toHaveBeenCalledWith('route');
     });
 
-    it('should skip for unrecognized instance', () => {
+    it('should skip for unrecognized instance', async () => {
       const { req, res, next } = createMockReqResNext();
       req.params = { instance: 'unknown' };
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue([
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue([
         'projecta',
         'projectb',
       ]);
 
-      instanceMiddleware(req, res, next);
+      await instanceMiddleware(req, res, next);
 
       expect(next).toHaveBeenCalledWith('route');
     });
 
-    it('should attach instance context for recognized instance', () => {
+    it('should attach instance context for recognized instance', async () => {
       const { req, res, next } = createMockReqResNext();
       req.params = { instance: 'test' };
 
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['test']);
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue(['test']);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
       vi.mocked(InstanceConfigLoader.get).mockReturnValue(mockConfig as any);
       vi.mocked(getInstanceDb).mockReturnValue(mockDb as any);
 
-      instanceMiddleware(req, res, next);
+      await instanceMiddleware(req, res, next);
 
       expect((req as any).instance.id).toBe('test');
       expect((req as any).instance.config).toBe(mockConfig);
@@ -104,32 +106,30 @@ describe('Instance Middleware', () => {
       expect(next).toHaveBeenCalled();
     });
 
-    it('should load config if not cached', () => {
+    it('should load config if not cached', async () => {
       const { req, res, next } = createMockReqResNext();
       req.params = { instance: 'uncached' };
 
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['uncached']);
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue(['uncached']);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
-      vi.mocked(loadInstanceConfig).mockReturnValue(mockConfig as any);
+      vi.mocked(InstanceConfigLoader.loadAsync).mockResolvedValue(mockConfig as any);
       vi.mocked(getInstanceDb).mockReturnValue(mockDb as any);
 
-      instanceMiddleware(req, res, next);
+      await instanceMiddleware(req, res, next);
 
-      expect(loadInstanceConfig).toHaveBeenCalledWith('uncached');
+      expect(InstanceConfigLoader.loadAsync).toHaveBeenCalledWith('uncached');
       expect(next).toHaveBeenCalled();
     });
 
-    it('should handle config load error', () => {
+    it('should handle config load error', async () => {
       const { req, res, next } = createMockReqResNext();
       req.params = { instance: 'broken' };
 
-      vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['broken']);
+      vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue(['broken']);
       vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
-      vi.mocked(loadInstanceConfig).mockImplementation(() => {
-        throw new Error('Config not found');
-      });
+      vi.mocked(InstanceConfigLoader.loadAsync).mockRejectedValue(new Error('Config not found'));
 
-      instanceMiddleware(req, res, next);
+      await instanceMiddleware(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({
@@ -250,7 +250,7 @@ describe('Multi-Instance Admin Auth Middleware', () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: `Bearer ${testPassword}` };
 
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['test']);
+    vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue(['test']);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
     vi.mocked(InstanceConfigLoader.get).mockReturnValue(mockConfig as any);
 
@@ -264,7 +264,7 @@ describe('Multi-Instance Admin Auth Middleware', () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: 'Bearer wrongPassword' };
 
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['test']);
+    vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue(['test']);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
     vi.mocked(InstanceConfigLoader.get).mockReturnValue(mockConfig as any);
 
@@ -280,7 +280,10 @@ describe('Multi-Instance Admin Auth Middleware', () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: `Bearer ${testPassword}` };
 
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['wrong1', 'correct']);
+    vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue([
+      'wrong1',
+      'correct',
+    ]);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(true);
     vi.mocked(InstanceConfigLoader.get).mockImplementation((id: string) => {
       if (id === 'correct') return mockConfig as any;
@@ -297,13 +300,13 @@ describe('Multi-Instance Admin Auth Middleware', () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: `Bearer ${testPassword}` };
 
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['test']);
+    vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue(['test']);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
-    vi.mocked(InstanceConfigLoader.load).mockReturnValue(mockConfig as any);
+    vi.mocked(InstanceConfigLoader.loadAsync).mockResolvedValue(mockConfig as any);
 
     await multiInstanceAdminAuth(req, res, next);
 
-    expect(InstanceConfigLoader.load).toHaveBeenCalledWith('test');
+    expect(InstanceConfigLoader.loadAsync).toHaveBeenCalledWith('test');
     expect(next).toHaveBeenCalled();
   });
 
@@ -311,9 +314,12 @@ describe('Multi-Instance Admin Auth Middleware', () => {
     const { req, res, next } = createMockReqResNext();
     req.headers = { authorization: `Bearer ${testPassword}` };
 
-    vi.mocked(InstanceConfigLoader.getAvailableInstances).mockReturnValue(['broken', 'working']);
+    vi.mocked(InstanceConfigLoader.getAvailableInstancesAsync).mockResolvedValue([
+      'broken',
+      'working',
+    ]);
     vi.mocked(InstanceConfigLoader.has).mockReturnValue(false);
-    vi.mocked(InstanceConfigLoader.load).mockImplementation((id: string) => {
+    vi.mocked(InstanceConfigLoader.loadAsync).mockImplementation((id: string) => {
       if (id === 'broken') throw new Error('Config error');
       return mockConfig as any;
     });

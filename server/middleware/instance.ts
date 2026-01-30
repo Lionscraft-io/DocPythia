@@ -5,7 +5,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { loadInstanceConfig, InstanceConfigLoader } from '../config/instance-loader';
+import { InstanceConfigLoader } from '../config/instance-loader';
 import { getInstanceDb } from '../db/instance-db';
 import type { ResolvedConfig } from '../config/types';
 import type { PrismaClient } from '@prisma/client';
@@ -28,7 +28,7 @@ declare global {
  * Instance detection middleware
  * Expects URL format: /{instanceId}/... (e.g., /projecta/admin, /projectb/api/...)
  */
-export function instanceMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function instanceMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
     console.log(
       '[Instance Middleware] Hit! req.url:',
@@ -50,8 +50,8 @@ export function instanceMiddleware(req: Request, res: Response, next: NextFuncti
       return next('route');
     }
 
-    // Check if this is a recognized instance
-    const availableInstances = InstanceConfigLoader.getAvailableInstances();
+    // Check if this is a recognized instance (async for S3 support)
+    const availableInstances = await InstanceConfigLoader.getAvailableInstancesAsync();
     if (!availableInstances.includes(instanceId)) {
       // Not a recognized instance, skip this middleware (it might be /api or another route)
       console.log('[Instance Middleware] Not a recognized instance, skipping');
@@ -62,15 +62,16 @@ export function instanceMiddleware(req: Request, res: Response, next: NextFuncti
     let config: ResolvedConfig;
     try {
       if (!InstanceConfigLoader.has(instanceId)) {
-        config = loadInstanceConfig(instanceId);
+        config = await InstanceConfigLoader.loadAsync(instanceId);
       } else {
         config = InstanceConfigLoader.get(instanceId);
       }
     } catch {
+      const instances = await InstanceConfigLoader.getAvailableInstancesAsync();
       return res.status(404).json({
         error: 'Instance not found',
         message: `Configuration not found for instance "${instanceId}"`,
-        availableInstances: InstanceConfigLoader.getAvailableInstances(),
+        availableInstances: instances,
       });
     }
 
