@@ -330,7 +330,11 @@ export default function RulesetEditor() {
                   Unsaved changes
                 </span>
               )}
-              <Button onClick={handleSave} disabled={saveMutation.isPending || !hasUnsavedChanges}>
+              <Button
+                onClick={handleSave}
+                disabled={saveMutation.isPending || !hasUnsavedChanges}
+                className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-300 disabled:text-gray-500 disabled:opacity-100"
+              >
                 {saveMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

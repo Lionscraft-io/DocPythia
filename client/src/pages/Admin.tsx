@@ -1498,7 +1498,7 @@ export default function Admin() {
 
         {/* Conversation Context Modal */}
         <Dialog open={conversationModalOpen} onOpenChange={setConversationModalOpen}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto bg-white [&>button]:text-gray-900 [&>button]:hover:bg-gray-100">
+          <DialogContent className="max-w-[95vw] max-h-[80vh] overflow-y-auto bg-white [&>button]:text-gray-900 [&>button]:hover:bg-gray-100">
             <DialogHeader>
               <DialogTitle className="text-gray-900">Conversation Context</DialogTitle>
               <DialogDescription className="text-gray-600">

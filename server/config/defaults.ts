@@ -15,7 +15,7 @@ export const defaultConfig: InstanceConfig = {
 
   branding: {
     logo: '/assets/logo.svg',
-    favicon: '/assets/favicon.ico',
+    favicon: '/ico.png',
     primaryColor: '#3B82F6',
     secondaryColor: '#1F2937',
     accentColor: '#10B981',
