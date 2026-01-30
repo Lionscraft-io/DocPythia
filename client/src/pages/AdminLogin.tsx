@@ -30,14 +30,14 @@ export default function AdminLogin() {
     if (isGenericLogin) {
       document.title = 'Login - Lionscraft AI Docs';
 
-      // Update favicon to Black.png
+      // Update favicon to ico.png
       const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
       if (favicon) {
-        favicon.href = '/Black.png';
+        favicon.href = '/ico.png';
       } else {
         const newFavicon = document.createElement('link');
         newFavicon.rel = 'icon';
-        newFavicon.href = '/Black.png';
+        newFavicon.href = '/ico.png';
         document.head.appendChild(newFavicon);
       }
     } else if (config) {
