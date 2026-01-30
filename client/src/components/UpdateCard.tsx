@@ -278,7 +278,7 @@ export function UpdateCard({
   const handleRejectClick = () => {
     if (onFeedback) {
       setPendingAction(
-        status === 'approved' ? 'approved' : status === 'rejected' ? 'ignored' : 'rejected'
+        status === 'approved' ? 'rejected' : status === 'rejected' ? 'ignored' : 'ignored'
       );
       setFeedbackOpen(true);
     } else {
@@ -404,7 +404,7 @@ export function UpdateCard({
                   ? 'Unapprove'
                   : status === 'rejected'
                     ? 'Reset to Pending'
-                    : 'Reject'}
+                    : 'Ignore'}
               </Button>
             )}
           </div>
@@ -588,7 +588,11 @@ export function UpdateCard({
         <DialogContent className="max-w-md bg-white [&>button]:text-gray-900 [&>button]:hover:bg-gray-100">
           <DialogHeader>
             <DialogTitle className="text-gray-900">
-              {pendingAction === 'approved' ? 'Approve Proposal' : 'Reject Proposal'}
+              {pendingAction === 'approved'
+                ? 'Approve Proposal'
+                : status === 'approved'
+                  ? 'Unapprove Proposal'
+                  : 'Ignore Proposal'}
             </DialogTitle>
             <DialogDescription className="text-gray-600">
               Optionally provide feedback to help improve future proposals.
@@ -604,7 +608,9 @@ export function UpdateCard({
                 placeholder={
                   pendingAction === 'approved'
                     ? 'What made this proposal good? Any suggestions for similar proposals?'
-                    : 'Why was this proposal rejected? What would make it better?'
+                    : status === 'approved'
+                      ? 'Why should this proposal be sent back to pending?'
+                      : 'Why was this proposal ignored? What would make it better?'
                 }
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
@@ -629,17 +635,23 @@ export function UpdateCard({
               onClick={handleSkipFeedback}
               className="text-gray-600 hover:text-gray-900"
             >
-              Skip
+              Skip Feedback
             </Button>
             <Button
               onClick={handleFeedbackSubmit}
               className={
                 pendingAction === 'approved'
                   ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'bg-red-600 hover:bg-red-700 text-white'
+                  : status === 'approved'
+                    ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                    : 'bg-red-600 hover:bg-red-700 text-white'
               }
             >
-              {pendingAction === 'approved' ? 'Approve' : 'Reject'}
+              {pendingAction === 'approved'
+                ? 'Approve'
+                : status === 'approved'
+                  ? 'Unapprove'
+                  : 'Ignore'}
               {feedbackText.trim() && ' with Feedback'}
             </Button>
           </DialogFooter>

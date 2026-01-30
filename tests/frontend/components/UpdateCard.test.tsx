@@ -123,7 +123,7 @@ describe('UpdateCard', () => {
     const { rerender } = render(
       <UpdateCard {...defaultProps} status="pending" onReject={onReject} />
     );
-    expect(screen.getByTestId('button-reject-update-1')).toHaveTextContent('Reject');
+    expect(screen.getByTestId('button-reject-update-1')).toHaveTextContent('Ignore');
 
     // Approved status
     rerender(<UpdateCard {...defaultProps} status="approved" onReject={onReject} />);
