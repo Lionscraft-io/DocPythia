@@ -286,9 +286,9 @@ export function UpdateCard({
     }
   };
 
-  // Submit feedback and complete the action
+  // Submit feedback (if provided) and complete the action
   const handleFeedbackSubmit = () => {
-    if (pendingAction && onFeedback) {
+    if (pendingAction && onFeedback && feedbackText.trim()) {
       onFeedback({
         proposalId: id,
         action: pendingAction,
@@ -308,19 +308,6 @@ export function UpdateCard({
     setFeedbackOpen(false);
     setFeedbackText('');
     setUseForImprovement(true);
-    setPendingAction(null);
-  };
-
-  // Skip feedback and just do the action
-  const handleSkipFeedback = () => {
-    if (pendingAction === 'approved') {
-      onApprove?.(id);
-    } else if (pendingAction === 'rejected' || pendingAction === 'ignored') {
-      onReject?.(id);
-    }
-
-    setFeedbackOpen(false);
-    setFeedbackText('');
     setPendingAction(null);
   };
 
@@ -629,14 +616,7 @@ export function UpdateCard({
               </Label>
             </div>
           </div>
-          <DialogFooter className="flex gap-2">
-            <Button
-              variant="ghost"
-              onClick={handleSkipFeedback}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              Skip Feedback
-            </Button>
+          <DialogFooter>
             <Button
               onClick={handleFeedbackSubmit}
               className={
@@ -652,7 +632,6 @@ export function UpdateCard({
                 : status === 'approved'
                   ? 'Unapprove'
                   : 'Ignore'}
-              {feedbackText.trim() && ' with Feedback'}
             </Button>
           </DialogFooter>
         </DialogContent>
