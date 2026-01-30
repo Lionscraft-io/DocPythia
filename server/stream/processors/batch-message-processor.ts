@@ -104,6 +104,7 @@ interface EnrichedProposal extends ProposalGeneration {
     modificationsApplied: string[];
     qualityFlags: string[];
     modifiedContent?: string;
+    originalContent?: string;
   };
 }
 
@@ -172,6 +173,7 @@ export class BatchMessageProcessor {
   // Quality system integration
   private cachedRuleset: ParsedRuleset | null = null;
   private rulesetLoadedAt: Date | null = null;
+  private rulesetUpdatedAt: Date | null = null;
   private readonly RULESET_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(instanceId: string, db: PrismaClient, config: Partial<BatchProcessorConfig> = {}) {
@@ -223,6 +225,7 @@ export class BatchMessageProcessor {
     this.promptRegistry = null;
     this.cachedRuleset = null;
     this.rulesetLoadedAt = null;
+    this.rulesetUpdatedAt = null;
     logger.info('Pipeline cache cleared');
   }
 
@@ -250,11 +253,13 @@ export class BatchMessageProcessor {
         logger.debug(`[${this.instanceId}] No tenant ruleset found`);
         this.cachedRuleset = null;
         this.rulesetLoadedAt = new Date();
+        this.rulesetUpdatedAt = null;
         return null;
       }
 
       this.cachedRuleset = parseRuleset(ruleset.content);
       this.rulesetLoadedAt = new Date();
+      this.rulesetUpdatedAt = ruleset.updatedAt;
 
       if (this.cachedRuleset.promptContext.length > 0) {
         logger.info(
@@ -589,6 +594,7 @@ ${contextRules}
       rejected: false,
       modificationsApplied: [] as string[],
       qualityFlags: [] as string[],
+      originalContent: proposal.suggestedText || undefined,
     };
 
     const enrichment = proposal.enrichment;
@@ -1644,7 +1650,7 @@ ${contextRules}
         ...(proposal.reviewResult?.qualityFlags || []),
       ];
 
-      await this.db.docProposal.create({
+      const createdProposal = await this.db.docProposal.create({
         data: {
           conversationId: conversation.id,
           batchId,
@@ -1664,6 +1670,34 @@ ${contextRules}
             : Prisma.DbNull,
         },
       });
+
+      // Create ProposalReviewLog if ruleset was applied
+      if (proposal.reviewResult && this.rulesetUpdatedAt) {
+        try {
+          await this.db.proposalReviewLog.create({
+            data: {
+              proposalId: createdProposal.id,
+              rulesetVersion: this.rulesetUpdatedAt,
+              originalContent: proposal.reviewResult.originalContent || null,
+              modificationsApplied:
+                proposal.reviewResult.modificationsApplied.length > 0
+                  ? proposal.reviewResult.modificationsApplied
+                  : Prisma.DbNull,
+              rejected: false, // Accepted proposals only (rejected ones are filtered out above)
+              qualityFlags:
+                proposal.reviewResult.qualityFlags.length > 0
+                  ? proposal.reviewResult.qualityFlags
+                  : Prisma.DbNull,
+            },
+          });
+        } catch (reviewLogError) {
+          logger.warn(
+            `Failed to create ProposalReviewLog for proposal ${createdProposal.id}:`,
+            reviewLogError
+          );
+        }
+      }
+
       proposalCount++;
     }
 
