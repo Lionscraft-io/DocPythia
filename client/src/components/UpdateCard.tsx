@@ -274,12 +274,17 @@ export function UpdateCard({
     }
   };
 
-  // Handle reject with optional feedback
+  // Handle reject/ignore with optional feedback, or reset to pending directly
   const handleRejectClick = () => {
+    // Reset to pending (from approved or ignored tabs) — no feedback needed
+    if (status === 'approved' || status === 'rejected') {
+      onReject?.(id);
+      return;
+    }
+
+    // Ignore (from pending tab) — show feedback dialog if available
     if (onFeedback) {
-      setPendingAction(
-        status === 'approved' ? 'rejected' : status === 'rejected' ? 'ignored' : 'ignored'
-      );
+      setPendingAction('ignored');
       setFeedbackOpen(true);
     } else {
       onReject?.(id);
@@ -571,11 +576,7 @@ export function UpdateCard({
         <DialogContent className="max-w-md bg-white [&>button]:text-gray-900 [&>button]:hover:bg-gray-100">
           <DialogHeader>
             <DialogTitle className="text-gray-900">
-              {pendingAction === 'approved'
-                ? 'Approve Proposal'
-                : status === 'approved' || status === 'rejected'
-                  ? 'Reset to Pending'
-                  : 'Ignore Proposal'}
+              {pendingAction === 'approved' ? 'Approve Proposal' : 'Ignore Proposal'}
             </DialogTitle>
             <DialogDescription className="text-gray-600">
               Optionally provide feedback to help improve future proposals.
@@ -591,9 +592,7 @@ export function UpdateCard({
                 placeholder={
                   pendingAction === 'approved'
                     ? 'What made this proposal good? Any suggestions for similar proposals?'
-                    : status === 'approved' || status === 'rejected'
-                      ? 'Why should this proposal be sent back to pending?'
-                      : 'Why was this proposal ignored? What would make it better?'
+                    : 'Why was this proposal ignored? What would make it better?'
                 }
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
@@ -618,16 +617,10 @@ export function UpdateCard({
               className={
                 pendingAction === 'approved'
                   ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : status === 'approved' || status === 'rejected'
-                    ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                    : 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-red-600 hover:bg-red-700 text-white'
               }
             >
-              {pendingAction === 'approved'
-                ? 'Approve'
-                : status === 'approved' || status === 'rejected'
-                  ? 'Reset to Pending'
-                  : 'Ignore'}
+              {pendingAction === 'approved' ? 'Approve' : 'Ignore'}
             </Button>
           </DialogFooter>
         </DialogContent>
