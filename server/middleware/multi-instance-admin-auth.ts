@@ -1,10 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
 import { InstanceConfigLoader } from '../config/instance-loader.js';
 import { verifyPassword } from '../auth/password.js';
+import { getSessionFromRequest } from '../auth/session.js';
 
 /**
  * Multi-instance admin authentication middleware
  * Validates admin token against instance-specific password hashes
+ * Supports both Bearer token (API) and cookie-based (browser) authentication
  */
 export const multiInstanceAdminAuth = async (req: Request, res: Response, next: NextFunction) => {
   // Check if admin auth is disabled (for development)
@@ -15,6 +17,15 @@ export const multiInstanceAdminAuth = async (req: Request, res: Response, next: 
     return next();
   }
 
+  // First, try cookie-based session authentication (browser clients)
+  const session = getSessionFromRequest(req);
+  if (session?.instanceId) {
+    // Valid session cookie - store instance and continue
+    (req as any).adminInstance = session.instanceId;
+    return next();
+  }
+
+  // Fall back to Bearer token authentication (API clients)
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
