@@ -887,11 +887,16 @@ ${contextRules}
       let batchNumber = 0;
 
       // Build where clause with optional stream filter
-      const whereClause: { processingStatus: 'PENDING'; streamId?: string } = {
+      // By default, exclude test stream ('pipeline-test') from production runs
+      const whereClause: { processingStatus: 'PENDING'; streamId?: string | { not: string } } = {
         processingStatus: 'PENDING',
       };
       if (options?.streamIdFilter) {
+        // Specific stream filter (e.g., for test runs)
         whereClause.streamId = options.streamIdFilter;
+      } else {
+        // Production: exclude test stream
+        whereClause.streamId = { not: 'pipeline-test' };
       }
 
       // Get all distinct streams with pending messages

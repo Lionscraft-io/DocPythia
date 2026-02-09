@@ -200,8 +200,9 @@ describe('BatchMessageProcessor', () => {
       const result = await processor.processBatch();
 
       expect(result).toBe(0);
+      // Production runs exclude 'pipeline-test' stream
       expect(mockPrismaClient.unifiedMessage.findMany).toHaveBeenCalledWith({
-        where: { processingStatus: 'PENDING' },
+        where: { processingStatus: 'PENDING', streamId: { not: 'pipeline-test' } },
         distinct: ['streamId'],
         select: { streamId: true },
       });
