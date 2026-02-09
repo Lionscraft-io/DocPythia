@@ -784,7 +784,7 @@ Provide specific, actionable rule suggestions.`;
   router.post('/pipeline/test-run', adminAuth, async (req: Request, res: Response) => {
     try {
       const instanceId = getInstanceId(req);
-      const instanceDb = (req as any).db || db;
+      const instanceDb = (req as any).instance?.db || db;
 
       if (!instanceId) {
         return res.status(400).json({ error: 'Instance ID required' });
@@ -845,7 +845,7 @@ Provide specific, actionable rule suggestions.`;
   router.post('/pipeline/simulate', adminAuth, async (req: Request, res: Response) => {
     try {
       const instanceId = getInstanceId(req);
-      const instanceDb = (req as any).db || db;
+      const instanceDb = (req as any).instance?.db || db;
 
       if (!instanceId) {
         return res.status(400).json({ error: 'Instance ID required' });
@@ -913,7 +913,7 @@ Provide specific, actionable rule suggestions.`;
    */
   router.get('/pipeline/pending-messages', adminAuth, async (req: Request, res: Response) => {
     try {
-      const instanceDb = (req as any).db || db;
+      const instanceDb = (req as any).instance?.db || db;
 
       const pendingCount = await instanceDb.streamMessage.count({
         where: { status: 'PENDING' },
