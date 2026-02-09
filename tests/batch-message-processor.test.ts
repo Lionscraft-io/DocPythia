@@ -208,6 +208,21 @@ describe('BatchMessageProcessor', () => {
       });
     });
 
+    it('should only process specified stream when streamIdFilter is provided', async () => {
+      // Test pipeline mode: only process the specified stream
+      mockPrismaClient.unifiedMessage.findMany.mockResolvedValue([]);
+
+      const result = await processor.processBatch({ streamIdFilter: 'pipeline-test' });
+
+      expect(result).toBe(0);
+      // When streamIdFilter is provided, use exact match (not exclusion)
+      expect(mockPrismaClient.unifiedMessage.findMany).toHaveBeenCalledWith({
+        where: { processingStatus: 'PENDING', streamId: 'pipeline-test' },
+        distinct: ['streamId'],
+        select: { streamId: true },
+      });
+    });
+
     it('should process streams independently', async () => {
       // Setup: Two streams with pending messages
       mockPrismaClient.unifiedMessage.findMany
