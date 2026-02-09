@@ -1,8 +1,9 @@
 /**
  * Gemini Embedding Service
- * Generates document embeddings using Google's text-embedding-004 model
+ * Generates document embeddings using Google's gemini-embedding-001 model
  * Author: Wayne
  * Date: 2025-10-29
+ * Updated: 2026-02-09 - Switched to gemini-embedding-001 (text-embedding-004 deprecated)
  * Reference: /docs/specs/rag-documentation-retrieval.md
  */
 
@@ -17,6 +18,7 @@ export interface EmbeddingService {
 export class GeminiEmbedder implements EmbeddingService {
   private genAI: GoogleGenerativeAI;
   private embedModel: string;
+  private outputDimensionality: number;
   private readonly MAX_RETRIES = 3;
   private readonly RETRY_DELAY = 1000; // milliseconds
   private readonly BATCH_SIZE = 10; // Process 10 documents at a time
@@ -31,8 +33,13 @@ export class GeminiEmbedder implements EmbeddingService {
       `[DEBUG] GeminiEmbedder API key: ${key.substring(0, 15)}... (length: ${key.length})`
     );
     this.genAI = new GoogleGenerativeAI(key);
-    this.embedModel = process.env.GEMINI_EMBED_MODEL || 'text-embedding-004';
-    console.log(`GeminiEmbedder initialized with model: ${this.embedModel}`);
+    // Default to gemini-embedding-001 (text-embedding-004 was deprecated Feb 2026)
+    this.embedModel = process.env.GEMINI_EMBED_MODEL || 'gemini-embedding-001';
+    // Use 768 dimensions for backward compatibility with existing vectors
+    this.outputDimensionality = parseInt(process.env.GEMINI_EMBED_DIMENSIONS || '768', 10);
+    console.log(
+      `GeminiEmbedder initialized with model: ${this.embedModel}, dimensions: ${this.outputDimensionality}`
+    );
   }
 
   /**
@@ -64,7 +71,12 @@ export class GeminiEmbedder implements EmbeddingService {
         );
 
         const model = this.genAI.getGenerativeModel({ model: this.embedModel });
-        const result = await model.embedContent(text);
+        // Use structured content format with outputDimensionality for dimension control
+        // Note: outputDimensionality is supported by API but not yet in SDK types
+        const result = await model.embedContent({
+          content: { role: 'user', parts: [{ text }] },
+          outputDimensionality: this.outputDimensionality,
+        } as Parameters<typeof model.embedContent>[0]);
 
         const embedding = result.embedding.values;
 
@@ -72,9 +84,9 @@ export class GeminiEmbedder implements EmbeddingService {
           throw new Error('Invalid embedding response from Gemini API');
         }
 
-        // Ensure we have 768 dimensions
-        if (embedding.length !== 768) {
-          console.warn(`Expected 768 dimensions, got ${embedding.length}`);
+        // Verify dimension match
+        if (embedding.length !== this.outputDimensionality) {
+          console.warn(`Expected ${this.outputDimensionality} dimensions, got ${embedding.length}`);
         }
 
         console.log(`Successfully generated ${embedding.length}-dimensional embedding`);
