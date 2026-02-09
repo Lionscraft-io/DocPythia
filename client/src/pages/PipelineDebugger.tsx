@@ -190,6 +190,65 @@ export default function PipelineDebugger() {
     },
   });
 
+  // Fetch pending messages count
+  const { data: pendingData, refetch: refetchPending } = useQuery<{
+    pendingCount: number;
+    sampleMessages: Array<{
+      id: number;
+      streamId: string;
+      author: string;
+      content: string;
+      timestamp: string;
+      channel: string;
+      topic: string;
+    }>;
+  }>({
+    queryKey: [`${apiPrefix}/api/admin/quality/pipeline/pending-messages`],
+    queryFn: async () => {
+      const response = await adminApiRequest(
+        'GET',
+        `${apiPrefix}/api/admin/quality/pipeline/pending-messages`
+      );
+      return response.json();
+    },
+  });
+
+  // Run test pipeline mutation
+  const runTestMutation = useMutation({
+    mutationFn: async () => {
+      const response = await adminApiRequest(
+        'POST',
+        `${apiPrefix}/api/admin/quality/pipeline/test-run`
+      );
+      return response.json();
+    },
+    onSuccess: (data) => {
+      refetchRuns();
+      refetchPending();
+      if (data.runId) {
+        setSelectedRunId(data.runId);
+      }
+    },
+  });
+
+  // Simulate messages mutation
+  const simulateMutation = useMutation({
+    mutationFn: async (messages: Array<{ content: string; author?: string }>) => {
+      const response = await adminApiRequest(
+        'POST',
+        `${apiPrefix}/api/admin/quality/pipeline/simulate`,
+        { messages }
+      );
+      return response.json();
+    },
+    onSuccess: () => {
+      refetchPending();
+    },
+  });
+
+  const [showSimulateForm, setShowSimulateForm] = useState(false);
+  const [simulateContent, setSimulateContent] = useState('');
+
   const navigateBack = () => {
     const basePath = apiPrefix ? `${apiPrefix}/admin` : '/admin';
     setLocation(basePath);
@@ -326,6 +385,10 @@ export default function PipelineDebugger() {
             <TabsTrigger value="runs" className="flex items-center gap-2">
               <Play className="w-4 h-4" />
               Pipeline Runs
+            </TabsTrigger>
+            <TabsTrigger value="test" className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Test Pipeline
             </TabsTrigger>
             <TabsTrigger value="prompts" className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
@@ -564,6 +627,173 @@ export default function PipelineDebugger() {
                 )}
               </div>
             </div>
+          </TabsContent>
+
+          {/* Test Pipeline Tab */}
+          <TabsContent value="test" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Pending Messages */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5" />
+                        Pending Messages
+                      </CardTitle>
+                      <CardDescription>
+                        Messages waiting to be processed by the pipeline
+                      </CardDescription>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => refetchPending()}>
+                      <RefreshCw className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-4">
+                    <div className="text-4xl font-bold text-blue-600 mb-2">
+                      {pendingData?.pendingCount ?? 0}
+                    </div>
+                    <p className="text-sm text-gray-500">pending messages</p>
+                  </div>
+
+                  {pendingData?.sampleMessages && pendingData.sampleMessages.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-sm font-medium text-gray-700">Recent messages:</p>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {pendingData.sampleMessages.map((msg) => (
+                          <div key={msg.id} className="text-sm p-2 bg-gray-50 rounded border">
+                            <div className="flex items-center gap-2 text-gray-500 mb-1">
+                              <span className="font-medium">{msg.author}</span>
+                              <span>•</span>
+                              <span>{msg.streamId}</span>
+                            </div>
+                            <p className="text-gray-700 line-clamp-2">{msg.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <Button
+                      className="w-full"
+                      onClick={() => runTestMutation.mutate()}
+                      disabled={runTestMutation.isPending || (pendingData?.pendingCount ?? 0) === 0}
+                    >
+                      {runTestMutation.isPending ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Running Pipeline...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 mr-2" />
+                          Run Pipeline on Pending Messages
+                        </>
+                      )}
+                    </Button>
+                    {(pendingData?.pendingCount ?? 0) === 0 && (
+                      <p className="text-xs text-gray-500 mt-2 text-center">
+                        No pending messages. Create simulated messages below to test.
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Simulate Messages */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Zap className="w-5 h-5" />
+                    Simulate Test Messages
+                  </CardTitle>
+                  <CardDescription>
+                    Create fake messages to test the pipeline without waiting for real data
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!showSimulateForm ? (
+                    <div className="text-center py-8">
+                      <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-4">
+                        Create simulated messages to test how the pipeline processes them
+                      </p>
+                      <Button variant="outline" onClick={() => setShowSimulateForm(true)}>
+                        <Zap className="w-4 h-4 mr-2" />
+                        Create Test Messages
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="simulate-content">Test Message Content</Label>
+                        <Textarea
+                          id="simulate-content"
+                          value={simulateContent}
+                          onChange={(e) => setSimulateContent(e.target.value)}
+                          placeholder="Enter a message that might trigger a documentation update, e.g.:
+
+I figured out how to configure the validator node. You need to set min_peers=5 in the config.json file and make sure the network port 24567 is open. This fixed my syncing issues."
+                          rows={6}
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Write a message that contains documentation-worthy information
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowSimulateForm(false);
+                            setSimulateContent('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            if (simulateContent.trim()) {
+                              simulateMutation.mutate([{ content: simulateContent.trim() }]);
+                              setSimulateContent('');
+                              setShowSimulateForm(false);
+                            }
+                          }}
+                          disabled={simulateMutation.isPending || !simulateContent.trim()}
+                        >
+                          {simulateMutation.isPending ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              Creating...
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="w-4 h-4 mr-2" />
+                              Create & Queue Message
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Quick Tips */}
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>How to test:</strong> Create a simulated message with content that would
+                trigger a documentation update (e.g., troubleshooting steps, configuration tips).
+                Then click "Run Pipeline" to process it. The results will appear in the Pipeline
+                Runs tab.
+              </AlertDescription>
+            </Alert>
           </TabsContent>
 
           {/* Prompt Overrides Tab */}

@@ -16,6 +16,7 @@ import { createLogger, getErrorMessage } from '../utils/logger.js';
 import { llmService } from '../stream/llm/llm-service.js';
 import { LLMModel } from '../stream/types.js';
 import { getDefaultRulesetTemplate } from '../pipeline/types/ruleset.js';
+import { BatchMessageProcessor } from '../stream/processors/batch-message-processor.js';
 import path from 'path';
 
 const logger = createLogger('QualitySystemRoutes');
@@ -771,6 +772,177 @@ Provide specific, actionable rule suggestions.`;
       res
         .status(500)
         .json({ error: 'Failed to apply improvements', details: getErrorMessage(error) });
+    }
+  });
+
+  // ==================== TEST PIPELINE ROUTES ====================
+
+  /**
+   * POST /pipeline/test-run
+   * Trigger a test pipeline run by processing pending messages
+   */
+  router.post('/pipeline/test-run', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const instanceId = getInstanceId(req);
+      const instanceDb = (req as any).db || db;
+
+      if (!instanceId) {
+        return res.status(400).json({ error: 'Instance ID required' });
+      }
+
+      logger.info(`[${instanceId}] Starting test pipeline run...`);
+
+      // Check for pending messages first
+      const pendingCount = await instanceDb.streamMessage.count({
+        where: {
+          status: 'PENDING',
+        },
+      });
+
+      if (pendingCount === 0) {
+        return res.json({
+          success: false,
+          message: 'No pending messages to process',
+          pendingMessages: 0,
+          suggestion:
+            'Messages must come from streams (Zulip/Telegram) or use the simulate endpoint to create test messages',
+        });
+      }
+
+      // Create processor and run batch
+      const processor = new BatchMessageProcessor(instanceId, instanceDb);
+      const messagesProcessed = await processor.processBatch();
+
+      // Get the latest pipeline run log
+      const latestRun = await instanceDb.pipelineRunLog.findFirst({
+        where: { instanceId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      logger.info(
+        `[${instanceId}] Test pipeline complete: ${messagesProcessed} messages processed`
+      );
+
+      res.json({
+        success: true,
+        message: 'Test pipeline run completed',
+        messagesProcessed,
+        pendingMessages: pendingCount,
+        runId: latestRun?.id,
+      });
+    } catch (error) {
+      logger.error('Error running test pipeline:', error);
+      res
+        .status(500)
+        .json({ error: 'Failed to run test pipeline', details: getErrorMessage(error) });
+    }
+  });
+
+  /**
+   * POST /pipeline/simulate
+   * Create simulated test messages for pipeline testing
+   */
+  router.post('/pipeline/simulate', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const instanceId = getInstanceId(req);
+      const instanceDb = (req as any).db || db;
+
+      if (!instanceId) {
+        return res.status(400).json({ error: 'Instance ID required' });
+      }
+
+      const schema = z.object({
+        messages: z
+          .array(
+            z.object({
+              content: z.string().min(1),
+              author: z.string().optional().default('Test User'),
+            })
+          )
+          .min(1)
+          .max(10),
+      });
+
+      const { messages } = schema.parse(req.body);
+
+      logger.info(`[${instanceId}] Creating ${messages.length} simulated test messages...`);
+
+      // Create simulated stream messages
+      const createdMessages = [];
+      for (const msg of messages) {
+        const streamMessage = await instanceDb.streamMessage.create({
+          data: {
+            streamId: 'pipeline-test',
+            messageId: `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            author: msg.author,
+            content: msg.content,
+            timestamp: new Date(),
+            channel: 'test-channel',
+            threadId: null,
+            parentId: null,
+            topic: 'Pipeline Test',
+            status: 'PENDING',
+            metadata: { simulated: true, testRun: true },
+          },
+        });
+        createdMessages.push(streamMessage);
+      }
+
+      logger.info(`[${instanceId}] Created ${createdMessages.length} simulated messages`);
+
+      res.json({
+        success: true,
+        message: `Created ${createdMessages.length} simulated messages`,
+        messageIds: createdMessages.map((m) => m.id),
+        nextStep: 'Use POST /pipeline/test-run to process these messages through the pipeline',
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid request', details: error.errors });
+      }
+      logger.error('Error creating simulated messages:', error);
+      res
+        .status(500)
+        .json({ error: 'Failed to create simulated messages', details: getErrorMessage(error) });
+    }
+  });
+
+  /**
+   * GET /pipeline/pending-messages
+   * Get count and sample of pending messages
+   */
+  router.get('/pipeline/pending-messages', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const instanceDb = (req as any).db || db;
+
+      const pendingCount = await instanceDb.streamMessage.count({
+        where: { status: 'PENDING' },
+      });
+
+      const sampleMessages = await instanceDb.streamMessage.findMany({
+        where: { status: 'PENDING' },
+        take: 5,
+        orderBy: { timestamp: 'desc' },
+        select: {
+          id: true,
+          streamId: true,
+          author: true,
+          content: true,
+          timestamp: true,
+          channel: true,
+          topic: true,
+        },
+      });
+
+      res.json({
+        pendingCount,
+        sampleMessages,
+      });
+    } catch (error) {
+      logger.error('Error fetching pending messages:', error);
+      res
+        .status(500)
+        .json({ error: 'Failed to fetch pending messages', details: getErrorMessage(error) });
     }
   });
 
