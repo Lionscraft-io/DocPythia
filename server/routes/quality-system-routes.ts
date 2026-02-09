@@ -801,7 +801,7 @@ Provide specific, actionable rule suggestions.`;
 
   /**
    * POST /pipeline/test-run
-   * Trigger a test pipeline run by processing pending messages
+   * Trigger a test pipeline run processing ONLY test messages (streamId = 'pipeline-test')
    */
   router.post('/pipeline/test-run', adminAuth, async (req: Request, res: Response) => {
     try {
@@ -813,11 +813,13 @@ Provide specific, actionable rule suggestions.`;
 
       const instanceDb = getDb(req);
 
-      logger.info(`[${instanceId}] Starting test pipeline run...`);
+      logger.info(`[${instanceId}] Starting test pipeline run (test messages only)...`);
 
-      // Check for pending messages first
+      // Only count/process test messages (from pipeline-test stream)
+      const testStreamId = 'pipeline-test';
       const pendingCount = await instanceDb.unifiedMessage.count({
         where: {
+          streamId: testStreamId,
           processingStatus: 'PENDING',
         },
       });
@@ -825,16 +827,16 @@ Provide specific, actionable rule suggestions.`;
       if (pendingCount === 0) {
         return res.json({
           success: false,
-          message: 'No pending messages to process',
+          message: 'No test messages to process',
           pendingMessages: 0,
           suggestion:
-            'Messages must come from streams (Zulip/Telegram) or use the simulate endpoint to create test messages',
+            'Use the "Create Test Messages" form above to create simulated messages first',
         });
       }
 
-      // Create processor and run batch
+      // Create processor and run batch - ONLY for test stream
       const processor = new BatchMessageProcessor(instanceId, instanceDb);
-      const messagesProcessed = await processor.processBatch();
+      const messagesProcessed = await processor.processBatch({ streamIdFilter: testStreamId });
 
       // Get the latest pipeline run log
       const latestRun = await instanceDb.pipelineRunLog.findFirst({
@@ -843,12 +845,12 @@ Provide specific, actionable rule suggestions.`;
       });
 
       logger.info(
-        `[${instanceId}] Test pipeline complete: ${messagesProcessed} messages processed`
+        `[${instanceId}] Test pipeline complete: ${messagesProcessed} test messages processed`
       );
 
       res.json({
         success: true,
-        message: 'Test pipeline run completed',
+        message: `Test pipeline run completed (processed ${messagesProcessed} test messages)`,
         messagesProcessed,
         pendingMessages: pendingCount,
         runId: latestRun?.id,
@@ -943,19 +945,22 @@ Provide specific, actionable rule suggestions.`;
 
   /**
    * GET /pipeline/pending-messages
-   * Get count and sample of pending messages
+   * Get count and sample of TEST messages only (streamId = 'pipeline-test')
    */
   router.get('/pipeline/pending-messages', adminAuth, async (req: Request, res: Response) => {
     try {
       const instanceDb = getDb(req);
 
+      // Only show test messages (from pipeline-test stream)
+      const testStreamFilter = { streamId: 'pipeline-test', processingStatus: 'PENDING' as const };
+
       const pendingCount = await instanceDb.unifiedMessage.count({
-        where: { processingStatus: 'PENDING' },
+        where: testStreamFilter,
       });
 
       const sampleMessages = await instanceDb.unifiedMessage.findMany({
-        where: { processingStatus: 'PENDING' },
-        take: 5,
+        where: testStreamFilter,
+        take: 10,
         orderBy: { timestamp: 'desc' },
         select: {
           id: true,
@@ -976,6 +981,35 @@ Provide specific, actionable rule suggestions.`;
       res
         .status(500)
         .json({ error: 'Failed to fetch pending messages', details: getErrorMessage(error) });
+    }
+  });
+
+  /**
+   * DELETE /pipeline/test-messages
+   * Clear all test messages (from pipeline-test stream)
+   */
+  router.delete('/pipeline/test-messages', adminAuth, async (req: Request, res: Response) => {
+    try {
+      const instanceDb = getDb(req);
+      const testStreamId = 'pipeline-test';
+
+      // Delete all messages from the test stream
+      const result = await instanceDb.unifiedMessage.deleteMany({
+        where: { streamId: testStreamId },
+      });
+
+      logger.info(`Deleted ${result.count} test messages`);
+
+      res.json({
+        success: true,
+        message: `Deleted ${result.count} test messages`,
+        deletedCount: result.count,
+      });
+    } catch (error) {
+      logger.error('Error deleting test messages:', error);
+      res
+        .status(500)
+        .json({ error: 'Failed to delete test messages', details: getErrorMessage(error) });
     }
   });
 

@@ -862,9 +862,10 @@ ${contextRules}
 
   /**
    * Process the next batch of messages
+   * @param options.streamIdFilter - Optional: only process messages from this stream
    * Returns number of messages processed
    */
-  async processBatch(): Promise<number> {
+  async processBatch(options?: { streamIdFilter?: string }): Promise<number> {
     // Check if already processing
     if (BatchMessageProcessor.isProcessing) {
       logger.warn('Already processing, skipping...');
@@ -873,7 +874,10 @@ ${contextRules}
 
     // Set processing flag
     BatchMessageProcessor.isProcessing = true;
-    logger.info('Starting batch processing...');
+    const filterMsg = options?.streamIdFilter
+      ? ` (filtered to stream: ${options.streamIdFilter})`
+      : '';
+    logger.info(`Starting batch processing...${filterMsg}`);
 
     // Initialize pipeline components (loads config from S3 if enabled)
     await this.initializePipeline();
@@ -882,9 +886,17 @@ ${contextRules}
       let totalMessagesProcessedAcrossAllBatches = 0;
       let batchNumber = 0;
 
+      // Build where clause with optional stream filter
+      const whereClause: { processingStatus: 'PENDING'; streamId?: string } = {
+        processingStatus: 'PENDING',
+      };
+      if (options?.streamIdFilter) {
+        whereClause.streamId = options.streamIdFilter;
+      }
+
       // Get all distinct streams with pending messages
       const allStreams = await this.db.unifiedMessage.findMany({
-        where: { processingStatus: 'PENDING' },
+        where: whereClause,
         distinct: ['streamId'],
         select: { streamId: true },
       });
