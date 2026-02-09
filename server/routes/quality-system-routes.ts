@@ -10,7 +10,9 @@
 
 import { Router, Request, Response, RequestHandler } from 'express';
 import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
 import { db } from '../db';
+import { getInstanceDb } from '../db/instance-db.js';
 import { createPromptRegistry } from '../pipeline/prompts/PromptRegistry.js';
 import { createLogger, getErrorMessage } from '../utils/logger.js';
 import { llmService } from '../stream/llm/llm-service.js';
@@ -38,6 +40,26 @@ function getInstanceId(req: Request): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * Get instance-aware database client from request
+ * Uses instance middleware db if available, otherwise falls back to getInstanceDb()
+ */
+function getDb(req: Request): PrismaClient {
+  // First try: Instance middleware (for routes with /:instance prefix)
+  if ((req as any).instance?.db) {
+    return (req as any).instance.db;
+  }
+
+  // Second try: Admin auth middleware (for routes without /:instance prefix)
+  const adminInstance = (req as any).adminInstance;
+  if (adminInstance) {
+    return getInstanceDb(adminInstance);
+  }
+
+  // Fallback to global db (for non-instance-specific queries like TenantRuleset)
+  return db;
 }
 
 // Validation schemas
@@ -784,18 +806,19 @@ Provide specific, actionable rule suggestions.`;
   router.post('/pipeline/test-run', adminAuth, async (req: Request, res: Response) => {
     try {
       const instanceId = getInstanceId(req);
-      const instanceDb = (req as any).instance?.db || db;
 
       if (!instanceId) {
         return res.status(400).json({ error: 'Instance ID required' });
       }
 
+      const instanceDb = getDb(req);
+
       logger.info(`[${instanceId}] Starting test pipeline run...`);
 
       // Check for pending messages first
-      const pendingCount = await instanceDb.streamMessage.count({
+      const pendingCount = await instanceDb.unifiedMessage.count({
         where: {
-          status: 'PENDING',
+          processingStatus: 'PENDING',
         },
       });
 
@@ -845,11 +868,12 @@ Provide specific, actionable rule suggestions.`;
   router.post('/pipeline/simulate', adminAuth, async (req: Request, res: Response) => {
     try {
       const instanceId = getInstanceId(req);
-      const instanceDb = (req as any).instance?.db || db;
 
       if (!instanceId) {
         return res.status(400).json({ error: 'Instance ID required' });
       }
+
+      const instanceDb = getDb(req);
 
       const schema = z.object({
         messages: z
@@ -867,10 +891,22 @@ Provide specific, actionable rule suggestions.`;
 
       logger.info(`[${instanceId}] Creating ${messages.length} simulated test messages...`);
 
-      // Create simulated stream messages
+      // Ensure pipeline-test stream config exists
+      await instanceDb.streamConfig.upsert({
+        where: { streamId: 'pipeline-test' },
+        update: {},
+        create: {
+          streamId: 'pipeline-test',
+          adapterType: 'test',
+          config: { description: 'Test stream for pipeline debugging' },
+          enabled: true,
+        },
+      });
+
+      // Create simulated unified messages
       const createdMessages = [];
       for (const msg of messages) {
-        const streamMessage = await instanceDb.streamMessage.create({
+        const unifiedMessage = await instanceDb.unifiedMessage.create({
           data: {
             streamId: 'pipeline-test',
             messageId: `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -878,14 +914,12 @@ Provide specific, actionable rule suggestions.`;
             content: msg.content,
             timestamp: new Date(),
             channel: 'test-channel',
-            threadId: null,
-            parentId: null,
-            topic: 'Pipeline Test',
-            status: 'PENDING',
+            rawData: { simulated: true, testRun: true, originalContent: msg.content },
             metadata: { simulated: true, testRun: true },
+            processingStatus: 'PENDING',
           },
         });
-        createdMessages.push(streamMessage);
+        createdMessages.push(unifiedMessage);
       }
 
       logger.info(`[${instanceId}] Created ${createdMessages.length} simulated messages`);
@@ -913,14 +947,14 @@ Provide specific, actionable rule suggestions.`;
    */
   router.get('/pipeline/pending-messages', adminAuth, async (req: Request, res: Response) => {
     try {
-      const instanceDb = (req as any).instance?.db || db;
+      const instanceDb = getDb(req);
 
-      const pendingCount = await instanceDb.streamMessage.count({
-        where: { status: 'PENDING' },
+      const pendingCount = await instanceDb.unifiedMessage.count({
+        where: { processingStatus: 'PENDING' },
       });
 
-      const sampleMessages = await instanceDb.streamMessage.findMany({
-        where: { status: 'PENDING' },
+      const sampleMessages = await instanceDb.unifiedMessage.findMany({
+        where: { processingStatus: 'PENDING' },
         take: 5,
         orderBy: { timestamp: 'desc' },
         select: {
@@ -930,7 +964,6 @@ Provide specific, actionable rule suggestions.`;
           content: true,
           timestamp: true,
           channel: true,
-          topic: true,
         },
       });
 
