@@ -220,6 +220,10 @@ export default function PipelineDebugger() {
         'POST',
         `${apiPrefix}/api/admin/quality/pipeline/test-run`
       );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || 'Failed to run pipeline');
+      }
       return response.json();
     },
     onSuccess: (data) => {
@@ -228,6 +232,14 @@ export default function PipelineDebugger() {
       if (data.runId) {
         setSelectedRunId(data.runId);
       }
+      if (data.success) {
+        alert(`Pipeline complete: ${data.messagesProcessed} messages processed`);
+      } else {
+        alert(data.message || 'No messages to process');
+      }
+    },
+    onError: (error) => {
+      alert(`Error: ${error.message}`);
     },
   });
 
@@ -239,10 +251,18 @@ export default function PipelineDebugger() {
         `${apiPrefix}/api/admin/quality/pipeline/simulate`,
         { messages }
       );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || 'Failed to create test messages');
+      }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       refetchPending();
+      alert(`Created ${data.messageIds?.length || 0} test message(s). Check Pending Messages.`);
+    },
+    onError: (error) => {
+      alert(`Error: ${error.message}`);
     },
   });
 
