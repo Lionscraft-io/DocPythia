@@ -1,8 +1,27 @@
 {
-  "name": "rest-express",
+  "name": "neardocsai",
   "version": "1.0.0",
+  "description": "AI-powered documentation management system that monitors community discussions and automatically generates documentation updates",
   "type": "module",
   "license": "MIT",
+  "author": "Lionscraft <info@lionscraft.io>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lionscraft-io/NearDocsAI.git"
+  },
+  "homepage": "https://github.com/Lionscraft-io/NearDocsAI#readme",
+  "bugs": {
+    "url": "https://github.com/Lionscraft-io/NearDocsAI/issues"
+  },
+  "keywords": [
+    "documentation",
+    "ai",
+    "llm",
+    "gemini",
+    "near-protocol",
+    "docs-management",
+    "automated-docs"
+  ],
   "scripts": {
     "dev": "NODE_ENV=development npx tsx server/index.ts",
     "build": "vite build --config vite.config.production.ts && node esbuild.config.js",

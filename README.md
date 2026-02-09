@@ -1,5 +1,7 @@
 # DocsAI
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 An AI-powered documentation management platform that automatically monitors community discussions, identifies documentation gaps, and generates update proposals.
 
 ## Features
