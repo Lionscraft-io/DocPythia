@@ -805,6 +805,7 @@ Provide specific, actionable rule suggestions.`;
   /**
    * POST /pipeline/test-run
    * Trigger a test pipeline run processing ONLY test messages (streamId = 'pipeline-test')
+   * Duplicates messages before processing so originals remain PENDING for reuse
    */
   router.post('/pipeline/test-run', adminAuth, async (req: Request, res: Response) => {
     try {
@@ -818,16 +819,16 @@ Provide specific, actionable rule suggestions.`;
 
       logger.info(`[${instanceId}] Starting test pipeline run (test messages only)...`);
 
-      // Only count/process test messages (from pipeline-test stream)
-      const testStreamId = 'pipeline-test';
-      const pendingCount = await instanceDb.unifiedMessage.count({
+      // Fetch all test messages (from pipeline-test stream) - these are the "template" messages
+      const templateStreamId = 'pipeline-test';
+      const templateMessages = await instanceDb.unifiedMessage.findMany({
         where: {
-          streamId: testStreamId,
-          processingStatus: 'PENDING',
+          streamId: templateStreamId,
         },
+        orderBy: { timestamp: 'asc' },
       });
 
-      if (pendingCount === 0) {
+      if (templateMessages.length === 0) {
         return res.json({
           success: false,
           message: 'No test messages to process',
@@ -837,13 +838,56 @@ Provide specific, actionable rule suggestions.`;
         });
       }
 
+      // Create a unique stream ID for this run
+      const runTimestamp = Date.now();
+      const runStreamId = `pipeline-test-run-${runTimestamp}`;
+
+      // Ensure stream config exists for the run stream
+      await instanceDb.streamConfig.upsert({
+        where: { streamId: runStreamId },
+        update: {},
+        create: {
+          streamId: runStreamId,
+          adapterType: 'test',
+          config: { description: `Test run ${runTimestamp}`, templateStreamId },
+          enabled: true,
+        },
+      });
+
+      // Duplicate template messages into the run stream
+      const duplicatedMessages = [];
+      for (const msg of templateMessages) {
+        const duplicated = await instanceDb.unifiedMessage.create({
+          data: {
+            streamId: runStreamId,
+            messageId: `${msg.messageId}-run-${runTimestamp}`,
+            author: msg.author,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            channel: msg.channel,
+            rawData: msg.rawData as any,
+            metadata: {
+              ...(msg.metadata as any),
+              duplicatedFrom: msg.id,
+              testRunTimestamp: runTimestamp,
+            },
+            processingStatus: 'PENDING',
+          },
+        });
+        duplicatedMessages.push(duplicated);
+      }
+
+      logger.info(
+        `[${instanceId}] Duplicated ${duplicatedMessages.length} messages into ${runStreamId}`
+      );
+
       // Create processor and run batch asynchronously (fire-and-forget)
       // This prevents 504 timeout on long-running pipeline processing
       const processor = new BatchMessageProcessor(instanceId, instanceDb);
 
-      // Start processing in background without waiting
+      // Start processing in background without waiting - process the duplicated messages
       processor
-        .processBatch({ streamIdFilter: testStreamId })
+        .processBatch({ streamIdFilter: runStreamId })
         .then((messagesProcessed) => {
           logger.info(
             `[${instanceId}] Test pipeline complete: ${messagesProcessed} test messages processed`
@@ -856,8 +900,9 @@ Provide specific, actionable rule suggestions.`;
       // Return immediately - frontend will poll for completion
       res.json({
         success: true,
-        message: `Pipeline started processing ${pendingCount} test messages`,
-        pendingMessages: pendingCount,
+        message: `Pipeline started processing ${duplicatedMessages.length} test messages`,
+        pendingMessages: duplicatedMessages.length,
+        runStreamId,
         status: 'processing',
       });
     } catch (error) {
