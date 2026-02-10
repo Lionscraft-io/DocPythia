@@ -116,6 +116,8 @@ export default function PipelineDebugger() {
   const [editedSystem, setEditedSystem] = useState('');
   const [editedUser, setEditedUser] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStartedAt, setProcessingStartedAt] = useState<number | null>(null);
+  const [initialRunCount, setInitialRunCount] = useState<number | null>(null);
 
   // Fetch pipeline runs - poll more frequently when processing
   const {
@@ -218,24 +220,52 @@ export default function PipelineDebugger() {
     refetchInterval: isProcessing ? 2000 : false,
   });
 
-  // Track previous running state to detect completion
+  // Track running state and detect completion
   const hasRunningPipeline = runsData?.runs.some((run) => run.status === 'running');
+  const currentRunCount = runsData?.runs.length ?? 0;
 
-  // Detect when processing completes (running -> not running)
+  // Detect when processing completes
   useEffect(() => {
-    if (isProcessing && !hasRunningPipeline && runsData) {
-      // Check if we have a recently completed run
-      const recentRun = runsData.runs[0];
-      if (recentRun && recentRun.status !== 'running') {
-        setIsProcessing(false);
-        refetchPending();
-        // Select the most recent run to show results
-        if (recentRun.id !== selectedRunId) {
-          setSelectedRunId(recentRun.id);
-        }
+    if (!isProcessing || !runsData) return;
+
+    // Wait at least 3 seconds before checking for completion to allow backend to create run
+    const minWaitTime = 3000;
+    const elapsed = processingStartedAt ? Date.now() - processingStartedAt : 0;
+    if (elapsed < minWaitTime) return;
+
+    // Check if a new run appeared (run count increased) or if we see a running pipeline that completed
+    const newRunAppeared = initialRunCount !== null && currentRunCount > initialRunCount;
+    const recentRun = runsData.runs[0];
+
+    if (newRunAppeared && recentRun && recentRun.status !== 'running') {
+      // New completed run found
+      setIsProcessing(false);
+      setProcessingStartedAt(null);
+      setInitialRunCount(null);
+      refetchPending();
+      if (recentRun.id !== selectedRunId) {
+        setSelectedRunId(recentRun.id);
+      }
+    } else if (hasRunningPipeline === false && elapsed > 10000) {
+      // Fallback: if no running pipeline after 10s, assume completion
+      setIsProcessing(false);
+      setProcessingStartedAt(null);
+      setInitialRunCount(null);
+      refetchPending();
+      if (recentRun && recentRun.id !== selectedRunId) {
+        setSelectedRunId(recentRun.id);
       }
     }
-  }, [isProcessing, hasRunningPipeline, runsData, selectedRunId, refetchPending]);
+  }, [
+    isProcessing,
+    hasRunningPipeline,
+    runsData,
+    currentRunCount,
+    initialRunCount,
+    processingStartedAt,
+    selectedRunId,
+    refetchPending,
+  ]);
 
   // Run test pipeline mutation - returns immediately, frontend polls for completion
   const runTestMutation = useMutation({
@@ -254,6 +284,8 @@ export default function PipelineDebugger() {
       if (data.success && data.status === 'processing') {
         // Pipeline started - enter polling mode
         setIsProcessing(true);
+        setProcessingStartedAt(Date.now());
+        setInitialRunCount(runsData?.runs.length ?? 0);
         refetchRuns();
         refetchPending();
       } else if (!data.success) {
@@ -263,6 +295,8 @@ export default function PipelineDebugger() {
     },
     onError: (error) => {
       setIsProcessing(false);
+      setProcessingStartedAt(null);
+      setInitialRunCount(null);
       alert(`Error: ${error.message}`);
     },
   });
