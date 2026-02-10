@@ -166,8 +166,8 @@ export class BatchMessageProcessor {
     try {
       const configBasePath = process.env.CONFIG_BASE_PATH || './config';
 
-      // Load pipeline config (with S3 support)
-      this.pipelineConfig = await loadPipelineConfig(configBasePath, this.instanceId, 'validators');
+      // Load pipeline config (with S3 support) - use default-v1 for full pipeline
+      this.pipelineConfig = await loadPipelineConfig(configBasePath, this.instanceId, 'default-v1');
       logger.info(`Loaded pipeline config: ${this.pipelineConfig.pipelineId}`, {
         steps: this.pipelineConfig.steps.map((s) => `${s.stepId}:${s.enabled}`),
       });
