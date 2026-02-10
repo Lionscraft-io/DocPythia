@@ -14,19 +14,17 @@
  */
 
 import { PrismaClient, Prisma } from '@prisma/client';
-import { llmService } from '../llm/llm-service.js';
 import { MessageVectorSearch } from '../message-vector-search.js';
-import { PROMPT_TEMPLATES, fillTemplate } from '../llm/prompt-templates.js';
 import { InstanceConfigLoader } from '../../config/instance-loader.js';
 import { createLogger } from '../../utils/logger.js';
 import { postProcessProposal } from '../../pipeline/utils/ProposalPostProcessor.js';
-import { z } from 'zod';
 
 // Pipeline integration imports
 import {
   loadPipelineConfig,
   clearPipelineConfigCache,
 } from '../../pipeline/config/PipelineConfigLoader.js';
+import { loadDomainConfig } from '../../pipeline/config/DomainConfigLoader.js';
 import { PipelineOrchestrator } from '../../pipeline/core/PipelineOrchestrator.js';
 import { createPipelineContext } from '../../pipeline/core/PipelineContext.js';
 import { createPromptRegistry, PromptRegistry } from '../../pipeline/prompts/PromptRegistry.js';
@@ -36,8 +34,8 @@ import type {
   Proposal as PipelineProposal,
   IDomainConfig,
   ConversationThread,
+  UnifiedMessage as PipelineUnifiedMessage,
 } from '../../pipeline/core/interfaces.js';
-import { StepType } from '../../pipeline/core/interfaces.js';
 import { parseRuleset, hasRules, type ParsedRuleset } from '../../pipeline/types/ruleset.js';
 import {
   type ProposalEnrichment,
@@ -49,48 +47,22 @@ import {
 
 const logger = createLogger('BatchProcessor');
 
-// ========== Batch Classification Schema ==========
+// ========== Proposal Generation Interface ==========
 
-const BatchClassificationResultSchema = z.object({
-  threads: z.array(
-    z.object({
-      category: z.string().max(50, 'Category must be 50 characters or less'),
-      messages: z.array(z.number()).min(1, 'Thread must contain at least one message'),
-      summary: z.string().max(200, 'Thread summary must be 200 characters or less'),
-      docValueReason: z
-        .string()
-        .max(300, 'Documentation value reason must be 300 characters or less'),
-      ragSearchCriteria: z.object({
-        keywords: z.array(z.string().max(50, 'Keywords must be 50 characters or less')),
-        semanticQuery: z.string().max(200, 'Semantic query must be 200 characters or less'),
-      }),
-    })
-  ),
-  batchSummary: z.string().max(500, 'Batch summary must be 500 characters or less'),
-});
-
-type BatchClassificationResult = z.infer<typeof BatchClassificationResultSchema>;
-
-// ========== Proposal Generation Schema ==========
-
-const ProposalGenerationSchema = z.object({
-  updateType: z.enum(['INSERT', 'UPDATE', 'DELETE', 'NONE']),
-  page: z.string().max(150, 'Page path must be 150 characters or less'),
-  section: z.string().max(100, 'Section name must be 100 characters or less').optional(),
-  location: z
-    .object({
-      lineStart: z.number().optional(),
-      lineEnd: z.number().optional(),
-      sectionName: z.string().max(100, 'Section name must be 100 characters or less').optional(),
-    })
-    .optional(),
-  suggestedText: z.string().max(2000, 'Suggested text must be 2000 characters or less').optional(),
-  reasoning: z.string().max(300, 'Reasoning must be 300 characters or less'),
-  sourceMessages: z.array(z.number()).optional(), // Message IDs that led to this proposal
-  warnings: z.array(z.string()).optional(), // Validation warnings from pipeline post-processing
-});
-
-type ProposalGeneration = z.infer<typeof ProposalGenerationSchema>;
+interface ProposalGeneration {
+  updateType: 'INSERT' | 'UPDATE' | 'DELETE' | 'NONE';
+  page: string;
+  section?: string;
+  location?: {
+    lineStart?: number;
+    lineEnd?: number;
+    sectionName?: string;
+  };
+  suggestedText?: string;
+  reasoning: string;
+  sourceMessages?: number[];
+  warnings?: string[];
+}
 
 /**
  * Extended proposal with enrichment and review data
@@ -272,31 +244,6 @@ export class BatchMessageProcessor {
       logger.warn(`[${this.instanceId}] Failed to load tenant ruleset:`, error);
       return null;
     }
-  }
-
-  /**
-   * Build system prompt with PROMPT_CONTEXT injection
-   */
-  private buildChangesetSystemPrompt(ruleset: ParsedRuleset | null): string {
-    let systemPrompt = PROMPT_TEMPLATES.changesetGeneration.system;
-
-    // Inject PROMPT_CONTEXT if available
-    if (ruleset && ruleset.promptContext.length > 0) {
-      const contextRules = ruleset.promptContext.map((rule) => `- ${rule}`).join('\n');
-      const promptContextSection = `
-
-## Quality Guidelines (Instance-Specific)
-The following quality guidelines MUST be followed when generating proposals:
-${contextRules}
-`;
-      // Insert before the closing instructions
-      systemPrompt = systemPrompt + promptContextSection;
-      logger.debug(
-        `[${this.instanceId}] Injected ${ruleset.promptContext.length} PROMPT_CONTEXT rules`
-      );
-    }
-
-    return systemPrompt;
   }
 
   /**
@@ -712,75 +659,96 @@ ${contextRules}
   }
 
   /**
-   * Run pipeline post-processing steps (VALIDATE, CONDENSE) on proposals
-   * Returns processed proposals array
+   * Run the FULL pipeline (FILTER, CLASSIFY, ENRICH, GENERATE, VALIDATE, CONDENSE)
+   * Returns threads, proposals, and RAG results extracted from pipeline context
    */
-  private async runPipelinePostProcessing(
-    proposals: ProposalGeneration[],
-    conversation: ConversationGroup,
-    batchId: string
-  ): Promise<ProposalGeneration[]> {
-    // Check if pipeline is available and has post-processing steps enabled
+  private async runFullPipeline(
+    messages: any[],
+    contextMessages: any[],
+    batchId: string,
+    streamId: string
+  ): Promise<{
+    threads: ConversationThread[];
+    proposals: Map<string, PipelineProposal[]>;
+    ragResults: Map<string, any[]>;
+    messagesProcessed: number;
+    success: boolean;
+  }> {
+    // Check if pipeline is available
     if (!this.pipelineConfig || !this.promptRegistry || !this.llmHandler) {
-      return proposals;
+      logger.warn('Pipeline not initialized, cannot run full pipeline');
+      return {
+        threads: [],
+        proposals: new Map(),
+        ragResults: new Map(),
+        messagesProcessed: 0,
+        success: false,
+      };
     }
 
-    // Find enabled post-processing steps
-    const validateStep = this.pipelineConfig.steps.find(
-      (s) => s.stepType === StepType.VALIDATE && s.enabled
-    );
-    const condenseStep = this.pipelineConfig.steps.find(
-      (s) => s.stepType === StepType.CONDENSE && s.enabled
-    );
-
-    if (!validateStep && !condenseStep) {
-      return proposals;
-    }
-
-    logger.debug(`Running pipeline post-processing for ${conversation.id}`, {
-      validate: !!validateStep,
-      condense: !!condenseStep,
-      proposalCount: proposals.length,
+    logger.info(`Running full pipeline for ${messages.length} messages`, {
+      batchId,
+      streamId,
+      enabledSteps: this.pipelineConfig.steps.filter((s) => s.enabled).map((s) => s.stepId),
     });
 
-    // Build minimal domain config for post-processing
-    const instanceConfig = InstanceConfigLoader.get(this.instanceId);
-    const domainConfig: IDomainConfig = {
-      domainId: this.instanceId,
-      name: instanceConfig.project.name,
-      categories: [], // Categories not needed for VALIDATE/CONDENSE steps
-      context: {
-        projectName: instanceConfig.project.name,
-        domain: instanceConfig.project.domain || 'documentation',
-        targetAudience: 'developers',
-        documentationPurpose: 'technical documentation',
-      },
-    };
+    // Load domain config for this instance
+    let domainConfig: IDomainConfig;
+    try {
+      const configBasePath = process.env.CONFIG_BASE_PATH || './config';
+      domainConfig = await loadDomainConfig(configBasePath, this.instanceId);
+      logger.debug(`Loaded domain config for ${this.instanceId}`, {
+        categories: domainConfig.categories.length,
+      });
+    } catch (error) {
+      // Fallback to basic domain config
+      logger.warn('Failed to load domain config, using fallback', error);
+      const instanceConfig = InstanceConfigLoader.get(this.instanceId);
+      domainConfig = {
+        domainId: this.instanceId,
+        name: instanceConfig.project.name,
+        categories: [],
+        context: {
+          projectName: instanceConfig.project.name,
+          domain: instanceConfig.project.domain || 'documentation',
+          targetAudience: 'developers',
+          documentationPurpose: 'technical documentation',
+        },
+      };
+    }
 
-    // Convert conversation to thread format for pipeline context
-    const thread: ConversationThread = {
-      id: conversation.id,
-      category: conversation.messages[0]?.category || 'unknown',
-      messageIds: conversation.messages.map((m) => m.messageId),
-      summary: conversation.summary,
-      docValueReason: conversation.messages[0]?.docValueReason || '',
-      ragSearchCriteria: conversation.messages[0]?.ragSearchCriteria || {
-        keywords: [],
-        semanticQuery: '',
-      },
-    };
-
-    // Convert proposals to pipeline format
-    const pipelineProposals: PipelineProposal[] = proposals.map((p) => ({
-      updateType: p.updateType,
-      page: p.page,
-      section: p.section,
-      suggestedText: p.suggestedText,
-      reasoning: p.reasoning,
-      sourceMessages: p.sourceMessages,
+    // Convert DB messages to pipeline UnifiedMessage format
+    const pipelineMessages: PipelineUnifiedMessage[] = messages.map((msg) => ({
+      id: msg.id,
+      messageId: msg.messageId,
+      streamId: msg.streamId,
+      timestamp: msg.timestamp,
+      author: msg.author,
+      authorId: msg.authorId || undefined,
+      content: msg.content,
+      conversationId: msg.metadata?.topic || undefined, // Use Zulip topic as conversationId
+      replyToId: msg.metadata?.replyToMessageId
+        ? `${msg.metadata.chatId}-${msg.metadata.replyToMessageId}`
+        : undefined,
+      processingStatus: msg.processingStatus,
     }));
 
-    // Create RAG service adapter (maps MessageVectorSearch to IRagService interface)
+    const pipelineContextMessages: PipelineUnifiedMessage[] = contextMessages.map((msg) => ({
+      id: msg.id,
+      messageId: msg.messageId,
+      streamId: msg.streamId,
+      timestamp: msg.timestamp,
+      author: msg.author,
+      authorId: msg.authorId || undefined,
+      content: msg.content,
+      conversationId: msg.metadata?.topic || undefined,
+      replyToId: msg.metadata?.replyToMessageId
+        ? `${msg.metadata.chatId}-${msg.metadata.replyToMessageId}`
+        : undefined,
+      processingStatus: msg.processingStatus,
+    }));
+
+    // Create RAG service adapter
     const ragServiceAdapter = {
       searchSimilarDocs: async (query: string, topK: number) => {
         const results = await this.messageVectorSearch.searchSimilarDocs(query, topK);
@@ -794,13 +762,13 @@ ${contextRules}
       },
     };
 
-    // Create a minimal pipeline context for post-processing
+    // Create full pipeline context
     const context = createPipelineContext({
       instanceId: this.instanceId,
       batchId,
-      streamId: conversation.id,
-      messages: [], // Not needed for post-processing
-      contextMessages: [],
+      streamId,
+      messages: pipelineMessages,
+      contextMessages: pipelineContextMessages,
       domainConfig,
       prompts: this.promptRegistry,
       llmHandler: this.llmHandler,
@@ -808,49 +776,311 @@ ${contextRules}
       db: this.db,
     });
 
-    // Add thread and proposals to context
-    context.threads = [thread];
-    context.proposals.set(conversation.id, pipelineProposals);
-
-    // Create orchestrator with only post-processing steps
-    const postProcessConfig: PipelineConfig = {
-      ...this.pipelineConfig,
-      steps: this.pipelineConfig.steps.filter(
-        (s) => (s.stepType === StepType.VALIDATE || s.stepType === StepType.CONDENSE) && s.enabled
-      ),
-    };
-
-    if (postProcessConfig.steps.length === 0) {
-      return proposals;
-    }
-
     try {
-      const orchestrator = new PipelineOrchestrator(postProcessConfig, this.llmHandler);
+      // Create orchestrator with FULL pipeline config (all enabled steps)
+      const orchestrator = new PipelineOrchestrator(this.pipelineConfig, this.llmHandler);
       const result = await orchestrator.execute(context);
 
       if (!result.success) {
-        logger.warn(`Pipeline post-processing had errors for ${conversation.id}`, {
+        logger.warn(`Full pipeline had errors`, {
           errors: result.errors.map((e) => e.message),
+          messagesProcessed: result.messagesProcessed,
+          threadsCreated: result.threadsCreated,
+          proposalsGenerated: result.proposalsGenerated,
         });
       }
 
-      // Extract processed proposals back
-      const processedProposals = context.proposals.get(conversation.id) || [];
+      logger.info(`Full pipeline complete`, {
+        success: result.success,
+        messagesProcessed: result.messagesProcessed,
+        threadsCreated: result.threadsCreated,
+        proposalsGenerated: result.proposalsGenerated,
+        llmCalls: result.metrics.llmCalls,
+        llmTokensUsed: result.metrics.llmTokensUsed,
+        totalDurationMs: result.metrics.totalDurationMs,
+      });
 
-      // Convert back to ProposalGeneration format
-      return processedProposals.map((p) => ({
-        updateType: p.updateType,
-        page: p.page,
-        section: p.section,
-        suggestedText: p.suggestedText,
-        reasoning: p.reasoning,
-        sourceMessages: p.sourceMessages,
-        warnings: p.warnings,
-      }));
+      return {
+        threads: context.threads,
+        proposals: context.proposals,
+        ragResults: context.ragResults,
+        messagesProcessed: result.messagesProcessed,
+        success: result.success || result.proposalsGenerated > 0,
+      };
     } catch (error) {
-      logger.error(`Pipeline post-processing failed for ${conversation.id}:`, error);
-      return proposals; // Return original proposals on error
+      logger.error('Full pipeline failed:', error);
+      return {
+        threads: [],
+        proposals: new Map(),
+        ragResults: new Map(),
+        messagesProcessed: 0,
+        success: false,
+      };
     }
+  }
+
+  /**
+   * Store pipeline results to database (classification, RAG context, proposals)
+   * Returns the set of successfully processed message IDs
+   */
+  private async storePipelineResults(
+    threads: ConversationThread[],
+    proposals: Map<string, PipelineProposal[]>,
+    ragResults: Map<string, any[]>,
+    messages: any[],
+    batchId: string
+  ): Promise<{ processedMessageIds: Set<number>; proposalCount: number }> {
+    const processedMessageIds = new Set<number>();
+    let proposalCount = 0;
+
+    // Load tenant ruleset for enrichment and review
+    const ruleset = await this.loadTenantRuleset();
+
+    // Separate threads into valuable and no-value
+    const valuableThreads = threads.filter((t) => t.category !== 'no-doc-value');
+    const noValueThreads = threads.filter((t) => t.category === 'no-doc-value');
+
+    logger.info(
+      `Storing pipeline results: ${valuableThreads.length} valuable threads, ${noValueThreads.length} no-value threads`
+    );
+
+    // 1. Store classification results for ALL threads
+    for (const thread of threads) {
+      const isNoValue = thread.category === 'no-doc-value';
+
+      for (const messageIdx of thread.messageIds) {
+        // messageIds are indices into filteredMessages in pipeline, find actual message by index
+        const message = messages[messageIdx];
+        if (!message) {
+          logger.debug(`Message at index ${messageIdx} not found, skipping`);
+          continue;
+        }
+
+        await this.db.messageClassification.upsert({
+          where: { messageId: message.id },
+          update: {
+            batchId,
+            conversationId: thread.id,
+            category: thread.category,
+            docValueReason: thread.docValueReason,
+            suggestedDocPage: null,
+            ragSearchCriteria: isNoValue ? Prisma.DbNull : thread.ragSearchCriteria,
+            modelUsed: this.config.classificationModel,
+          },
+          create: {
+            messageId: message.id,
+            batchId,
+            conversationId: thread.id,
+            category: thread.category,
+            docValueReason: thread.docValueReason,
+            suggestedDocPage: null,
+            ragSearchCriteria: isNoValue ? Prisma.DbNull : thread.ragSearchCriteria,
+            modelUsed: this.config.classificationModel,
+          },
+        });
+      }
+    }
+
+    // 2. Store RAG context and proposals for valuable threads
+    for (const thread of valuableThreads) {
+      try {
+        const threadRagDocs = ragResults.get(thread.id) || [];
+        const threadProposals = proposals.get(thread.id) || [];
+
+        // Truncate summary to fit database
+        const truncatedSummary =
+          thread.summary.length > 200 ? thread.summary.substring(0, 197) + '...' : thread.summary;
+
+        // Store RAG context (with metadata only)
+        const ragDocsMetadata = threadRagDocs.map((doc: any) => ({
+          docId: doc.id,
+          title: doc.title,
+          filePath: doc.filePath,
+          similarity: doc.similarity,
+          contentPreview: doc.content ? doc.content.substring(0, 1000) + '...' : '',
+        }));
+
+        await this.db.conversationRagContext.upsert({
+          where: { conversationId: thread.id },
+          create: {
+            conversationId: thread.id,
+            batchId,
+            retrievedDocs: ragDocsMetadata,
+            totalTokens: this.estimateTokens(threadRagDocs),
+            summary: truncatedSummary,
+          },
+          update: {
+            batchId,
+            retrievedDocs: ragDocsMetadata,
+            totalTokens: this.estimateTokens(threadRagDocs),
+            summary: truncatedSummary,
+            proposalsRejected: null,
+            rejectionReason: null,
+          },
+        });
+
+        // Build fake conversation group for enrichment compatibility
+        const conversationForEnrichment: ConversationGroup = {
+          id: thread.id,
+          channel: null,
+          summary: thread.summary,
+          messages: thread.messageIds
+            .map((idx) => {
+              const msg = messages[idx];
+              return msg
+                ? {
+                    messageId: msg.id,
+                    timestamp: msg.timestamp,
+                    author: msg.author,
+                    content: msg.content,
+                    category: thread.category,
+                    docValueReason: thread.docValueReason,
+                    ragSearchCriteria: thread.ragSearchCriteria,
+                  }
+                : null;
+            })
+            .filter((m): m is NonNullable<typeof m> => m !== null),
+          timeStart: new Date(),
+          timeEnd: new Date(),
+          messageCount: thread.messageIds.length,
+        };
+
+        // Convert pipeline proposals to our format for enrichment
+        const proposalsForEnrichment: ProposalGeneration[] = threadProposals.map((p) => ({
+          updateType: p.updateType,
+          page: p.page,
+          section: p.section,
+          suggestedText: p.suggestedText,
+          reasoning: p.reasoning,
+          sourceMessages: p.sourceMessages,
+          warnings: p.warnings,
+        }));
+
+        // Run enrichment and ruleset review
+        const enrichedProposals = await this.runEnrichmentAndReview(
+          proposalsForEnrichment,
+          conversationForEnrichment,
+          threadRagDocs,
+          ruleset
+        );
+
+        // Filter out rejected proposals
+        const acceptedProposals = enrichedProposals.filter((p) => !p.reviewResult?.rejected);
+        const rejectedByRuleset = enrichedProposals.filter((p) => p.reviewResult?.rejected);
+
+        if (rejectedByRuleset.length > 0) {
+          logger.info(
+            `Ruleset rejected ${rejectedByRuleset.length}/${enrichedProposals.length} proposals for thread ${thread.id}`
+          );
+        }
+
+        // Store proposals
+        for (const proposal of acceptedProposals) {
+          const textToProcess = proposal.reviewResult?.modifiedContent || proposal.suggestedText;
+          const postProcessed = postProcessProposal(textToProcess, proposal.page);
+
+          const qualityWarnings = [
+            ...(proposal.warnings || []),
+            ...(postProcessed.warnings || []),
+            ...(proposal.reviewResult?.qualityFlags || []),
+          ];
+
+          const createdProposal = await this.db.docProposal.create({
+            data: {
+              conversationId: thread.id,
+              batchId,
+              page: proposal.page,
+              updateType: proposal.updateType,
+              section: proposal.section || null,
+              location: proposal.location ?? Prisma.DbNull,
+              suggestedText: postProcessed.text || textToProcess || null,
+              rawSuggestedText: proposal.suggestedText || null,
+              reasoning: proposal.reasoning || null,
+              sourceMessages: proposal.sourceMessages ?? Prisma.DbNull,
+              modelUsed: this.config.proposalModel,
+              warnings: qualityWarnings.length > 0 ? qualityWarnings : Prisma.DbNull,
+              enrichment: proposal.enrichment
+                ? (proposal.enrichment as unknown as Prisma.InputJsonValue)
+                : Prisma.DbNull,
+            },
+          });
+
+          // Create ProposalReviewLog if ruleset was applied
+          if (proposal.reviewResult && this.rulesetUpdatedAt) {
+            try {
+              await this.db.proposalReviewLog.create({
+                data: {
+                  proposalId: createdProposal.id,
+                  rulesetVersion: this.rulesetUpdatedAt,
+                  originalContent: proposal.reviewResult.originalContent || null,
+                  modificationsApplied:
+                    proposal.reviewResult.modificationsApplied.length > 0
+                      ? proposal.reviewResult.modificationsApplied
+                      : Prisma.DbNull,
+                  rejected: false,
+                  qualityFlags:
+                    proposal.reviewResult.qualityFlags.length > 0
+                      ? proposal.reviewResult.qualityFlags
+                      : Prisma.DbNull,
+                },
+              });
+            } catch (reviewLogError) {
+              logger.warn(
+                `Failed to create ProposalReviewLog for proposal ${createdProposal.id}:`,
+                reviewLogError
+              );
+            }
+          }
+
+          proposalCount++;
+        }
+
+        // Mark thread messages as processed
+        for (const idx of thread.messageIds) {
+          const msg = messages[idx];
+          if (msg) {
+            processedMessageIds.add(msg.id);
+          }
+        }
+
+        logger.debug(`Thread ${thread.id}: stored ${acceptedProposals.length} proposals`);
+      } catch (error) {
+        logger.error(`Error storing results for thread ${thread.id}:`, error);
+        // Don't mark messages as processed if storage failed
+      }
+    }
+
+    // 3. Store RAG context for no-value threads (mark as discarded)
+    for (const thread of noValueThreads) {
+      try {
+        const truncatedSummary =
+          thread.summary.length > 200 ? thread.summary.substring(0, 197) + '...' : thread.summary;
+
+        await this.db.conversationRagContext.create({
+          data: {
+            conversationId: thread.id,
+            batchId,
+            retrievedDocs: [],
+            totalTokens: 0,
+            summary: truncatedSummary,
+            proposalsRejected: true,
+            rejectionReason: thread.docValueReason || 'Classified as no documentation value',
+          },
+        });
+
+        // Mark messages as processed
+        for (const idx of thread.messageIds) {
+          const msg = messages[idx];
+          if (msg) {
+            processedMessageIds.add(msg.id);
+          }
+        }
+      } catch (error) {
+        logger.error(`Error storing no-value thread ${thread.id}:`, error);
+      }
+    }
+
+    return { processedMessageIds, proposalCount };
   }
 
   /**
@@ -1013,84 +1243,48 @@ ${contextRules}
               break;
             }
 
-            // 5. Perform batch classification (LLM groups messages into threads)
-            const classification = await this.classifyBatch(messages, contextMessages, batchId);
-            const valuableThreads = classification.threads.filter(
+            // 5. Run the FULL pipeline (FILTER → CLASSIFY → ENRICH → GENERATE → VALIDATE → CONDENSE)
+            // This replaces the old classifyBatch + processConversation flow
+            const pipelineResult = await this.runFullPipeline(
+              messages,
+              contextMessages,
+              batchId,
+              streamId
+            );
+
+            if (!pipelineResult.success && pipelineResult.threads.length === 0) {
+              // Pipeline failed completely - mark messages as failed and continue
+              logger.error(`Pipeline failed for batch ${batchId}, will retry`);
+              anyMessagesFailed = true;
+              break; // Exit inner loop, will retry on next batch run
+            }
+
+            const valuableThreads = pipelineResult.threads.filter(
               (t) => t.category !== 'no-doc-value'
             );
-            const noValueThreads = classification.threads.filter(
+            const noValueThreads = pipelineResult.threads.filter(
               (t) => t.category === 'no-doc-value'
             );
             logger.info(
-              `Iteration ${iteration}: Classified ${classification.threads.length} threads (${valuableThreads.length} valuable, ${noValueThreads.length} no-value)`
+              `Iteration ${iteration}: Pipeline classified ${pipelineResult.threads.length} threads (${valuableThreads.length} valuable, ${noValueThreads.length} no-value)`
             );
 
-            // 6. Convert ALL threads to conversation groups (including no-value threads for proper tracking)
-            const valuableConversations = await this.convertThreadsToConversations(
-              valuableThreads,
+            // 6. Store pipeline results (classification, RAG context, proposals)
+            // This also runs enrichment and ruleset review
+            const {
+              processedMessageIds: successfullyProcessedMessageIds,
+              proposalCount: iterationProposals,
+            } = await this.storePipelineResults(
+              pipelineResult.threads,
+              pipelineResult.proposals,
+              pipelineResult.ragResults,
               messages,
               batchId
             );
-            const noValueConversations = await this.convertThreadsToConversations(
-              noValueThreads,
-              messages,
-              batchId
-            );
-            const allConversations = [...valuableConversations, ...noValueConversations];
-            logger.info(
-              `Iteration ${iteration}: Created ${valuableConversations.length} valuable and ${noValueConversations.length} no-value conversation groups`
-            );
 
-            // 7. Store classification results for ALL threads (valuable + no-value)
-            await this.storeClassificationResults(
-              classification.threads,
-              batchId,
-              allConversations,
-              messages
-            );
+            totalConversationsProcessed += pipelineResult.threads.length;
 
-            // 8. Process each conversation (RAG + Changeset Proposals for valuable, mark no-value as discarded)
-            // Track successfully processed message IDs
-            const successfullyProcessedMessageIds = new Set<number>();
-            let iterationProposals = 0;
-
-            for (const conversation of valuableConversations) {
-              try {
-                const proposalCount = await this.processConversation(conversation, batchId);
-                totalConversationsProcessed++;
-                iterationProposals += proposalCount;
-
-                // Mark this conversation's messages as successfully processed
-                conversation.messages.forEach((msg) =>
-                  successfullyProcessedMessageIds.add(msg.messageId)
-                );
-              } catch (error) {
-                logger.error(`Error processing conversation ${conversation.id}:`, error);
-                logger.warn(`Conversation will remain unprocessed and retry on next batch run`);
-                // Do NOT mark messages as completed - they will retry
-                // Continue processing other conversations
-              }
-            }
-
-            // 8.5. Create RAG context entries for no-value conversations (mark as auto-discarded)
-            for (const conversation of noValueConversations) {
-              try {
-                await this.processNoValueConversation(conversation, batchId);
-                totalConversationsProcessed++;
-
-                // Mark this conversation's messages as successfully processed
-                conversation.messages.forEach((msg) =>
-                  successfullyProcessedMessageIds.add(msg.messageId)
-                );
-              } catch (error) {
-                logger.error(`Error processing no-value conversation ${conversation.id}:`, error);
-                logger.warn(`Conversation will remain unprocessed and retry on next batch run`);
-                // Do NOT mark messages as completed - they will retry
-                // Continue processing other conversations
-              }
-            }
-
-            // 9. Mark only successfully processed messages as COMPLETED
+            // 7. Mark only successfully processed messages as COMPLETED
             if (successfullyProcessedMessageIds.size > 0) {
               await this.db.unifiedMessage.updateMany({
                 where: { id: { in: Array.from(successfullyProcessedMessageIds) } },
@@ -1099,7 +1293,7 @@ ${contextRules}
               logger.info(`Marked ${successfullyProcessedMessageIds.size} messages as COMPLETED`);
             }
 
-            // 10. Clean up classification data for failed messages so they can be re-classified on retry
+            // 8. Clean up classification data for failed messages so they can be re-classified on retry
             const failedMessageIds = messages
               .map((m) => m.id)
               .filter((id) => !successfullyProcessedMessageIds.has(id));
@@ -1117,7 +1311,7 @@ ${contextRules}
             totalMessagesProcessed += successfullyProcessedMessageIds.size;
             totalProposalsGenerated += iterationProposals;
             logger.info(
-              `Stream ${streamId} - Iteration ${iteration} complete: ${successfullyProcessedMessageIds.size}/${messages.length} messages successfully processed, ${allConversations.length} conversations (${valuableConversations.length} valuable, ${noValueConversations.length} no-value), ${iterationProposals} proposals`
+              `Stream ${streamId} - Iteration ${iteration} complete: ${successfullyProcessedMessageIds.size}/${messages.length} messages successfully processed via full pipeline, ${pipelineResult.threads.length} threads (${valuableThreads.length} valuable, ${noValueThreads.length} no-value), ${iterationProposals} proposals`
             );
           }
 
@@ -1238,687 +1432,6 @@ ${contextRules}
       },
       take: 100, // Limit context messages
     });
-  }
-
-  /**
-   * Build a map of message reply relationships within the current batch
-   * Returns: Map<messageId, { replyToId, depth }>
-   * Only includes replies where the original message IS in the current batch
-   */
-  private buildReplyChainMap(
-    messages: any[]
-  ): Map<string, { replyToId: string | null; depth: number }> {
-    const chainMap = new Map<string, { replyToId: string | null; depth: number }>();
-
-    // Create lookup by composite messageId ("{chatId}-{messageId}")
-    const messageIdSet = new Set(messages.map((m) => m.messageId));
-
-    // First pass: identify direct reply relationships within batch
-    for (const msg of messages) {
-      const replyToMessageId = msg.metadata?.replyToMessageId;
-      const chatId = msg.metadata?.chatId;
-
-      if (replyToMessageId && chatId) {
-        const replyToCompositeId = `${chatId}-${replyToMessageId}`;
-
-        // Only track reply if original message IS in batch
-        if (messageIdSet.has(replyToCompositeId)) {
-          chainMap.set(msg.messageId, {
-            replyToId: replyToCompositeId,
-            depth: 0, // Will be calculated in second pass
-          });
-        }
-      }
-
-      // Non-reply messages or replies to messages outside batch
-      if (!chainMap.has(msg.messageId)) {
-        chainMap.set(msg.messageId, {
-          replyToId: null,
-          depth: 0,
-        });
-      }
-    }
-
-    // Second pass: calculate depth (indentation level)
-    const calculateDepth = (messageId: string, visited: Set<string>): number => {
-      if (visited.has(messageId)) return 0; // Circular reference protection
-
-      const chain = chainMap.get(messageId);
-      if (!chain || !chain.replyToId) return 0;
-
-      visited.add(messageId);
-      return 1 + calculateDepth(chain.replyToId, visited);
-    };
-
-    for (const [messageId, chain] of chainMap.entries()) {
-      chain.depth = calculateDepth(messageId, new Set());
-    }
-
-    return chainMap;
-  }
-
-  /**
-   * Classify batch of messages
-   */
-  private async classifyBatch(
-    messages: any[],
-    contextMessages: any[],
-    _batchId: string
-  ): Promise<BatchClassificationResult> {
-    // Build reply chain map for this batch
-    const replyChainMap = this.buildReplyChainMap(messages);
-
-    // Format messages for prompt
-    const formatMessage = (msg: any) => {
-      const chain = replyChainMap.get(msg.messageId);
-      const depth = chain?.depth || 0;
-      const indent = '  '.repeat(depth); // 2 spaces per level
-
-      let formatted = '';
-
-      // Add reply indicator if this is a reply (depth > 0)
-      if (depth > 0) {
-        formatted += `${indent}↳ Reply to message above\n`;
-      }
-
-      // Add the message itself with indentation
-      // Include Zulip topic if present (important for grouping Zulip conversations)
-      const topic = msg.metadata?.topic ? ` [Topic: ${msg.metadata.topic}]` : '';
-      formatted += `${indent}[${msg.timestamp.toISOString()}] ${msg.author} in ${msg.channel || 'general'}${topic}: ${msg.content}`;
-
-      return formatted;
-    };
-
-    const contextText = contextMessages.map(formatMessage).join('\n');
-    const messagesToAnalyze = messages
-      .map((msg) => {
-        return `[MSG_${msg.id}] ${formatMessage(msg)}`;
-      })
-      .join('\n\n');
-
-    const systemPrompt = PROMPT_TEMPLATES.threadClassification.system;
-
-    const config = InstanceConfigLoader.get(this.instanceId);
-    const userPrompt = fillTemplate(PROMPT_TEMPLATES.threadClassification.user, {
-      projectName: config.project.name,
-      contextText: contextText || '(No context messages)',
-      messagesToAnalyze,
-    });
-
-    logger.debug(
-      `Classifying batch: ${messages.length} messages, ${contextMessages.length} context`
-    );
-
-    const { data } = await llmService.requestJSON(
-      {
-        model: this.config.classificationModel,
-        systemPrompt,
-        userPrompt,
-        maxTokens: 32768, // Gemini 2.5 Flash supports up to 65,536 output tokens
-      },
-      BatchClassificationResultSchema,
-      'analysis',
-      undefined // No single messageId for batch classification
-    );
-
-    return data;
-  }
-
-  /**
-   * Store classification results in database for ALL threads (valuable + no-value)
-   */
-  private async storeClassificationResults(
-    allThreads: Array<{
-      category: string;
-      messages: number[];
-      summary: string;
-      docValueReason: string;
-      ragSearchCriteria: { keywords: string[]; semanticQuery: string };
-    }>,
-    batchId: string,
-    conversations: ConversationGroup[],
-    allMessages: any[]
-  ): Promise<void> {
-    // Track which messages have been classified
-    const classifiedMessageIds = new Set<number>();
-
-    // Create a set of valid message IDs in the current batch (to filter out context messages)
-    const validMessageIds = new Set(allMessages.map((msg) => msg.id));
-
-    // Create a map of messageId -> conversationId for valuable threads
-    const messageToConversationMap = new Map<number, string>();
-    for (const conversation of conversations) {
-      for (const message of conversation.messages) {
-        messageToConversationMap.set(message.messageId, conversation.id);
-      }
-    }
-
-    // Iterate over ALL threads (valuable + no-value) and create classification records
-    for (const thread of allThreads) {
-      const isNoValue = thread.category === 'no-doc-value';
-
-      for (const messageId of thread.messages) {
-        // Skip message IDs that aren't in the current batch (e.g., context messages)
-        if (!validMessageIds.has(messageId)) {
-          logger.debug(`Message ${messageId} not found in batch, skipping`);
-          continue;
-        }
-        classifiedMessageIds.add(messageId);
-
-        // Get conversationId if this message is in a valuable conversation
-        const conversationId = messageToConversationMap.get(messageId) || null;
-
-        // Use upsert to handle retries where classification may already exist
-        await this.db.messageClassification.upsert({
-          where: { messageId },
-          update: {
-            batchId,
-            conversationId, // null for no-value threads
-            category: thread.category,
-            docValueReason: thread.docValueReason,
-            suggestedDocPage: null,
-            ragSearchCriteria: isNoValue ? Prisma.DbNull : thread.ragSearchCriteria,
-            modelUsed: this.config.classificationModel,
-          },
-          create: {
-            messageId,
-            batchId,
-            conversationId, // null for no-value threads
-            category: thread.category,
-            docValueReason: thread.docValueReason,
-            suggestedDocPage: null,
-            ragSearchCriteria: isNoValue ? Prisma.DbNull : thread.ragSearchCriteria,
-            modelUsed: this.config.classificationModel,
-          },
-        });
-      }
-    }
-
-    // Safety net: Create classification records for any messages the LLM missed
-    // This should rarely happen now that we instruct the LLM to classify EVERY message
-    const missedMessages = allMessages.filter((msg) => !classifiedMessageIds.has(msg.id));
-    if (missedMessages.length > 0) {
-      logger.warn(
-        `LLM missed ${missedMessages.length} messages - creating fallback classifications`
-      );
-      for (const message of missedMessages) {
-        // Use upsert to handle retries where classification may already exist
-        await this.db.messageClassification.upsert({
-          where: { messageId: message.id },
-          update: {
-            batchId,
-            conversationId: null,
-            category: 'no-doc-value',
-            docValueReason:
-              'LLM classification error: Message was not included in any thread during batch processing',
-            suggestedDocPage: null,
-            ragSearchCriteria: Prisma.DbNull,
-            modelUsed: this.config.classificationModel,
-          },
-          create: {
-            messageId: message.id,
-            batchId,
-            conversationId: null,
-            category: 'no-doc-value',
-            docValueReason:
-              'LLM classification error: Message was not included in any thread during batch processing',
-            suggestedDocPage: null,
-            ragSearchCriteria: Prisma.DbNull,
-            modelUsed: this.config.classificationModel,
-          },
-        });
-      }
-    }
-
-    logger.info(
-      `Stored classifications for ${classifiedMessageIds.size} messages in conversations and ${missedMessages.length} fallback classifications`
-    );
-  }
-
-  /**
-   * Convert LLM-grouped threads to ConversationGroup format
-   */
-  private async convertThreadsToConversations(
-    threads: Array<{
-      category: string;
-      messages: number[];
-      summary: string; // Thread summary from LLM
-      docValueReason: string;
-      ragSearchCriteria: { keywords: string[]; semanticQuery: string };
-    }>,
-    allMessages: any[],
-    _batchId: string
-  ): Promise<ConversationGroup[]> {
-    if (threads.length === 0) {
-      return [];
-    }
-
-    const conversations: ConversationGroup[] = [];
-
-    for (const thread of threads) {
-      // Get full message details for all messages in thread
-      const messageDetails = thread.messages
-        .map((messageId) => {
-          const msg = allMessages.find((m) => m.id === messageId);
-          if (!msg) {
-            logger.warn(`Message ${messageId} not found in batch, skipping`);
-            return null;
-          }
-          return {
-            messageId: msg.id,
-            timestamp: msg.timestamp,
-            author: msg.author,
-            content: msg.content,
-            channel: msg.channel,
-            metadata: msg.metadata,
-            category: thread.category,
-            docValueReason: thread.docValueReason,
-            ragSearchCriteria: thread.ragSearchCriteria,
-          };
-        })
-        .filter((m) => m !== null);
-
-      if (messageDetails.length === 0) {
-        logger.warn(`Thread has no valid messages, skipping`);
-        continue;
-      }
-
-      // Sort messages by timestamp
-      messageDetails.sort((a, b) => a!.timestamp.getTime() - b!.timestamp.getTime());
-
-      const firstMsg = messageDetails[0]!;
-      const lastMsg = messageDetails[messageDetails.length - 1]!;
-
-      // Use channel + timestamp for conversation ID (not Zulip topic, since LLM may merge across topics)
-      conversations.push({
-        id: `thread_${firstMsg.channel || 'general'}_${firstMsg.timestamp.getTime()}`,
-        channel: firstMsg.channel,
-        summary: thread.summary, // Thread summary from LLM
-        messages: messageDetails as any[],
-        timeStart: firstMsg.timestamp,
-        timeEnd: lastMsg.timestamp,
-        messageCount: messageDetails.length,
-      });
-    }
-
-    return conversations;
-  }
-
-  /**
-   * Check if there's a significant time gap between messages
-   * A gap is significant if it exceeds the conversation time window
-   */
-  private isSignificantGap(lastTime: Date, currentTime: Date): boolean {
-    const gapMinutes = (currentTime.getTime() - lastTime.getTime()) / (1000 * 60);
-    return gapMinutes > this.config.conversationTimeWindowMinutes;
-  }
-
-  /**
-   * Process a conversation group (RAG + Changeset Proposals)
-   */
-  private async processConversation(
-    conversation: ConversationGroup,
-    batchId: string
-  ): Promise<number> {
-    logger.debug(
-      `Processing conversation ${conversation.id} (${conversation.messageCount} messages)`
-    );
-
-    // 1. Perform RAG retrieval once for the entire conversation
-    const ragDocs = await this.performConversationRAG(conversation);
-
-    // 2. Store RAG context for the conversation
-    // Truncate summary to 200 characters to fit in database VARCHAR(200)
-    const truncatedSummary =
-      conversation.summary.length > 200
-        ? conversation.summary.substring(0, 197) + '...'
-        : conversation.summary;
-
-    // Store only metadata in retrievedDocs (remove full content to reduce JSON size)
-    const ragDocsMetadata = ragDocs.map((doc) => ({
-      docId: doc.docId,
-      title: doc.title,
-      filePath: doc.filePath,
-      similarity: doc.similarity,
-      contentPreview: doc.content ? doc.content.substring(0, 1000) + '...' : '', // Store 1000 char preview
-    }));
-
-    // Use upsert to handle case where RAG context already exists from a failed previous attempt
-    await this.db.conversationRagContext.upsert({
-      where: { conversationId: conversation.id },
-      create: {
-        conversationId: conversation.id,
-        batchId,
-        retrievedDocs: ragDocsMetadata,
-        totalTokens: this.estimateTokens(ragDocs),
-        summary: truncatedSummary,
-      },
-      update: {
-        batchId,
-        retrievedDocs: ragDocsMetadata,
-        totalTokens: this.estimateTokens(ragDocs),
-        summary: truncatedSummary,
-        proposalsRejected: null,
-        rejectionReason: null,
-      },
-    });
-
-    // 3. Generate changeset proposals for the conversation
-    const {
-      proposals: rawProposals,
-      proposalsRejected,
-      rejectionReason,
-    } = await this.generateConversationProposals(conversation, ragDocs);
-
-    // 3.5. Update RAG context with rejection info if proposals were rejected
-    if (proposalsRejected || rejectionReason) {
-      await this.db.conversationRagContext.update({
-        where: { conversationId: conversation.id },
-        data: {
-          proposalsRejected: proposalsRejected ?? null,
-          rejectionReason: rejectionReason ?? null,
-        },
-      });
-    }
-
-    // 3.6. Run pipeline post-processing (VALIDATE, CONDENSE steps if enabled)
-    const postProcessedProposals = await this.runPipelinePostProcessing(
-      rawProposals,
-      conversation,
-      batchId
-    );
-
-    // 3.7. Run enrichment and ruleset review (Quality System integration)
-    const ruleset = await this.loadTenantRuleset();
-    const enrichedProposals = await this.runEnrichmentAndReview(
-      postProcessedProposals,
-      conversation,
-      ragDocs,
-      ruleset
-    );
-
-    // 3.8. Filter out rejected proposals (but count them)
-    const acceptedProposals = enrichedProposals.filter((p) => !p.reviewResult?.rejected);
-    const rejectedByRuleset = enrichedProposals.filter((p) => p.reviewResult?.rejected);
-
-    if (rejectedByRuleset.length > 0) {
-      logger.info(
-        `Ruleset rejected ${rejectedByRuleset.length}/${enrichedProposals.length} proposals for conversation ${conversation.id}`
-      );
-    }
-
-    // 4. Store proposals (multiple proposals per conversation)
-    // NOTE: Store ALL proposals including NONE type to capture LLM reasoning
-    // Skip proposals rejected by ruleset
-    let proposalCount = 0;
-    for (const proposal of acceptedProposals) {
-      // Post-process the suggested text to fix markdown formatting issues
-      const textToProcess = proposal.reviewResult?.modifiedContent || proposal.suggestedText;
-      const postProcessed = postProcessProposal(textToProcess, proposal.page);
-
-      if (postProcessed.wasModified) {
-        logger.debug(`Post-processed proposal for ${proposal.page} (content modified)`);
-      }
-
-      // Build quality flags from review result
-      const qualityWarnings = [
-        ...(proposal.warnings || []),
-        ...(postProcessed.warnings || []),
-        ...(proposal.reviewResult?.qualityFlags || []),
-      ];
-
-      const createdProposal = await this.db.docProposal.create({
-        data: {
-          conversationId: conversation.id,
-          batchId,
-          page: proposal.page,
-          updateType: proposal.updateType,
-          section: proposal.section || null,
-          location: proposal.location ?? Prisma.DbNull,
-          suggestedText: postProcessed.text || textToProcess || null,
-          rawSuggestedText: proposal.suggestedText || null, // Original LLM output before post-processing
-          reasoning: proposal.reasoning || null,
-          sourceMessages: proposal.sourceMessages ?? Prisma.DbNull,
-          modelUsed: this.config.proposalModel,
-          warnings: qualityWarnings.length > 0 ? qualityWarnings : Prisma.DbNull,
-          // Quality System fields
-          enrichment: proposal.enrichment
-            ? (proposal.enrichment as unknown as Prisma.InputJsonValue)
-            : Prisma.DbNull,
-        },
-      });
-
-      // Create ProposalReviewLog if ruleset was applied
-      if (proposal.reviewResult && this.rulesetUpdatedAt) {
-        try {
-          await this.db.proposalReviewLog.create({
-            data: {
-              proposalId: createdProposal.id,
-              rulesetVersion: this.rulesetUpdatedAt,
-              originalContent: proposal.reviewResult.originalContent || null,
-              modificationsApplied:
-                proposal.reviewResult.modificationsApplied.length > 0
-                  ? proposal.reviewResult.modificationsApplied
-                  : Prisma.DbNull,
-              rejected: false, // Accepted proposals only (rejected ones are filtered out above)
-              qualityFlags:
-                proposal.reviewResult.qualityFlags.length > 0
-                  ? proposal.reviewResult.qualityFlags
-                  : Prisma.DbNull,
-            },
-          });
-        } catch (reviewLogError) {
-          logger.warn(
-            `Failed to create ProposalReviewLog for proposal ${createdProposal.id}:`,
-            reviewLogError
-          );
-        }
-      }
-
-      proposalCount++;
-    }
-
-    // Note: Messages are marked as COMPLETED earlier in processBatch() after classification
-    const rejectionMsg = proposalsRejected ? ` (Rejected: ${rejectionReason})` : '';
-    logger.info(
-      `Conversation ${conversation.id} complete. Generated ${proposalCount} proposals${rejectionMsg}`
-    );
-    return proposalCount;
-  }
-
-  /**
-   * Process a no-doc-value conversation by creating RAG context with rejection
-   * This ensures no-value messages appear in the Discarded tab
-   */
-  private async processNoValueConversation(
-    conversation: ConversationGroup,
-    batchId: string
-  ): Promise<void> {
-    // Truncate summary to 200 characters to fit in database VARCHAR(200)
-    const truncatedSummary =
-      conversation.summary.length > 200
-        ? conversation.summary.substring(0, 197) + '...'
-        : conversation.summary;
-
-    // Create RAG context with rejection marker
-    await this.db.conversationRagContext.create({
-      data: {
-        conversationId: conversation.id,
-        batchId,
-        retrievedDocs: [], // No RAG docs for no-value conversations
-        totalTokens: 0,
-        summary: truncatedSummary,
-        proposalsRejected: true,
-        rejectionReason:
-          conversation.messages[0]?.docValueReason || 'Classified as no documentation value',
-      },
-    });
-
-    logger.debug(
-      `No-value conversation ${conversation.id} marked as discarded: ${conversation.messages[0]?.docValueReason}`
-    );
-  }
-
-  /**
-   * Perform RAG retrieval for an entire conversation
-   * Combines all messages in conversation to build comprehensive search query
-   */
-  private async performConversationRAG(conversation: ConversationGroup): Promise<any[]> {
-    // Build comprehensive search query from all messages in conversation
-    const allContent = conversation.messages.map((m) => m.content).join(' ');
-
-    // Combine all RAG search criteria
-    const allKeywords = new Set<string>();
-    const semanticQueries: string[] = [];
-
-    for (const msg of conversation.messages) {
-      if (msg.ragSearchCriteria?.keywords) {
-        msg.ragSearchCriteria.keywords.forEach((kw: string) => allKeywords.add(kw));
-      }
-      if (msg.ragSearchCriteria?.semanticQuery) {
-        semanticQueries.push(msg.ragSearchCriteria.semanticQuery);
-      }
-    }
-
-    // Use combined semantic query or fall back to conversation content
-    const searchQuery =
-      semanticQueries.length > 0 ? semanticQueries.join(' ') : allContent.substring(0, 500); // Limit to avoid overly long queries
-
-    logger.debug(`RAG search for conversation: "${searchQuery.substring(0, 100)}..."`);
-
-    const results = await this.messageVectorSearch.searchSimilarDocs(
-      searchQuery,
-      this.config.ragTopK * 2 // Fetch more to account for translations
-    );
-
-    // Helper function to get base path (removing i18n language prefixes)
-    const getBasePath = (filePath: string): string => {
-      // Remove i18n language prefixes like i18n/es/, i18n/ja/, etc.
-      return filePath.replace(/^i18n\/[^/]+\/docusaurus-plugin-content-docs\/current\//, 'docs/');
-    };
-
-    // First deduplicate by docId
-    const uniqueById = new Map();
-    for (const r of results) {
-      if (!uniqueById.has(r.id) || r.distance > uniqueById.get(r.id).similarity) {
-        uniqueById.set(r.id, {
-          docId: r.id,
-          title: r.title,
-          filePath: r.file_path,
-          content: r.content,
-          similarity: r.distance,
-        });
-      }
-    }
-
-    // Second, deduplicate by base path (keep only English version)
-    const uniqueByBasePath = new Map();
-    for (const doc of uniqueById.values()) {
-      const basePath = getBasePath(doc.filePath);
-      const isEnglish = !doc.filePath.startsWith('i18n/');
-
-      if (!uniqueByBasePath.has(basePath)) {
-        // First occurrence - add it
-        uniqueByBasePath.set(basePath, doc);
-      } else {
-        const existing = uniqueByBasePath.get(basePath);
-        // Replace if this is English and existing is not, or if both same language but higher similarity
-        if (
-          (isEnglish && existing.filePath.startsWith('i18n/')) ||
-          (isEnglish === existing.filePath.startsWith('i18n/') &&
-            doc.similarity > existing.similarity)
-        ) {
-          uniqueByBasePath.set(basePath, doc);
-        }
-      }
-    }
-
-    const dedupedDocs = Array.from(uniqueByBasePath.values()).slice(0, this.config.ragTopK); // Limit to original topK after deduplication
-
-    if (results.length > dedupedDocs.length) {
-      logger.debug(`RAG: ${results.length} -> ${dedupedDocs.length} docs (deduped translations)`);
-    }
-    return dedupedDocs;
-  }
-
-  /**
-   * Generate documentation changesets for a conversation
-   * Injects PROMPT_CONTEXT from tenant ruleset if available
-   */
-  private async generateConversationProposals(
-    conversation: ConversationGroup,
-    ragDocs: any[]
-  ): Promise<{
-    proposals: ProposalGeneration[];
-    proposalsRejected?: boolean;
-    rejectionReason?: string;
-  }> {
-    // Load tenant ruleset for PROMPT_CONTEXT injection
-    const ruleset = await this.loadTenantRuleset();
-    const systemPrompt = this.buildChangesetSystemPrompt(ruleset);
-
-    const ragContext = ragDocs
-      .map((doc, idx) => {
-        return `[DOC ${idx + 1}] ${doc.title}
-File Path: ${doc.filePath}
-Similarity: ${doc.similarity.toFixed(3)}
-Length: ${doc.content.length} chars
-
-COMPLETE FILE CONTENT:
-${doc.content}`;
-      })
-      .join('\n\n========================================\n\n');
-
-    // Format conversation messages
-    const conversationContext = conversation.messages
-      .map((msg, idx) => {
-        return `[MESSAGE ${idx + 1}] (ID: ${msg.messageId})
-Author: ${msg.author}
-Time: ${msg.timestamp.toISOString()}
-Category: ${msg.category}
-Reason: ${msg.docValueReason}
-Suggested Page: ${msg.suggestedDocPage || 'Not specified'}
-Content: ${msg.content}`;
-      })
-      .join('\n\n');
-
-    const config = InstanceConfigLoader.get(this.instanceId);
-    const userPrompt = fillTemplate(PROMPT_TEMPLATES.changesetGeneration.user, {
-      projectName: config.project.name,
-      messageCount: conversation.messageCount,
-      channel: conversation.channel || 'general',
-      conversationContext,
-      ragContext: ragContext || '(No relevant docs found)',
-    });
-
-    logger.debug(`Generating changeset for conversation ${conversation.id}`);
-
-    const responseSchema = z.object({
-      proposals: z.array(ProposalGenerationSchema).max(10, 'Maximum 10 proposals per conversation'),
-      proposalsRejected: z.boolean().optional(),
-      rejectionReason: z.string().optional(),
-    });
-
-    const { data } = await llmService.requestJSON(
-      {
-        model: this.config.proposalModel,
-        systemPrompt,
-        userPrompt,
-        maxTokens: 32768, // Gemini 2.5 Flash supports up to 65,536 output tokens
-      },
-      responseSchema,
-      'changegeneration',
-      undefined // No single messageId for conversation
-    );
-
-    logger.info(`Conversation ${conversation.id}: LLM proposed ${data.proposals.length} changes`);
-
-    // Return both proposals and rejection info
-    return {
-      proposals: data.proposals,
-      proposalsRejected: data.proposalsRejected,
-      rejectionReason: data.rejectionReason,
-    };
   }
 
   /**
