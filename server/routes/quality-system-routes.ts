@@ -834,26 +834,28 @@ Provide specific, actionable rule suggestions.`;
         });
       }
 
-      // Create processor and run batch - ONLY for test stream
+      // Create processor and run batch asynchronously (fire-and-forget)
+      // This prevents 504 timeout on long-running pipeline processing
       const processor = new BatchMessageProcessor(instanceId, instanceDb);
-      const messagesProcessed = await processor.processBatch({ streamIdFilter: testStreamId });
 
-      // Get the latest pipeline run log
-      const latestRun = await instanceDb.pipelineRunLog.findFirst({
-        where: { instanceId },
-        orderBy: { createdAt: 'desc' },
-      });
+      // Start processing in background without waiting
+      processor
+        .processBatch({ streamIdFilter: testStreamId })
+        .then((messagesProcessed) => {
+          logger.info(
+            `[${instanceId}] Test pipeline complete: ${messagesProcessed} test messages processed`
+          );
+        })
+        .catch((error) => {
+          logger.error(`[${instanceId}] Test pipeline failed:`, error);
+        });
 
-      logger.info(
-        `[${instanceId}] Test pipeline complete: ${messagesProcessed} test messages processed`
-      );
-
+      // Return immediately - frontend will poll for completion
       res.json({
         success: true,
-        message: `Test pipeline run completed (processed ${messagesProcessed} test messages)`,
-        messagesProcessed,
+        message: `Pipeline started processing ${pendingCount} test messages`,
         pendingMessages: pendingCount,
-        runId: latestRun?.id,
+        status: 'processing',
       });
     } catch (error) {
       logger.error('Error running test pipeline:', error);

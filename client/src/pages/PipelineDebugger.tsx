@@ -6,7 +6,7 @@
  * @created 2026-01-19
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -115,8 +115,9 @@ export default function PipelineDebugger() {
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
   const [editedSystem, setEditedSystem] = useState('');
   const [editedUser, setEditedUser] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Fetch pipeline runs
+  // Fetch pipeline runs - poll more frequently when processing
   const {
     data: runsData,
     isLoading: runsLoading,
@@ -131,6 +132,8 @@ export default function PipelineDebugger() {
       );
       return response.json();
     },
+    // Poll every 2s when processing, otherwise every 30s for background updates
+    refetchInterval: isProcessing ? 2000 : 30000,
   });
 
   // Fetch selected run details
@@ -190,7 +193,7 @@ export default function PipelineDebugger() {
     },
   });
 
-  // Fetch pending messages count
+  // Fetch pending messages count - poll when processing to show count decreasing
   const { data: pendingData, refetch: refetchPending } = useQuery<{
     pendingCount: number;
     sampleMessages: Array<{
@@ -211,9 +214,30 @@ export default function PipelineDebugger() {
       );
       return response.json();
     },
+    // Poll every 2s when processing to show count decrease
+    refetchInterval: isProcessing ? 2000 : false,
   });
 
-  // Run test pipeline mutation
+  // Track previous running state to detect completion
+  const hasRunningPipeline = runsData?.runs.some((run) => run.status === 'running');
+
+  // Detect when processing completes (running -> not running)
+  useEffect(() => {
+    if (isProcessing && !hasRunningPipeline && runsData) {
+      // Check if we have a recently completed run
+      const recentRun = runsData.runs[0];
+      if (recentRun && recentRun.status !== 'running') {
+        setIsProcessing(false);
+        refetchPending();
+        // Select the most recent run to show results
+        if (recentRun.id !== selectedRunId) {
+          setSelectedRunId(recentRun.id);
+        }
+      }
+    }
+  }, [isProcessing, hasRunningPipeline, runsData, selectedRunId, refetchPending]);
+
+  // Run test pipeline mutation - returns immediately, frontend polls for completion
   const runTestMutation = useMutation({
     mutationFn: async () => {
       const response = await adminApiRequest(
@@ -227,18 +251,18 @@ export default function PipelineDebugger() {
       return response.json();
     },
     onSuccess: (data) => {
-      refetchRuns();
-      refetchPending();
-      if (data.runId) {
-        setSelectedRunId(data.runId);
-      }
-      if (data.success) {
-        alert(`Pipeline complete: ${data.messagesProcessed} messages processed`);
-      } else {
+      if (data.success && data.status === 'processing') {
+        // Pipeline started - enter polling mode
+        setIsProcessing(true);
+        refetchRuns();
+        refetchPending();
+      } else if (!data.success) {
+        // No messages to process
         alert(data.message || 'No messages to process');
       }
     },
     onError: (error) => {
+      setIsProcessing(false);
       alert(`Error: ${error.message}`);
     },
   });
@@ -700,12 +724,16 @@ export default function PipelineDebugger() {
                     <Button
                       className="w-full"
                       onClick={() => runTestMutation.mutate()}
-                      disabled={runTestMutation.isPending || (pendingData?.pendingCount ?? 0) === 0}
+                      disabled={
+                        runTestMutation.isPending ||
+                        isProcessing ||
+                        (pendingData?.pendingCount ?? 0) === 0
+                      }
                     >
-                      {runTestMutation.isPending ? (
+                      {runTestMutation.isPending || isProcessing ? (
                         <>
                           <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          Running Pipeline...
+                          {isProcessing ? 'Processing...' : 'Starting Pipeline...'}
                         </>
                       ) : (
                         <>
@@ -714,7 +742,12 @@ export default function PipelineDebugger() {
                         </>
                       )}
                     </Button>
-                    {(pendingData?.pendingCount ?? 0) === 0 && (
+                    {isProcessing && (
+                      <p className="text-xs text-blue-600 mt-2 text-center">
+                        Pipeline running in background. Results will appear in Pipeline Runs tab.
+                      </p>
+                    )}
+                    {!isProcessing && (pendingData?.pendingCount ?? 0) === 0 && (
                       <p className="text-xs text-gray-500 mt-2 text-center">
                         No pending messages. Create simulated messages below to test.
                       </p>

@@ -349,7 +349,14 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
   router.delete('/llm-cache/:purpose', adminAuth, async (req: Request, res: Response) => {
     try {
       const { purpose } = req.params;
-      const validPurposes = ['index', 'embeddings', 'analysis', 'changegeneration', 'general'];
+      const validPurposes = [
+        'index',
+        'embeddings',
+        'analysis',
+        'changegeneration',
+        'general',
+        'review',
+      ];
 
       if (!validPurposes.includes(purpose)) {
         return res
@@ -357,7 +364,8 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
           .json({ error: `Invalid purpose. Must be one of: ${validPurposes.join(', ')}` });
       }
 
-      const deletedCount = llmCache.clearPurpose(purpose as any);
+      // Use async version for S3 support
+      const deletedCount = await llmCache.clearPurposeAsync(purpose as any);
       res.json({ success: true, purpose, deletedCount });
     } catch (error) {
       logger.error('Error clearing LLM cache by purpose:', error);
@@ -370,7 +378,8 @@ export function createAdminPanelRoutes(adminAuth: RequestHandler): Router {
   // Clear all cached LLM requests
   router.delete('/llm-cache', adminAuth, async (req: Request, res: Response) => {
     try {
-      const deletedCount = llmCache.clearAll();
+      // Use async version for S3 support
+      const deletedCount = await llmCache.clearAllAsync();
       res.json({ success: true, deletedCount });
     } catch (error) {
       logger.error('Error clearing all LLM cache:', error);
