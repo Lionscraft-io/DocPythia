@@ -384,6 +384,7 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
   router.get('/pipeline/runs', adminAuth, async (req: Request, res: Response) => {
     try {
       const instanceId = getInstanceId(req);
+      const instanceDb = getDb(req);
       const limit = parseInt(req.query.limit as string) || 20;
       const status = req.query.status as string;
 
@@ -395,7 +396,7 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
         where.status = status;
       }
 
-      const runs = await db.pipelineRunLog.findMany({
+      const runs = await instanceDb.pipelineRunLog.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -414,6 +415,7 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
           createdAt: true,
           completedAt: true,
           errorMessage: true,
+          steps: true,
         },
       });
 
@@ -436,13 +438,14 @@ export function createQualitySystemRoutes(adminAuth: RequestHandler): Router {
    */
   router.get('/pipeline/runs/:id', adminAuth, async (req: Request, res: Response) => {
     try {
+      const instanceDb = getDb(req);
       const runId = parseInt(req.params.id, 10);
 
       if (isNaN(runId)) {
         return res.status(400).json({ error: 'Invalid run ID' });
       }
 
-      const run = await db.pipelineRunLog.findUnique({
+      const run = await instanceDb.pipelineRunLog.findUnique({
         where: { id: runId },
       });
 
