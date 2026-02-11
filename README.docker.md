@@ -1,6 +1,6 @@
-# DocsAI - Docker Setup
+# Pythia - Docker Setup
 
-Run DocsAI with its own isolated PostgreSQL database using Docker Compose.
+Run Pythia with its own isolated PostgreSQL database using Docker Compose.
 
 ## Quick Start
 

@@ -4,20 +4,20 @@ services:
   # PostgreSQL database for DocsAI with pgvector support
   db:
     image: pgvector/pgvector:pg15
-    container_name: docsai-db
+    container_name: pythia-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-docsai}
+      POSTGRES_USER: ${POSTGRES_USER:-pythia}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRES_DB:-docsai}
+      POSTGRES_DB: ${POSTGRES_DB:-pythia}
     volumes:
-      - docsai_db_data:/var/lib/postgresql/data
+      - pythia_db_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"  # Expose PostgreSQL on host port 5433
     networks:
-      - docsai-network
+      - pythia-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U docsai"]
+      test: ["CMD-SHELL", "pg_isready -U pythia"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,13 +29,13 @@ services:
       dockerfile: Dockerfile
       args:
         WIDGET_DOMAIN: ${WIDGET_DOMAIN:-http://localhost:3762}
-    container_name: docsai-app
+    container_name: pythia-app
     restart: unless-stopped
     ports:
       - "${APP_PORT:-3762}:8080"  # Map host port 3762 to container port 8080
     environment:
       # Database connection (points to db service)
-      DATABASE_URL: postgresql://${POSTGRES_USER:-docsai}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-docsai}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pythia}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-pythia}
 
       # Admin authentication
       ADMIN_TOKEN: ${ADMIN_TOKEN:-changeme}
@@ -73,7 +73,7 @@ services:
       db:
         condition: service_healthy
     networks:
-      - docsai-network
+      - pythia-network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/health"]
       interval: 30s
@@ -82,9 +82,9 @@ services:
       start_period: 40s
 
 networks:
-  docsai-network:
+  pythia-network:
     driver: bridge
 
 volumes:
-  docsai_db_data:
+  pythia_db_data:
     driver: local

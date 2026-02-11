@@ -76,7 +76,7 @@ describe('apiRequest', () => {
   });
 
   it('should include CSRF token for POST requests when cookie exists', async () => {
-    document.cookie = 'docsai_csrf_token=test-csrf-token';
+    document.cookie = 'pythia_csrf_token=test-csrf-token';
     mockFetch.mockResolvedValue({
       ok: true,
       status: 201,

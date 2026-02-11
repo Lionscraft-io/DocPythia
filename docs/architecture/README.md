@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This directory contains architecture documentation for significant system changes, cross-cutting concerns, and design patterns used in the DocsAI platform.
+This directory contains architecture documentation for significant system changes, cross-cutting concerns, and design patterns used in the Pythia platform.
 
 ## Architecture Documents
 
@@ -9,7 +9,7 @@ This directory contains architecture documentation for significant system change
 **Developer:** Wayne
 **Date:** 2025-10-29
 
-Describes the architecture for transforming DocsAI into a multi-customer configurable platform with per-instance deployments.
+Describes the architecture for transforming Pythia into a multi-customer configurable platform with per-instance deployments.
 
 **Key Topics:**
 - Configuration layer design

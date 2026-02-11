@@ -2408,10 +2408,10 @@ describe('Production Data Issues - Random O Characters (ID 1187)', () => {
     const processor = new CodeBlockFormattingPostProcessor();
 
     // Simulated input with random "O" character issue
-    const input = `To check your validator status, run:
+    const input = `To check your service status, run:
 
 \`\`\`bash
-near validators current | grep your_pool_idO near view your_pool_id get_owner_id
+curl http://localhost:8080/health | grep statusO echo "done"
 \`\`\``;
 
     const result = processor.process(input, {
@@ -2424,8 +2424,8 @@ near validators current | grep your_pool_idO near view your_pool_id get_owner_id
     });
 
     // Expected: Commands should be on separate lines, no random "O"
-    expect(result.text).toContain('grep your_pool_id\nnear view');
-    expect(result.text).not.toMatch(/pool_idO\s*near/);
+    expect(result.text).toContain('grep status\necho "done"');
+    expect(result.text).not.toMatch(/statusO\s*echo/);
   });
 
   it.skip('should handle O appearing mid-word in technical terms', async () => {
@@ -2465,7 +2465,7 @@ describe('Production Data Issues - Code Blocks Without Newlines (IDs 1218, 1216,
 
     // Commands concatenated without newlines
     const input = `\`\`\`bash
-near login near stake your_pool.pool.near near view your_pool.pool.near get_owner_id
+curl http://localhost/health echo "check complete" git status
 \`\`\``;
 
     const result = processor.process(input, {
@@ -2478,19 +2478,19 @@ near login near stake your_pool.pool.near near view your_pool.pool.near get_owne
     });
 
     // Commands should be on separate lines
-    expect(result.text).toContain('near login\n');
-    expect(result.text).toContain('near stake your_pool.pool.near\n');
-    expect(result.text).toContain('near view your_pool.pool.near get_owner_id');
+    expect(result.text).toContain('curl http://localhost/health\n');
+    expect(result.text).toContain('echo "check complete"\n');
+    expect(result.text).toContain('git status');
   });
 
-  it('should detect concatenated neard commands', async () => {
+  it('should detect concatenated docker commands', async () => {
     const { CodeBlockFormattingPostProcessor } =
       await import('../server/pipeline/utils/post-processors/CodeBlockFormattingPostProcessor.js');
     const processor = new CodeBlockFormattingPostProcessor();
 
-    // neard commands run together
+    // docker commands run together
     const input = `\`\`\`
-neard --version neard run --home ~/.near/mainnet
+docker ps docker logs pythia-app
 \`\`\``;
 
     const result = processor.process(input, {
@@ -2502,8 +2502,8 @@ neard --version neard run --home ~/.near/mainnet
       previousWarnings: [],
     });
 
-    expect(result.text).toContain('neard --version\n');
-    expect(result.text).toContain('neard run --home');
+    expect(result.text).toContain('docker ps\n');
+    expect(result.text).toContain('docker logs pythia-app');
   });
 
   it('should fix concatenated shell commands with pipes', async () => {

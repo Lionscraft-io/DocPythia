@@ -176,7 +176,7 @@ Returns: { instances: string[] }
 
 ### Example 1: Project A Login
 ```
-User enters: SH340TE28pBIGsoEwC50iQ==
+User enters: <password>
 Backend checks:
   - Project A config: ✅ Match!
   - Returns: { instanceId: "projecta" }
@@ -185,7 +185,7 @@ Frontend redirects: /projecta/admin
 
 ### Example 2: Project B Login
 ```
-User enters: EuSG/dNj0UtfoJNFxiix3g==
+User enters: <password>
 Backend checks:
   - Project A config: ❌ No match
   - Project B config: ✅ Match!

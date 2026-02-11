@@ -1,6 +1,6 @@
 # AWS Deployment Guide
 
-Deploy DocsAI from a fresh AWS account to a production-ready setup using App Runner, ECR, RDS, and S3. Builds are handled by GitHub Actions and pushed to ECR automatically on merge to `main`.
+Deploy Pythia from a fresh AWS account to a production-ready setup using App Runner, ECR, RDS, and S3. Builds are handled by GitHub Actions and pushed to ECR automatically on merge to `main`.
 
 **Architecture Overview:**
 ```
@@ -16,7 +16,7 @@ Deploy DocsAI from a fresh AWS account to a production-ready setup using App Run
                                                  │ auto-deploy
                     ┌─────────────────┐ ┌────────▼─────────┐
                     │   Route 53      │ │   App Runner      │
-                    │  (DNS + Domain) ├─┤  (DocsAI App)     │
+                    │  (DNS + Domain) ├─┤  (Pythia App)     │
                     └─────────────────┘ │  Port 8080        │
                                         └──┬─────┬────┬────┘
                                            │     │    │
@@ -29,7 +29,7 @@ Deploy DocsAI from a fresh AWS account to a production-ready setup using App Run
 
 **Estimated time:** 45-60 minutes (one-time setup)
 
-> **Disclaimer:** This guide provides a functional starting point for deploying DocsAI on AWS. It is not a substitute for professional advice. Consult with your cloud infrastructure, networking, and security experts to ensure your deployment meets your organization's requirements for production hardening, network architecture, access controls, compliance, and data protection.
+> **Disclaimer:** This guide provides a functional starting point for deploying Pythia on AWS. It is not a substitute for professional advice. Consult with your cloud infrastructure, networking, and security experts to ensure your deployment meets your organization's requirements for production hardening, network architecture, access controls, compliance, and data protection.
 
 ---
 
@@ -168,7 +168,7 @@ aws iam create-open-id-connect-provider \
 
 # Create the deploy role (replace GITHUB_ORG/REPO with your values)
 GITHUB_ORG="Lionscraft-io"
-GITHUB_REPO="NearDocsAI"
+GITHUB_REPO="NearPythia"
 
 aws iam create-role --role-name docsai-github-deploy \
   --assume-role-policy-document '{
@@ -235,12 +235,12 @@ SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$DEFAULT_VPC
 
 aws rds create-db-subnet-group \
   --db-subnet-group-name docsai-db-subnet \
-  --db-subnet-group-description "DocsAI database subnets" \
+  --db-subnet-group-description "Pythia database subnets" \
   --subnet-ids $(echo $SUBNET_IDS | tr ',' ' ')
 
 DB_SG=$(aws ec2 create-security-group \
   --group-name docsai-db-sg \
-  --description "DocsAI database security group" \
+  --description "Pythia database security group" \
   --vpc-id $DEFAULT_VPC \
   --query 'GroupId' --output text)
 
@@ -322,7 +322,7 @@ aws s3 cp config/myinstance/instance.json \
 ```bash
 aws secretsmanager create-secret \
   --name docsai/database-url \
-  --description "DocsAI PostgreSQL connection string" \
+  --description "Pythia PostgreSQL connection string" \
   --secret-string "postgresql://docsai:YOUR_PASSWORD@YOUR_ENDPOINT:5432/docsai"
 
 aws secretsmanager create-secret \
@@ -332,7 +332,7 @@ aws secretsmanager create-secret \
 
 aws secretsmanager create-secret \
   --name docsai/admin-token \
-  --description "DocsAI admin API token" \
+  --description "Pythia admin API token" \
   --secret-string "$(openssl rand -base64 32)"
 ```
 
@@ -493,7 +493,7 @@ SERVICE_URL=$(aws apprunner describe-service \
   --service-arn $SERVICE_ARN \
   --query 'Service.ServiceUrl' --output text)
 
-echo "DocsAI is live at: https://${SERVICE_URL}"
+echo "Pythia is live at: https://${SERVICE_URL}"
 ```
 
 ### 9.5 Add the service ARN to GitHub
@@ -643,7 +643,7 @@ curl -X POST "https://${SERVICE_URL}/api/admin/docs/sync" \
 
 ## 13. Multi-Instance Setup
 
-DocsAI supports multiple project instances from a single deployment. Each instance gets its own database, configuration, and admin dashboard at `/{instanceId}/admin`.
+Pythia supports multiple project instances from a single deployment. Each instance gets its own database, configuration, and admin dashboard at `/{instanceId}/admin`.
 
 ```bash
 # Create a database per instance

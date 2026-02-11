@@ -19,8 +19,6 @@ import { BasePostProcessor, PostProcessResult, PostProcessContext } from './type
  * Known CLI command prefixes that indicate the start of a new command
  */
 const CLI_COMMANDS = [
-  'near',
-  'neard',
   'curl',
   'echo',
   'cat',
@@ -118,7 +116,7 @@ export class CodeBlockFormattingPostProcessor extends BasePostProcessor {
 
   /**
    * Split concatenated CLI commands onto separate lines
-   * e.g., "near login near stake pool.near" -> "near login\nnear stake pool.near"
+   * e.g., "curl http://api echo done" -> "curl http://api\necho done"
    */
   private splitConcatenatedCommands(content: string): string {
     let result = content;
@@ -143,7 +141,7 @@ export class CodeBlockFormattingPostProcessor extends BasePostProcessor {
             if (prevChar === '|' || prevChar === ';' || prevChar === '&') {
               return match;
             }
-            // Don't split if this is an argument to another command (like `grep near`)
+            // Don't split if this is an argument to another command (like `grep foo`)
             // Check if the previous content looks like a command with this as an argument
             // This is a heuristic - we split when the previous char looks like end of command output
             if (

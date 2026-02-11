@@ -1,5 +1,5 @@
 {
-  "name": "neardocsai",
+  "name": "pythia",
   "version": "1.0.0",
   "description": "AI-powered documentation management system that monitors community discussions and automatically generates documentation updates",
   "type": "module",
@@ -18,7 +18,7 @@
     "ai",
     "llm",
     "gemini",
-    "near-protocol",
+    "rag",
     "docs-management",
     "automated-docs"
   ],
@@ -34,7 +34,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "dev:docker": "docker run -d --name docsai-local -p 3000:8080 --env-file .env docsai-local",
+    "dev:docker": "docker run -d --name pythia-local -p 3000:8080 --env-file .env pythia-local",
     "kill-port": "bash scripts/permanent/kill-port.sh",
     "test": "vitest run",
     "test:watch": "vitest",

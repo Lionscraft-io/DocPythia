@@ -16,7 +16,7 @@ This specification defines the transformation of the hardcoded conversation anal
 - Hot-reload capability for prompts and configuration
 - Plugin-based pipeline architecture with composable steps
 - Domain-agnostic core with instance-specific configuration
-- Backward compatibility with existing DocsAI instances
+- Backward compatibility with existing Pythia instances
 
 **Constraints:**
 - Must maintain existing database schema
@@ -25,7 +25,7 @@ This specification defines the transformation of the hardcoded conversation anal
 - Performance must not degrade significantly
 
 **Business Context:**
-The immediate use case is focusing a DocsAI instance exclusively on specific operations (e.g., validator operations), filtering out irrelevant questions. Future instances may have different domain focuses (e.g., DeFi protocols, developer tools). Each instance needs unique classification categories, filtering rules, and prompt templates without duplicating core pipeline code.
+The immediate use case is focusing a Pythia instance exclusively on specific operations (e.g., validator operations), filtering out irrelevant questions. Future instances may have different domain focuses (e.g., DeFi protocols, developer tools). Each instance needs unique classification categories, filtering rules, and prompt templates without duplicating core pipeline code.
 
 ## 2. Technical Approach
 

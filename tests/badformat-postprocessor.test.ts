@@ -643,12 +643,12 @@ OS (aarch64)`;
       expect(result.text).not.toContain('Mac\nOS');
     });
 
-    it('should join NearBlocks broken across lines', () => {
-      const input = `Check Near
-Blocks explorer for details.`;
+    it('should join GitHub broken across lines', () => {
+      const input = `Check Git
+Hub repository for details.`;
       const result = postProcessProposal(input, 'docs/test.md');
 
-      expect(result.text).toContain('NearBlocks');
+      expect(result.text).toContain('GitHub');
     });
   });
 

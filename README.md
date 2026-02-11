@@ -1,4 +1,4 @@
-# DocsAI
+# Pythia
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -26,7 +26,7 @@ An AI-powered documentation management platform that automatically monitors comm
 
 ```bash
 # Clone the repository
-git clone https://github.com/Lionscraft-io/NearDocsAI.git
+git clone https://github.com/Lionscraft-io/NearPythia.git
 cd docsai
 
 # Install dependencies
@@ -105,7 +105,7 @@ See [docs/MULTI-INSTANCE-SETUP.md](./docs/MULTI-INSTANCE-SETUP.md) for multi-ten
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         DocsAI Platform                          │
+│                         Pythia Platform                          │
 ├─────────────────────────────────────────────────────────────────┤
 │  Message Sources          Processing Pipeline        Outputs     │
 │  ┌─────────────┐         ┌─────────────────┐      ┌──────────┐  │

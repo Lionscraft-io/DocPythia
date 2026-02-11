@@ -1,12 +1,11 @@
-# Docker Setup for DocsAI
+# Docker Setup for Pythia
 
-This document explains how to build and deploy the DocsAI application using Docker for AWS App Runner.
+This document explains how to build and deploy the Pythia application using Docker for AWS App Runner.
 
 ## Files
 
 - `Dockerfile` - Multi-stage build configuration optimized for production
 - `.dockerignore` - Excludes unnecessary files from build context
-- `deploy.sh` - Automated deployment script for AWS ECR + App Runner
 - `test-docker.sh` - Local testing script
 - `.env.example` - Example environment variables
 
@@ -14,7 +13,7 @@ This document explains how to build and deploy the DocsAI application using Dock
 
 - Docker installed and running
 - AWS CLI configured with appropriate permissions
-- ECR repository created (e.g., `056562103717.dkr.ecr.eu-central-1.amazonaws.com/autodoc`)
+- ECR repository created (e.g., `<AWS_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/pythia`)
 
 ## Local Testing
 
@@ -26,12 +25,12 @@ This document explains how to build and deploy the DocsAI application using Dock
 2. **Manual build and run:**
    ```bash
    # Build
-   docker build -t docsai .
+   docker build -t pythia .
 
    # Run with environment file
    cp .env.example .env
    # Edit .env with your values
-   docker run -p 3000:8080 --env-file .env docsai
+   docker run -p 3000:8080 --env-file .env pythia
    ```
 
 3. **Test endpoints:**
@@ -40,15 +39,7 @@ This document explains how to build and deploy the DocsAI application using Dock
 
 ## AWS Deployment
 
-1. **Deploy to ECR and App Runner:**
-   ```bash
-   ./deploy.sh <aws-profile> [image-tag]
-   ```
-
-2. **Example:**
-   ```bash
-   ./deploy.sh production v1.0.0
-   ```
+Deployments are handled by GitHub Actions CI/CD. See [AWS Deployment Guide](AWS-DEPLOYMENT-GUIDE.md) for full setup.
 
 ## Environment Variables
 
@@ -72,7 +63,7 @@ OPENAI_API_KEY=your_api_key
 When creating the App Runner service:
 
 - **Source**: Amazon ECR
-- **Image**: `056562103717.dkr.ecr.eu-central-1.amazonaws.com/autodoc:latest`
+- **Image**: `<AWS_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/pythia:latest`
 - **Port**: 8080
 - **Environment variables**: Set from AWS Secrets Manager or directly in console
 

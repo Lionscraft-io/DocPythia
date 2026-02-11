@@ -39,7 +39,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     swaggerUi.serve,
     swaggerUi.setup(swaggerSpec, {
       customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: 'DocsAI API Documentation',
+      customSiteTitle: 'Pythia API Documentation',
     })
   );
 
@@ -61,7 +61,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/config', configRoutes);
 
   // Instance-specific configuration endpoint (for multi-tenant access)
-  // Handles requests like /near/api/config when frontend is at /near/admin
+  // Handles requests like /:instance/api/config when frontend is at /:instance/admin
   app.get('/:instance/api/config', instanceMiddleware, instanceConfigHandler);
 
   // Widget embed assets (widget.js and demo page)

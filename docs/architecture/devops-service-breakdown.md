@@ -1,4 +1,4 @@
-# NearDocsAI Architecture & Deployment Guide
+# Pythia Architecture & Deployment Guide
 
 ## 1. System Overview
 

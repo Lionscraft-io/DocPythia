@@ -2,11 +2,11 @@
 
 **Last Updated:** 2025-11-04 by Wayne
 
-This guide explains how to set up and configure the Telegram bot integration for the DocsAI multi-stream scanner system.
+This guide explains how to set up and configure the Telegram bot integration for the Pythia multi-stream scanner system.
 
 ## Overview
 
-The Telegram bot adapter allows DocsAI to ingest messages from Telegram channels and groups in real-time. Messages are processed through the same batch analysis pipeline as other message sources (CSV, Zulipchat), with conversation grouping, RAG retrieval, and documentation proposal generation.
+The Telegram bot adapter allows Pythia to ingest messages from Telegram channels and groups in real-time. Messages are processed through the same batch analysis pipeline as other message sources (CSV, Zulipchat), with conversation grouping, RAG retrieval, and documentation proposal generation.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ The Telegram bot adapter allows DocsAI to ingest messages from Telegram channels
 
 ## Prerequisites
 
-1. Node.js project with DocsAI installed
+1. Node.js project with Pythia installed
 2. PostgreSQL database with Prisma schema
 3. Telegram account
 4. (For webhook mode) HTTPS domain with valid SSL certificate

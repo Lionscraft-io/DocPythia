@@ -320,7 +320,7 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     // Fix 0i: Simpler approach for known broken compound words
     // Direct replacements for common patterns where LLM inserts newlines mid-word
     result = result.replace(/Mac\s*\n\s*OS/g, 'MacOS');
-    result = result.replace(/Near\s*\n\s*Blocks/g, 'NearBlocks');
+    // Generic compound word fixes (add domain-specific terms as needed)
     result = result.replace(/Java\s*\n\s*Script/g, 'JavaScript');
     result = result.replace(/Git\s*\n\s*Hub/g, 'GitHub');
     result = result.replace(/Type\s*\n\s*Script/g, 'TypeScript');

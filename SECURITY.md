@@ -29,7 +29,7 @@ We take security seriously. If you discover a security vulnerability, please rep
 
 ## Security Best Practices
 
-When deploying DocsAI, follow these security guidelines:
+When deploying Pythia, follow these security guidelines:
 
 ### Environment Variables
 

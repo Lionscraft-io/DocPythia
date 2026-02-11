@@ -1,4 +1,4 @@
-# DocsAI Project Guide
+# Pythia Project Guide
 
 ## Claude Development Standards
 

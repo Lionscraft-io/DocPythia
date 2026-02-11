@@ -1,6 +1,6 @@
-# Contributing to DocsAI
+# Contributing to Pythia
 
-Thank you for your interest in contributing to DocsAI! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Pythia! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 
@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/Lionscraft-io/NearDocsAI/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/Lionscraft-io/NearPythia/issues)
 2. If not, create a new issue using the bug report template
 3. Include:
    - Clear description of the bug
@@ -152,4 +152,4 @@ npm test -- tests/your-test.test.ts
 
 Contributors will be recognized in our release notes and contributor list.
 
-Thank you for contributing to DocsAI!
+Thank you for contributing to Pythia!

@@ -22,9 +22,9 @@ const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 
 // Cookie names
 export const COOKIE_NAMES = {
-  accessToken: 'docsai_access_token',
-  refreshToken: 'docsai_refresh_token',
-  csrfToken: 'docsai_csrf_token',
+  accessToken: 'pythia_access_token',
+  refreshToken: 'pythia_refresh_token',
+  csrfToken: 'pythia_csrf_token',
 } as const;
 
 /**

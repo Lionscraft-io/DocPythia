@@ -1,12 +1,12 @@
 # Permanent Scripts
 
-Long-term utility scripts for NearDocsAI operations.
+Long-term utility scripts for Pythia operations.
 
 ## Scripts
 
 ### kill-port.sh
 
-Kills all running NearDocsAI application processes.
+Kills all running Pythia application processes.
 
 ```bash
 # Via npm (recommended)

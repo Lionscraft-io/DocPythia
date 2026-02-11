@@ -1,6 +1,6 @@
 # Documentation
 
-Approved documentation for the DocsAI project.
+Approved documentation for the Pythia project.
 
 ## Contents
 

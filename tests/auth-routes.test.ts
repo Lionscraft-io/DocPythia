@@ -28,9 +28,9 @@ vi.mock('../server/auth/session.js', () => ({
   generateCsrfToken: vi.fn(() => 'mock-csrf-token'),
   getSessionFromRequest: vi.fn(),
   COOKIE_NAMES: {
-    accessToken: 'docsai_access_token',
-    refreshToken: 'docsai_refresh_token',
-    csrfToken: 'docsai_csrf_token',
+    accessToken: 'pythia_access_token',
+    refreshToken: 'pythia_refresh_token',
+    csrfToken: 'pythia_csrf_token',
   },
 }));
 

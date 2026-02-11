@@ -69,8 +69,8 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
   // Supports both instance-specific and default configs
   router.get('/git-stats', async (req: Request, res: Response) => {
     try {
-      // Get instance from request (set by middleware) or use 'near' as default for this project
-      const instanceId = (req as any).instance?.id || 'near';
+      // Get instance from request (set by middleware) or use 'default'
+      const instanceId = (req as any).instance?.id || 'default';
 
       // Try to get config from instance config first, fallback to env var
       let gitUrl: string;
@@ -140,7 +140,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
 
       // If not found, try the RAG vector store (document_pages) by file path
       // Get instance from request or use default
-      const instanceId = (req as any).instance?.id || 'near';
+      const instanceId = (req as any).instance?.id || 'default';
       const instanceDb = getInstanceDb(instanceId);
       const instanceVectorStore = new PgVectorStore(instanceId, instanceDb);
 

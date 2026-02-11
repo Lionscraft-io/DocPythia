@@ -1,4 +1,4 @@
-# Design Guidelines: DocsAI Documentation Platform
+# Design Guidelines: Pythia Documentation Platform
 
 ## Design Approach
 

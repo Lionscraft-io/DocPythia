@@ -930,7 +930,7 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
           where: streamId
             ? {
                 // For stream-scoped clears, delete RAG contexts where conversation ID contains the stream prefix
-                conversationId: { contains: streamId.replace('near-zulip-', '') },
+                conversationId: { contains: streamId.split('-').slice(2).join('-') || streamId },
               }
             : {}, // For full clears, delete all RAG contexts
         });

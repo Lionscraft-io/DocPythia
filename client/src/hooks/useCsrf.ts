@@ -6,7 +6,7 @@
  * sent in the X-CSRF-Token header for POST/PUT/PATCH/DELETE requests.
  */
 
-const CSRF_COOKIE_NAME = 'docsai_csrf_token';
+const CSRF_COOKIE_NAME = 'pythia_csrf_token';
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
 
 /**
