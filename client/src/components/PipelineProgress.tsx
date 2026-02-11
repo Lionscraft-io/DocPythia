@@ -157,6 +157,17 @@ export default function PipelineProgress({
 }: PipelineProgressProps) {
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
   const [showAllSteps, setShowAllSteps] = useState(false);
+  const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
+
+  const togglePromptExpanded = (promptId: string) => {
+    const newExpanded = new Set(expandedPrompts);
+    if (newExpanded.has(promptId)) {
+      newExpanded.delete(promptId);
+    } else {
+      newExpanded.add(promptId);
+    }
+    setExpandedPrompts(newExpanded);
+  };
 
   const steps = currentRun?.steps || [];
   const showProgress = isRunning || (currentRun && currentRun.status !== 'pending');
@@ -467,22 +478,46 @@ export default function PipelineProgress({
                           </div>
                         )}
 
-                        {/* Prompt Preview */}
-                        {prompt && (
-                          <div className="bg-white rounded-md p-3 border">
-                            <div className="flex items-center gap-2 mb-2">
-                              <FileText className="w-4 h-4 text-gray-400" />
-                              <span className="text-xs font-medium text-gray-600">
-                                Prompt Template: {stage.promptId}
-                              </span>
-                            </div>
-                            <div className="text-xs">
-                              <span className="text-gray-500">System prompt preview:</span>
-                              <p className="text-gray-700 font-mono bg-gray-50 p-2 rounded mt-1 max-h-20 overflow-y-auto">
-                                {prompt.system.substring(0, 300)}
-                                {prompt.system.length > 300 && '...'}
-                              </p>
-                            </div>
+                        {/* Prompt Preview - Expandable */}
+                        {prompt && stage.promptId && (
+                          <div className="bg-white rounded-md border overflow-hidden">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePromptExpanded(stage.promptId!);
+                              }}
+                              className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-gray-400" />
+                                <span className="text-xs font-medium text-gray-600">
+                                  Prompt Template: {stage.promptId}
+                                </span>
+                              </div>
+                              {expandedPrompts.has(stage.promptId) ? (
+                                <ChevronUp className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              )}
+                            </button>
+                            {expandedPrompts.has(stage.promptId) && (
+                              <div className="border-t p-3 bg-gray-50 space-y-3">
+                                <div className="text-xs">
+                                  <span className="text-gray-500 font-medium">System Prompt:</span>
+                                  <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                    {prompt.system}
+                                  </pre>
+                                </div>
+                                {prompt.user && (
+                                  <div className="text-xs">
+                                    <span className="text-gray-500 font-medium">User Prompt:</span>
+                                    <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                      {prompt.user}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
