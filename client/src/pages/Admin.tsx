@@ -78,22 +78,26 @@ export default function Admin() {
   const [ignoredPage, setIgnoredPage] = useState(1);
   const [allPage, setAllPage] = useState(1);
 
-  // Search state with debounce
+  // Search state - triggered by button or Enter key
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  // Reset pages when search changes
-  useEffect(() => {
+  const executeSearch = () => {
+    setActiveSearch(searchQuery);
     setPendingPage(1);
     setApprovedPage(1);
     setIgnoredPage(1);
     setAllPage(1);
-  }, [debouncedSearch]);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setActiveSearch('');
+    setPendingPage(1);
+    setApprovedPage(1);
+    setIgnoredPage(1);
+    setAllPage(1);
+  };
 
   // Track scroll position for scroll buttons
   useEffect(() => {
@@ -125,7 +129,7 @@ export default function Admin() {
   }, [setLocation]);
 
   // Build search param for queries
-  const searchParam = debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : '';
+  const searchParam = activeSearch ? `&search=${encodeURIComponent(activeSearch)}` : '';
 
   // Query keys for each tab (used for cache manipulation)
   const pendingQueryKey = `${apiPrefix}/api/admin/stream/conversations?status=pending&limit=${ITEMS_PER_PAGE}&page=${pendingPage}${searchParam}`;
@@ -930,23 +934,32 @@ export default function Admin() {
         </div>
 
         {/* Search */}
-        <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search proposals and messages..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              <XCircle className="h-4 w-4" />
-            </button>
-          )}
+        <div className="flex gap-2 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search proposals and messages..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && executeSearch()}
+              className="w-full pl-10 pr-10 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={executeSearch}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+          >
+            Search
+          </button>
         </div>
 
         {/* Tabs */}
