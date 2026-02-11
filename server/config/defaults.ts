@@ -6,7 +6,7 @@ import type { InstanceConfig } from './types';
 
 export const defaultConfig: InstanceConfig = {
   project: {
-    name: 'DocsAI',
+    name: 'Pythia',
     shortName: 'docs',
     description: 'AI-powered documentation assistant',
     domain: 'docs.example.com',
@@ -30,7 +30,7 @@ export const defaultConfig: InstanceConfig = {
   },
 
   database: {
-    name: 'docsai',
+    name: 'pythia',
   },
 
   community: {

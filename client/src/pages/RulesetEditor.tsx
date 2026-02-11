@@ -33,7 +33,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { adminApiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
-// Get instance prefix from URL (e.g., /near/admin -> /near)
+// Get instance prefix from URL (e.g., /myinstance/admin -> /myinstance)
 function getInstancePrefix(): string {
   const pathParts = window.location.pathname.split('/');
   if (
@@ -47,7 +47,7 @@ function getInstancePrefix(): string {
   return '';
 }
 
-// Get tenant ID from URL (e.g., /near/admin -> near)
+// Get tenant ID from URL (e.g., /myinstance/admin -> myinstance)
 function getTenantId(): string {
   const pathParts = window.location.pathname.split('/');
   if (

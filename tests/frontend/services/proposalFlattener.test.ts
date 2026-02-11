@@ -431,9 +431,9 @@ Rust:
 let x = 1;
 \`\`\`
 
-NEAR-specific:
-\`\`\`near-cli
-near view contract.near method_name
+Custom CLI:
+\`\`\`bash
+myapp view contract.example method_name
 \`\`\``;
 
         const conversations: ConversationData[] = [
@@ -460,7 +460,7 @@ near view contract.near method_name
         expect(result[0].diffAfter).toContain('```javascript');
         expect(result[0].diffAfter).toContain('```python');
         expect(result[0].diffAfter).toContain('```rust');
-        expect(result[0].diffAfter).toContain('```near-cli');
+        expect(result[0].diffAfter).toContain('```bash');
       });
     });
 
@@ -549,18 +549,18 @@ near view contract.near method_name
 Here's how to install:
 
 \`\`\`bash
-npm install @near/sdk
+npm install @example/sdk
 \`\`\`
 
 <CodeTabs>
   <Tab label="JavaScript">
     \`\`\`js
-    const near = new Near();
+    const client = new Client();
     \`\`\`
   </Tab>
   <Tab label="Rust">
     \`\`\`rust
-    let near = Near::new();
+    let client = Client::new();
     \`\`\`
   </Tab>
 </CodeTabs>`;
@@ -597,7 +597,7 @@ npm install @near/sdk
     describe('Code files', () => {
       it('should preserve TypeScript/JavaScript code with JSDoc comments', () => {
         const tsContent = `/**
- * Connects to a NEAR wallet
+ * Connects to a remote wallet
  * @param config - The wallet configuration
  * @returns A promise that resolves to the wallet connection
  * @example
@@ -638,7 +638,7 @@ export async function connectWallet(config: WalletConfig): Promise<WalletConnect
       it('should preserve Python code with docstrings', () => {
         const pyContent = `def connect_wallet(config: dict) -> WalletConnection:
     """
-    Connects to a NEAR wallet.
+    Connects to a remote wallet.
 
     Args:
         config: The wallet configuration dictionary
@@ -681,7 +681,7 @@ export async function connectWallet(config: WalletConfig): Promise<WalletConnect
       });
 
       it('should preserve Rust code with doc comments', () => {
-        const rustContent = `/// Connects to a NEAR wallet
+        const rustContent = `/// Connects to a remote wallet
 ///
 /// # Arguments
 ///
@@ -766,9 +766,9 @@ Content here.`;
 
       it('should handle JSON/YAML config files', () => {
         const jsonContent = `{
-  "name": "@near/sdk",
+  "name": "@example/sdk",
   "version": "1.0.0",
-  "description": "NEAR Protocol SDK",
+  "description": "Example SDK",
   "main": "dist/index.js"
 }`;
 

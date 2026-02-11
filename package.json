@@ -7,11 +7,11 @@
   "author": "Lionscraft <info@lionscraft.io>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Lionscraft-io/NearDocsAI.git"
+    "url": "git+https://github.com/Lionscraft-io/Pythia.git"
   },
-  "homepage": "https://github.com/Lionscraft-io/NearDocsAI#readme",
+  "homepage": "https://github.com/Lionscraft-io/Pythia#readme",
   "bugs": {
-    "url": "https://github.com/Lionscraft-io/NearDocsAI/issues"
+    "url": "https://github.com/Lionscraft-io/Pythia/issues"
   },
   "keywords": [
     "documentation",

@@ -24,10 +24,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useQuery } from '@tanstack/react-query';
 import { adminApiRequest } from '@/lib/queryClient';
 
-// Get instance prefix from URL (e.g., /near/admin -> /near)
+// Get instance prefix from URL (e.g., /myinstance/admin -> /myinstance)
 function getInstancePrefix(): string {
   const pathParts = window.location.pathname.split('/');
-  // If path is like /near/admin/prompts, return /near
+  // If path is like /myinstance/admin/prompts, return /myinstance
   if (
     pathParts.length >= 2 &&
     pathParts[1] &&

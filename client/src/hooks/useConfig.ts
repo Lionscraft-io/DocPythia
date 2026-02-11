@@ -50,7 +50,7 @@ export interface AppConfig {
 
 /**
  * Get the instance ID from a URL path
- * e.g., /near/admin -> "near", /admin -> null
+ * e.g., /myinstance/admin -> "myinstance", /admin -> null
  */
 function getInstanceFromPath(path: string): string | null {
   // Match /:instance/... pattern (but not /admin, /api, etc.)

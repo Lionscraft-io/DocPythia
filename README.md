@@ -26,8 +26,8 @@ An AI-powered documentation management platform that automatically monitors comm
 
 ```bash
 # Clone the repository
-git clone https://github.com/Lionscraft-io/NearPythia.git
-cd docsai
+git clone https://github.com/Lionscraft-io/Pythia.git
+cd pythia
 
 # Install dependencies
 npm install
@@ -56,8 +56,8 @@ The application will be available at `http://localhost:3762`.
 docker-compose up -d
 
 # Or build manually
-docker build -t docsai .
-docker run -p 3762:8080 --env-file .env docsai
+docker build -t pythia .
+docker run -p 3762:8080 --env-file .env pythia
 ```
 
 See [DOCKER.md](./DOCKER.md) for detailed Docker deployment instructions.

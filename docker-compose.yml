@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL database for DocsAI with pgvector support
+  # PostgreSQL database for Pythia with pgvector support
   db:
     image: pgvector/pgvector:pg15
     container_name: pythia-db
@@ -22,7 +22,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # DocsAI application
+  # Pythia application
   app:
     build:
       context: .

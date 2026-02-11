@@ -24,7 +24,7 @@ router.get('/:expertId', (req: Request, res: Response) => {
   const { theme = 'light' } = req.query;
 
   // Configurable widget content
-  const projectName = process.env.PROJECT_NAME || 'DocsAI';
+  const projectName = process.env.PROJECT_NAME || 'Pythia';
   const widgetTitle = process.env.WIDGET_TITLE || `${projectName} Assistant`;
   const welcomeMessage =
     process.env.WIDGET_WELCOME_MESSAGE ||

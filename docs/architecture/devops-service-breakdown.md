@@ -188,9 +188,9 @@ logs:PutLogEvents
 
 ### S3 Configuration Structure
 ```
-s3://neardocsai-config/
+s3://pythia-config/
   config/
-    near/
+    myinstance/
       instance.json    # Instance configuration
     projecta/
       instance.json
@@ -236,7 +236,7 @@ s3://neardocsai-config/
 ### Instance Overrides (Multi-tenant)
 ```
 {INSTANCE}_{ADAPTER}_{SETTING}
-Example: NEAR_TELEGRAM_BOT_TOKEN, PROJECTA_ZULIP_API_KEY
+Example: MYINSTANCE_TELEGRAM_BOT_TOKEN, PROJECTA_ZULIP_API_KEY
 ```
 
 ---
@@ -395,8 +395,8 @@ aws logs tail /aws/apprunner/{service-name} --follow
 | Environment | Purpose | Database | Config Bucket |
 |-------------|---------|----------|---------------|
 | Development | Local testing | docker-compose postgres | Local files |
-| Staging | Pre-production | Separate Neon branch | `neardocsai-config-staging` |
-| Production | Live | Neon production | `neardocsai-config` |
+| Staging | Pre-production | Separate Neon branch | `pythia-config-staging` |
+| Production | Live | Neon production | `pythia-config` |
 
 ---
 

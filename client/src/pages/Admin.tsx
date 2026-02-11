@@ -42,10 +42,10 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, adminApiRequest, getQueryFn } from '@/lib/queryClient';
 import { PRPreviewModal, type PRSubmitData } from '@/components/PRPreviewModal';
 
-// Get instance prefix from URL (e.g., /near/admin -> /near)
+// Get instance prefix from URL (e.g., /myinstance/admin -> /myinstance)
 function getInstancePrefix(): string {
   const pathParts = window.location.pathname.split('/');
-  // If path is like /near/admin, return /near
+  // If path is like /myinstance/admin, return /myinstance
   if (
     pathParts.length >= 2 &&
     pathParts[1] &&

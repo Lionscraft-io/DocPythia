@@ -1,15 +1,14 @@
 /**
  * Bad Format Post-Processor Tests
  *
- * Tests to verify post-processors correctly handle the bad format issues
- * identified in config/near/tmp/results.
+ * Tests to verify post-processors correctly handle bad format issues
+ * found in real LLM output.
  *
- * Each test case represents a real issue from the results file and verifies
- * whether the post-processor pipeline fixes it appropriately.
+ * Each test case represents a real issue and verifies whether the
+ * post-processor pipeline fixes it appropriately.
  *
  * @author Wayne
  * @created 2026-01-05
- * @reference config/near/tmp/badformat
  */
 
 import { describe, it, expect } from 'vitest';
@@ -105,15 +104,15 @@ Solution:** Restart the node with proper configuration.`;
 
     it('should detect duplicate consecutive content blocks', () => {
       const input = `:::warning Interacting with Custom Staking Pool Contracts
-Staking pool contracts on NEAR can be highly customized.
+Staking pool contracts can be highly customized.
 :::
 
 :::warning Interacting with Custom Staking Pool Contracts
-Staking pool contracts on NEAR can be highly customized.
+Staking pool contracts can be highly customized.
 :::
 
 :::warning Interacting with Custom Staking Pool Contracts
-Staking pool contracts on NEAR can be highly customized.
+Staking pool contracts can be highly customized.
 :::`;
 
       const result = postProcessProposal(input, 'docs/test.md');
@@ -258,7 +257,7 @@ Validator Performance**: If a validator underperforms, they may be slashed.`;
      */
 
     it('should detect placeholder text patterns', () => {
-      const input = `Known Issue: FastNear Indexer Patch for Version 2.6
+      const input = `Known Issue: DataSync Indexer Patch for Version 2.6
 * Issue: [Describe the specific issue here, e.g., "An issue causing data inconsistencies."]
 * Solution: A patch has been developed.
 * Further Details: [Link to GitHub issue, PR, or more detailed explanation if available.]`;
@@ -510,7 +509,7 @@ describe('Raw vs Processed Regression Tests (2026-01-06)', () => {
 
   describe('Protected Compound Words', () => {
     it('should NOT split RocksDB in headers', () => {
-      const input = `### RocksDB Log File Management for NEAR Nodes`;
+      const input = `### RocksDB Log File Management for Validator Nodes`;
       const result = postProcessProposal(input, 'docs/test.md');
 
       expect(result.text).toContain('RocksDB');
@@ -563,8 +562,8 @@ describe('Raw vs Processed Regression Tests (2026-01-06)', () => {
   describe('Numbered list items with bold', () => {
     it('should handle numbered lists with bold titles', () => {
       const input = `1. **Stopping the node.** Ensure the process is stopped.
-2. **Deleting the data directory.** Remove ~/.near/data.
-3. **Re-initializing the node.** Run neard init.`;
+2. **Deleting the data directory.** Remove ~/.app/data.
+3. **Re-initializing the node.** Run app init.`;
 
       const result = postProcessProposal(input, 'docs/test.md');
 

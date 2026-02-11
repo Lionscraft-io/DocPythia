@@ -1,6 +1,6 @@
 -- ==============================================
 -- Stream Configuration Diagnostic Queries
--- Run against the docsai database
+-- Run against the pythia database
 -- ==============================================
 
 -- 1. Check what streams are configured

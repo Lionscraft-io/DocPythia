@@ -172,12 +172,12 @@ import {
 } from './pipeline';
 
 // Load configuration
-const domainConfig = await loadDomainConfig('./config', 'near', 'validators');
-const pipelineConfig = await loadPipelineConfig('./config', 'near', 'validators');
+const domainConfig = await loadDomainConfig('./config', 'myinstance', 'validators');
+const pipelineConfig = await loadPipelineConfig('./config', 'myinstance', 'validators');
 
 // Create services
 const llmHandler = createGeminiHandler();
-const prompts = createPromptRegistry('./config', 'near');
+const prompts = createPromptRegistry('./config', 'myinstance');
 await prompts.load();
 
 // Create orchestrator
@@ -185,9 +185,9 @@ const orchestrator = new PipelineOrchestrator(pipelineConfig, llmHandler);
 
 // Create context
 const context = createPipelineContext({
-  instanceId: 'near',
+  instanceId: 'myinstance',
   batchId: 'batch-123',
-  streamId: 'near-zulip',
+  streamId: 'myinstance-zulip',
   messages: [...],
   domainConfig,
   prompts,

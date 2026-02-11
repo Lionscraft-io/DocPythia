@@ -455,7 +455,7 @@ export class MarkdownFormattingPostProcessor extends BasePostProcessor {
     );
 
     // Fix 4: Sentence run-on after period (missing space)
-    // e.g., "FastNear.Please refer" -> "FastNear. Please refer"
+    // e.g., "SomeWord.Please refer" -> "SomeWord. Please refer"
     // Only when followed by allowlisted sentence boundary starter + word boundary
     // Guard: requires lowercase before period (excludes versions like 1.0.0)
     masked.text = masked.text.replace(/([a-z])\.([A-Z][a-z]+)\b/g, (match, prevChar, nextWord) => {

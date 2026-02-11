@@ -104,7 +104,7 @@ export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output tex
 App Runner needs a role to pull images from ECR:
 
 ```bash
-aws iam create-role --role-name docsai-apprunner-ecr \
+aws iam create-role --role-name pythia-apprunner-ecr \
   --assume-role-policy-document '{
     "Version": "2012-10-17",
     "Statement": [{
@@ -114,7 +114,7 @@ aws iam create-role --role-name docsai-apprunner-ecr \
     }]
   }'
 
-aws iam attach-role-policy --role-name docsai-apprunner-ecr \
+aws iam attach-role-policy --role-name pythia-apprunner-ecr \
   --policy-arn arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
 ```
 
@@ -123,7 +123,7 @@ aws iam attach-role-policy --role-name docsai-apprunner-ecr \
 This role gives the running container access to S3 and Secrets Manager:
 
 ```bash
-aws iam create-role --role-name docsai-apprunner-instance \
+aws iam create-role --role-name pythia-apprunner-instance \
   --assume-role-policy-document '{
     "Version": "2012-10-17",
     "Statement": [{
@@ -133,8 +133,8 @@ aws iam create-role --role-name docsai-apprunner-instance \
     }]
   }'
 
-aws iam put-role-policy --role-name docsai-apprunner-instance \
-  --policy-name docsai-instance-policy \
+aws iam put-role-policy --role-name pythia-apprunner-instance \
+  --policy-name pythia-instance-policy \
   --policy-document '{
     "Version": "2012-10-17",
     "Statement": [
@@ -142,14 +142,14 @@ aws iam put-role-policy --role-name docsai-apprunner-instance \
         "Effect": "Allow",
         "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
         "Resource": [
-          "arn:aws:s3:::docsai-config-*",
-          "arn:aws:s3:::docsai-config-*/*"
+          "arn:aws:s3:::pythia-config-*",
+          "arn:aws:s3:::pythia-config-*/*"
         ]
       },
       {
         "Effect": "Allow",
         "Action": ["secretsmanager:GetSecretValue"],
-        "Resource": "arn:aws:secretsmanager:*:*:secret:docsai/*"
+        "Resource": "arn:aws:secretsmanager:*:*:secret:pythia/*"
       }
     ]
   }'
@@ -168,9 +168,9 @@ aws iam create-open-id-connect-provider \
 
 # Create the deploy role (replace GITHUB_ORG/REPO with your values)
 GITHUB_ORG="Lionscraft-io"
-GITHUB_REPO="NearPythia"
+GITHUB_REPO="Pythia"
 
-aws iam create-role --role-name docsai-github-deploy \
+aws iam create-role --role-name pythia-github-deploy \
   --assume-role-policy-document '{
     "Version": "2012-10-17",
     "Statement": [{
@@ -191,8 +191,8 @@ aws iam create-role --role-name docsai-github-deploy \
   }'
 
 # Grant ECR push and App Runner deploy permissions
-aws iam put-role-policy --role-name docsai-github-deploy \
-  --policy-name docsai-deploy-policy \
+aws iam put-role-policy --role-name pythia-github-deploy \
+  --policy-name pythia-deploy-policy \
   --policy-document '{
     "Version": "2012-10-17",
     "Statement": [
@@ -213,13 +213,13 @@ aws iam put-role-policy --role-name docsai-github-deploy \
       {
         "Effect": "Allow",
         "Action": ["apprunner:StartDeployment"],
-        "Resource": "arn:aws:apprunner:'"$AWS_REGION"':'"$AWS_ACCOUNT_ID"':service/docsai/*"
+        "Resource": "arn:aws:apprunner:'"$AWS_REGION"':'"$AWS_ACCOUNT_ID"':service/pythia/*"
       }
     ]
   }'
 
 echo "Deploy role ARN (save this for GitHub setup):"
-echo "arn:aws:iam::${AWS_ACCOUNT_ID}:role/docsai-github-deploy"
+echo "arn:aws:iam::${AWS_ACCOUNT_ID}:role/pythia-github-deploy"
 ```
 
 ---
@@ -234,12 +234,12 @@ SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$DEFAULT_VPC
   --query "Subnets[*].SubnetId" --output text | tr '\t' ',')
 
 aws rds create-db-subnet-group \
-  --db-subnet-group-name docsai-db-subnet \
+  --db-subnet-group-name pythia-db-subnet \
   --db-subnet-group-description "Pythia database subnets" \
   --subnet-ids $(echo $SUBNET_IDS | tr ',' ' ')
 
 DB_SG=$(aws ec2 create-security-group \
-  --group-name docsai-db-sg \
+  --group-name pythia-db-sg \
   --description "Pythia database security group" \
   --vpc-id $DEFAULT_VPC \
   --query 'GroupId' --output text)
@@ -254,34 +254,34 @@ DB_PASSWORD=$(openssl rand -base64 24)
 echo "Save this password: $DB_PASSWORD"
 
 aws rds create-db-instance \
-  --db-instance-identifier docsai-db \
+  --db-instance-identifier pythia-db \
   --db-instance-class db.t3.micro \
   --engine postgres --engine-version 15.7 \
-  --master-username docsai \
+  --master-username pythia \
   --master-user-password "$DB_PASSWORD" \
   --allocated-storage 20 \
-  --db-name docsai \
+  --db-name pythia \
   --vpc-security-group-ids $DB_SG \
-  --db-subnet-group-name docsai-db-subnet \
+  --db-subnet-group-name pythia-db-subnet \
   --publicly-accessible \
   --backup-retention-period 7 \
   --storage-encrypted --no-multi-az
 
 echo "Waiting for RDS instance (5-10 minutes)..."
-aws rds wait db-instance-available --db-instance-identifier docsai-db
+aws rds wait db-instance-available --db-instance-identifier pythia-db
 
 DB_ENDPOINT=$(aws rds describe-db-instances \
-  --db-instance-identifier docsai-db \
+  --db-instance-identifier pythia-db \
   --query 'DBInstances[0].Endpoint.Address' --output text)
 
 echo "Database endpoint: $DB_ENDPOINT"
-echo "DATABASE_URL: postgresql://docsai:${DB_PASSWORD}@${DB_ENDPOINT}:5432/docsai"
+echo "DATABASE_URL: postgresql://pythia:${DB_PASSWORD}@${DB_ENDPOINT}:5432/pythia"
 ```
 
 Enable pgvector:
 
 ```bash
-psql "postgresql://docsai:${DB_PASSWORD}@${DB_ENDPOINT}:5432/docsai" \
+psql "postgresql://pythia:${DB_PASSWORD}@${DB_ENDPOINT}:5432/pythia" \
   -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
@@ -290,7 +290,7 @@ psql "postgresql://docsai:${DB_PASSWORD}@${DB_ENDPOINT}:5432/docsai" \
 From your local machine:
 
 ```bash
-export DATABASE_URL="postgresql://docsai:YOUR_PASSWORD@YOUR_ENDPOINT:5432/docsai"
+export DATABASE_URL="postgresql://pythia:YOUR_PASSWORD@YOUR_ENDPOINT:5432/pythia"
 
 npm ci
 npx prisma generate
@@ -302,7 +302,7 @@ npx prisma migrate deploy
 ## 5. S3 Bucket for Instance Configs
 
 ```bash
-aws s3 mb s3://docsai-config-${AWS_ACCOUNT_ID} --region $AWS_REGION
+aws s3 mb s3://pythia-config-${AWS_ACCOUNT_ID} --region $AWS_REGION
 ```
 
 Upload your instance configuration:
@@ -312,7 +312,7 @@ cp config/instance.example.json config/myinstance/instance.json
 # Edit config/myinstance/instance.json with your settings
 
 aws s3 cp config/myinstance/instance.json \
-  s3://docsai-config-${AWS_ACCOUNT_ID}/configs/myinstance/instance.json
+  s3://pythia-config-${AWS_ACCOUNT_ID}/configs/myinstance/instance.json
 ```
 
 ---
@@ -321,17 +321,17 @@ aws s3 cp config/myinstance/instance.json \
 
 ```bash
 aws secretsmanager create-secret \
-  --name docsai/database-url \
+  --name pythia/database-url \
   --description "Pythia PostgreSQL connection string" \
-  --secret-string "postgresql://docsai:YOUR_PASSWORD@YOUR_ENDPOINT:5432/docsai"
+  --secret-string "postgresql://pythia:YOUR_PASSWORD@YOUR_ENDPOINT:5432/pythia"
 
 aws secretsmanager create-secret \
-  --name docsai/gemini-api-key \
+  --name pythia/gemini-api-key \
   --description "Google Gemini API key" \
   --secret-string "YOUR_GEMINI_API_KEY"
 
 aws secretsmanager create-secret \
-  --name docsai/admin-token \
+  --name pythia/admin-token \
   --description "Pythia admin API token" \
   --secret-string "$(openssl rand -base64 32)"
 ```
@@ -344,14 +344,14 @@ aws secretsmanager create-secret \
 
 ```bash
 aws ecr create-repository \
-  --repository-name docsai \
+  --repository-name pythia \
   --image-scanning-configuration scanOnPush=true \
   --encryption-configuration encryptionType=AES256 \
   --region $AWS_REGION
 
 # Lifecycle policy: keep last 10 images
 aws ecr put-lifecycle-policy \
-  --repository-name docsai \
+  --repository-name pythia \
   --lifecycle-policy-text '{
     "rules": [{
       "rulePriority": 1,
@@ -379,9 +379,9 @@ Go to **Settings > Secrets and variables > Actions > Variables** in your GitHub 
 | Variable | Value | Example |
 |----------|-------|---------|
 | `AWS_REGION` | Your AWS region | `eu-central-1` |
-| `AWS_DEPLOY_ROLE_ARN` | The deploy role ARN from step 3.3 | `arn:aws:iam::123456789:role/docsai-github-deploy` |
+| `AWS_DEPLOY_ROLE_ARN` | The deploy role ARN from step 3.3 | `arn:aws:iam::123456789:role/pythia-github-deploy` |
 | `WIDGET_DOMAIN` | Your production domain | `https://docs.yourdomain.com` |
-| `APPRUNNER_SERVICE_ARN` | App Runner service ARN (add after step 9) | `arn:aws:apprunner:eu-central-1:123456789:service/docsai/...` |
+| `APPRUNNER_SERVICE_ARN` | App Runner service ARN (add after step 9) | `arn:aws:apprunner:eu-central-1:123456789:service/pythia/...` |
 
 ### 8.2 CI/CD pipeline flow
 
@@ -406,10 +406,10 @@ aws ecr get-login-password --region $AWS_REGION | \
   docker login --username AWS --password-stdin \
   ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
-docker build --build-arg WIDGET_DOMAIN=https://your-domain.com -t docsai .
+docker build --build-arg WIDGET_DOMAIN=https://your-domain.com -t pythia .
 
-ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/docsai"
-docker tag docsai:latest ${ECR_URI}:latest
+ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/pythia"
+docker tag pythia:latest ${ECR_URI}:latest
 docker push ${ECR_URI}:latest
 ```
 
@@ -420,24 +420,24 @@ docker push ${ECR_URI}:latest
 ### 9.1 Get IAM role ARNs
 
 ```bash
-ECR_ROLE_ARN=$(aws iam get-role --role-name docsai-apprunner-ecr --query 'Role.Arn' --output text)
-INSTANCE_ROLE_ARN=$(aws iam get-role --role-name docsai-apprunner-instance --query 'Role.Arn' --output text)
-ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/docsai"
+ECR_ROLE_ARN=$(aws iam get-role --role-name pythia-apprunner-ecr --query 'Role.Arn' --output text)
+INSTANCE_ROLE_ARN=$(aws iam get-role --role-name pythia-apprunner-instance --query 'Role.Arn' --output text)
+ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/pythia"
 ```
 
 ### 9.2 Retrieve secrets
 
 ```bash
-DB_URL=$(aws secretsmanager get-secret-value --secret-id docsai/database-url --query SecretString --output text)
-GEMINI_KEY=$(aws secretsmanager get-secret-value --secret-id docsai/gemini-api-key --query SecretString --output text)
-ADMIN_TOKEN=$(aws secretsmanager get-secret-value --secret-id docsai/admin-token --query SecretString --output text)
+DB_URL=$(aws secretsmanager get-secret-value --secret-id pythia/database-url --query SecretString --output text)
+GEMINI_KEY=$(aws secretsmanager get-secret-value --secret-id pythia/gemini-api-key --query SecretString --output text)
+ADMIN_TOKEN=$(aws secretsmanager get-secret-value --secret-id pythia/admin-token --query SecretString --output text)
 ```
 
 ### 9.3 Create the service
 
 ```bash
 aws apprunner create-service \
-  --service-name docsai \
+  --service-name pythia \
   --source-configuration '{
     "AuthenticationConfiguration": {
       "AccessRoleArn": "'"$ECR_ROLE_ARN"'"
@@ -455,7 +455,7 @@ aws apprunner create-service \
           "GEMINI_API_KEY": "'"$GEMINI_KEY"'",
           "ADMIN_TOKEN": "'"$ADMIN_TOKEN"'",
           "CONFIG_SOURCE": "s3",
-          "S3_BUCKET": "docsai-config-'"$AWS_ACCOUNT_ID"'",
+          "S3_BUCKET": "pythia-config-'"$AWS_ACCOUNT_ID"'",
           "S3_REGION": "'"$AWS_REGION"'",
           "CONFIG_S3_PREFIX": "configs/",
           "SCHEDULER_ENABLED": "false",
@@ -484,7 +484,7 @@ aws apprunner create-service \
 
 ```bash
 SERVICE_ARN=$(aws apprunner list-services \
-  --query "ServiceSummaryList[?ServiceName=='docsai'].ServiceArn" --output text)
+  --query "ServiceSummaryList[?ServiceName=='pythia'].ServiceArn" --output text)
 
 echo "Waiting for App Runner service..."
 aws apprunner wait service-running --service-arn $SERVICE_ARN
@@ -549,42 +549,42 @@ Update the `WIDGET_DOMAIN` GitHub Actions variable to your custom domain, then p
 
 ```bash
 # Find the log group
-aws logs describe-log-groups --log-group-name-prefix "/aws/apprunner/docsai"
+aws logs describe-log-groups --log-group-name-prefix "/aws/apprunner/pythia"
 
 # Tail logs
-aws logs tail "/aws/apprunner/docsai/<service-id>/application" --follow
+aws logs tail "/aws/apprunner/pythia/<service-id>/application" --follow
 ```
 
 ### 11.2 Set up CloudWatch alarms
 
 ```bash
 # Create SNS topic for alerts
-aws sns create-topic --name docsai-alerts
+aws sns create-topic --name pythia-alerts
 aws sns subscribe \
-  --topic-arn arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:docsai-alerts \
+  --topic-arn arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:pythia-alerts \
   --protocol email --notification-endpoint your@email.com
 
 # Alarm: High 5xx error rate
 aws cloudwatch put-metric-alarm \
-  --alarm-name docsai-high-error-rate \
+  --alarm-name pythia-high-error-rate \
   --metric-name 5xxStatusResponses \
   --namespace AWS/AppRunner \
   --statistic Sum --period 300 --threshold 10 \
   --comparison-operator GreaterThanThreshold \
   --evaluation-periods 2 \
-  --dimensions Name=ServiceName,Value=docsai \
-  --alarm-actions arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:docsai-alerts
+  --dimensions Name=ServiceName,Value=pythia \
+  --alarm-actions arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:pythia-alerts
 
 # Alarm: Unhealthy instances
 aws cloudwatch put-metric-alarm \
-  --alarm-name docsai-unhealthy \
+  --alarm-name pythia-unhealthy \
   --metric-name UnhealthyInstanceCount \
   --namespace AWS/AppRunner \
   --statistic Maximum --period 60 --threshold 1 \
   --comparison-operator GreaterThanOrEqualToThreshold \
   --evaluation-periods 3 \
-  --dimensions Name=ServiceName,Value=docsai \
-  --alarm-actions arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:docsai-alerts
+  --dimensions Name=ServiceName,Value=pythia \
+  --alarm-actions arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:pythia-alerts
 ```
 
 ---
@@ -623,7 +623,7 @@ Then create the config with that hash:
     "docsPath": ""
   },
   "database": {
-    "name": "docsai"
+    "name": "pythia"
   },
   "admin": {
     "passwordHash": "<paste-bcrypt-hash-here>",
@@ -650,11 +650,11 @@ Pythia supports multiple project instances from a single deployment. Each instan
 psql "$DATABASE_URL" -c "CREATE DATABASE myproject_docs;"
 
 # Run migrations
-DATABASE_URL="postgresql://docsai:pass@host:5432/myproject_docs" npx prisma migrate deploy
+DATABASE_URL="postgresql://pythia:pass@host:5432/myproject_docs" npx prisma migrate deploy
 
 # Upload config to S3
 aws s3 cp config/myproject/instance.json \
-  s3://docsai-config-${AWS_ACCOUNT_ID}/configs/myproject/instance.json
+  s3://pythia-config-${AWS_ACCOUNT_ID}/configs/myproject/instance.json
 
 # Access at:
 # https://<SERVICE_URL>/myproject/admin
@@ -688,7 +688,7 @@ The pipeline automatically:
 
 ```bash
 # Find the image tag you want to roll back to
-aws ecr describe-images --repository-name docsai \
+aws ecr describe-images --repository-name pythia \
   --query 'imageDetails[*].{tags:imageTags,pushed:imagePushedAt}' \
   --output table
 
@@ -711,7 +711,7 @@ aws apprunner update-service \
 
 ```bash
 aws apprunner describe-service --service-arn $SERVICE_ARN --query 'Service.Status'
-aws logs tail "/aws/apprunner/docsai/<service-id>/application" --since 30m
+aws logs tail "/aws/apprunner/pythia/<service-id>/application" --since 30m
 ```
 
 ### Health check failing
@@ -726,14 +726,14 @@ docker run -p 8080:8080 \
   -e ADMIN_TOKEN="test" \
   -e NODE_ENV=production \
   -e PORT=8080 \
-  docsai:latest
+  pythia:latest
 ```
 
 ### Database connection refused
 
 - Check the RDS security group allows inbound on port 5432
 - Verify `--publicly-accessible` was set on the RDS instance
-- Verify the endpoint: `aws rds describe-db-instances --db-instance-identifier docsai-db`
+- Verify the endpoint: `aws rds describe-db-instances --db-instance-identifier pythia-db`
 
 ### GitHub Actions can't push to ECR
 
@@ -747,7 +747,7 @@ docker run -p 8080:8080 \
 aws apprunner update-service \
   --service-arn $SERVICE_ARN \
   --auto-scaling-configuration-arn $(aws apprunner create-auto-scaling-configuration \
-    --auto-scaling-configuration-name docsai-scaling \
+    --auto-scaling-configuration-name pythia-scaling \
     --min-size 1 --max-size 2 \
     --query 'AutoScalingConfiguration.AutoScalingConfigurationArn' --output text)
 ```
@@ -763,7 +763,7 @@ aws apprunner update-service \
 aws apprunner start-deployment --service-arn $SERVICE_ARN
 
 # View logs
-aws logs tail "/aws/apprunner/docsai/<service-id>/application" --follow
+aws logs tail "/aws/apprunner/pythia/<service-id>/application" --follow
 
 # Health check
 curl https://${SERVICE_URL}/api/health

@@ -469,7 +469,7 @@ describe('MarkdownFormattingPostProcessor', () => {
         await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
       const processor = new MarkdownFormattingPostProcessor();
       const result = processor.process(
-        '## NEAR Rosetta API Architectural ConsiderationsThe NEAR Rosetta API is tightly',
+        '## Rosetta API Architectural ConsiderationsThe Rosetta API is tightly',
         {
           targetFilePath: 'doc.md',
           fileExtension: 'md',
@@ -479,7 +479,7 @@ describe('MarkdownFormattingPostProcessor', () => {
           previousWarnings: [],
         }
       );
-      expect(result.text).toContain('Considerations\n\nThe NEAR');
+      expect(result.text).toContain('Considerations\n\nThe Rosetta');
       expect(result.wasModified).toBe(true);
     });
 

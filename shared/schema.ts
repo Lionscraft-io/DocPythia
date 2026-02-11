@@ -1,5 +1,5 @@
 /**
- * Shared schema types for DocsAI
+ * Shared schema types for Pythia
  *
  * These types are used by the client-side code for type safety.
  * The actual database schema is managed by Prisma in prisma/schema.prisma.

@@ -257,7 +257,7 @@ describe('Pipeline E2E Tests', () => {
     });
 
     it('should handle instance-specific config gracefully when not found', async () => {
-      // Instance-specific configs (like near) are gitignored
+      // Instance-specific configs are gitignored (config/*/ pattern)
       // This test verifies the loader falls back to defaults appropriately
       const defaultConfig = await loadDomainConfig(CONFIG_BASE_PATH, 'default');
       expect(defaultConfig).toBeDefined();

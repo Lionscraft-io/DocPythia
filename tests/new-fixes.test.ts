@@ -11,7 +11,7 @@ describe('New Post-Processor Fixes', () => {
 
   describe('RocksDB protection', () => {
     it('should preserve RocksDB in headers', () => {
-      const input = '### RocksDB Log File Management for NEAR Nodes';
+      const input = '### RocksDB Log File Management for Validator Nodes';
       const result = mdProcessor.process(input, context);
       expect(result.text).toContain('RocksDB');
       expect(result.text).not.toContain('Rocks DB');

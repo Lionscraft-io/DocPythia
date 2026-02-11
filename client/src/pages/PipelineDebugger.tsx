@@ -36,7 +36,7 @@ import { Label } from '@/components/ui/label';
 import { adminApiRequest } from '@/lib/queryClient';
 import PipelineProgress from '@/components/PipelineProgress';
 
-// Get instance prefix from URL (e.g., /near/admin -> /near)
+// Get instance prefix from URL (e.g., /myinstance/admin -> /myinstance)
 function getInstancePrefix(): string {
   const pathParts = window.location.pathname.split('/');
   if (

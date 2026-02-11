@@ -235,7 +235,7 @@ describe('Server Scripts Dependencies', () => {
 describe('Script Console Output Formatting', () => {
   it('should format box headers correctly', () => {
     const header = '╔═══════════════════════════════════════════╗';
-    const middle = '║   DocsAI - Full Scrape                  ║';
+    const middle = '║   Pythia - Full Scrape                  ║';
     const footer = '╚═══════════════════════════════════════════╝';
 
     expect(header).toContain('╔');

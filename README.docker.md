@@ -65,16 +65,16 @@ The PostgreSQL database is isolated within Docker. To access it:
 
 ```bash
 # Connect to database
-docker-compose exec db psql -U docsai -d docsai
+docker-compose exec db psql -U pythia -d pythia
 
 # Or from host (if DB_PORT is exposed in docker-compose.dev.yml)
-psql -h localhost -p 5433 -U docsai -d docsai
+psql -h localhost -p 5433 -U pythia -d pythia
 ```
 
 **Default credentials:**
-- User: `docsai`
+- User: `pythia`
 - Password: Set via `POSTGRES_PASSWORD` environment variable (default: `changeme`)
-- Database: `docsai`
+- Database: `pythia`
 
 ## Development Mode
 
@@ -96,16 +96,16 @@ Data is persisted in Docker volumes:
 
 ```bash
 # List volumes
-docker volume ls | grep docsai
+docker volume ls | grep pythia
 
 # Inspect volume
-docker volume inspect lionscraft-docsaiai_docsai_db_data
+docker volume inspect pythia_pythia_db_data
 
 # Backup database
-docker-compose exec db pg_dump -U docsai docsai > backup.sql
+docker-compose exec db pg_dump -U pythia pythia > backup.sql
 
 # Restore database
-docker-compose exec -T db psql -U docsai docsai < backup.sql
+docker-compose exec -T db psql -U pythia pythia < backup.sql
 ```
 
 ## Troubleshooting
@@ -121,7 +121,7 @@ APP_PORT=3763  # or any available port
 
 ```bash
 # Check database health
-docker-compose exec db pg_isready -U docsai
+docker-compose exec db pg_isready -U pythia
 
 # View database logs
 docker-compose logs db
