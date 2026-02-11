@@ -36,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { adminApiRequest } from '@/lib/queryClient';
+import PipelineProgress from '@/components/PipelineProgress';
 
 // Get instance prefix from URL (e.g., /near/admin -> /near)
 function getInstancePrefix(): string {
@@ -53,7 +54,8 @@ function getInstancePrefix(): string {
 
 interface PipelineStep {
   stepName: string;
-  status: 'completed' | 'failed' | 'skipped';
+  stepType: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
   durationMs: number;
   inputCount?: number;
   outputCount?: number;
@@ -881,6 +883,35 @@ I figured out how to configure the validator node. You need to set min_peers=5 i
                 Runs tab.
               </AlertDescription>
             </Alert>
+
+            {/* Pipeline Progress Visualization */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Layers className="w-5 h-5" />
+                  Pipeline Progress
+                </CardTitle>
+                <CardDescription>
+                  Visual representation of pipeline stages and execution status
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PipelineProgress
+                  isRunning={isProcessing || hasRunningPipeline || false}
+                  currentRun={
+                    isProcessing || hasRunningPipeline
+                      ? runsData?.runs.find((r) => r.status === 'running') || runsData?.runs[0]
+                      : runsData?.runs[0]
+                  }
+                  prompts={promptsData?.prompts?.map((p) => ({
+                    id: p.id,
+                    system: p.override?.system || p.system,
+                    user: p.override?.user || p.user,
+                    metadata: p.metadata,
+                  }))}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Prompt Overrides Tab */}
