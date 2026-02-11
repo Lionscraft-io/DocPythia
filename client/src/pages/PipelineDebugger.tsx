@@ -795,34 +795,34 @@ I figured out how to configure the validator node. You need to set min_peers=5 i
               </AlertDescription>
             </Alert>
 
-            {/* Pipeline Progress Visualization */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Layers className="w-5 h-5" />
-                  Pipeline Progress
-                </CardTitle>
-                <CardDescription>
-                  Visual representation of pipeline stages and execution status
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PipelineProgress
-                  isRunning={isProcessing || hasRunningPipeline || false}
-                  currentRun={
-                    isProcessing || hasRunningPipeline
-                      ? runsData?.runs.find((r) => r.status === 'running') || runsData?.runs[0]
-                      : runsData?.runs[0]
-                  }
-                  prompts={promptsData?.prompts?.map((p) => ({
-                    id: p.id,
-                    system: p.override?.system || p.system,
-                    user: p.override?.user || p.user,
-                    metadata: p.metadata,
-                  }))}
-                />
-              </CardContent>
-            </Card>
+            {/* Pipeline Progress Visualization - Only show when actively running */}
+            {(isProcessing || hasRunningPipeline) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Layers className="w-5 h-5" />
+                    Pipeline Progress
+                  </CardTitle>
+                  <CardDescription>
+                    Visual representation of pipeline stages and execution status
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PipelineProgress
+                    isRunning={true}
+                    currentRun={
+                      runsData?.runs.find((r) => r.status === 'running') || runsData?.runs[0]
+                    }
+                    prompts={promptsData?.prompts?.map((p) => ({
+                      id: p.id,
+                      system: p.override?.system || p.system,
+                      user: p.override?.user || p.user,
+                      metadata: p.metadata,
+                    }))}
+                  />
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Prompt Overrides Tab */}
