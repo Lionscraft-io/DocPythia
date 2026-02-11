@@ -39,6 +39,7 @@ interface StepLogEntry {
   outputCount?: number;
   promptUsed?: string;
   error?: string;
+  outputSummary?: string; // Summary of step output for debugging
 }
 
 /**
@@ -136,6 +137,7 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         stepLog.durationMs = stepDuration;
         stepLog.outputCount = this.getOutputCount(step.stepType, context);
         stepLog.status = 'completed';
+        stepLog.outputSummary = this.getOutputSummary(step.stepType, context);
 
         stepLogs.push(stepLog);
 
@@ -290,6 +292,150 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         return Array.from(context.proposals.values()).reduce((sum, p) => sum + p.length, 0);
       default:
         return 0;
+    }
+  }
+
+  /**
+   * Get output summary for debugging - truncated JSON of step results
+   */
+  private getOutputSummary(stepType: string, context: PipelineContext): string {
+    const MAX_LENGTH = 5000; // Limit summary size
+
+    const truncate = (str: string) => {
+      if (str.length <= MAX_LENGTH) return str;
+      return str.substring(0, MAX_LENGTH) + '... [truncated]';
+    };
+
+    try {
+      switch (stepType) {
+        case 'filter': {
+          const messages = context.filteredMessages.slice(0, 10).map((m) => ({
+            id: m.id,
+            author: m.author,
+            content: m.content?.substring(0, 200) + (m.content?.length > 200 ? '...' : ''),
+          }));
+          return truncate(
+            JSON.stringify(
+              {
+                totalFiltered: context.filteredMessages.length,
+                sample: messages,
+              },
+              null,
+              2
+            )
+          );
+        }
+
+        case 'classify': {
+          const threads = context.threads.slice(0, 10).map((t) => ({
+            id: t.id,
+            category: t.category,
+            summary: t.summary,
+            messageCount: t.messageIds.length,
+            docValueReason: t.docValueReason,
+          }));
+          return truncate(
+            JSON.stringify(
+              {
+                totalThreads: context.threads.length,
+                threads: threads,
+              },
+              null,
+              2
+            )
+          );
+        }
+
+        case 'enrich':
+        case 'context-enrich': {
+          const ragSummary: Record<string, number> = {};
+          context.ragResults.forEach((results, threadId) => {
+            ragSummary[threadId] = results.length;
+          });
+          return truncate(
+            JSON.stringify(
+              {
+                threadsEnriched: context.ragResults.size,
+                resultsPerThread: ragSummary,
+              },
+              null,
+              2
+            )
+          );
+        }
+
+        case 'generate': {
+          const proposals: Array<{
+            threadId: string;
+            page: string;
+            section: string;
+            updateType: string;
+            contentPreview: string;
+          }> = [];
+          context.proposals.forEach((threadProposals, threadId) => {
+            threadProposals.slice(0, 5).forEach((p) => {
+              proposals.push({
+                threadId,
+                page: p.page || 'unknown',
+                section: p.section || 'unknown',
+                updateType: p.updateType || 'unknown',
+                contentPreview: p.suggestedText?.substring(0, 200) + '...',
+              });
+            });
+          });
+          return truncate(
+            JSON.stringify(
+              {
+                totalProposals: Array.from(context.proposals.values()).reduce(
+                  (sum, p) => sum + p.length,
+                  0
+                ),
+                proposals: proposals,
+              },
+              null,
+              2
+            )
+          );
+        }
+
+        case 'validate':
+        case 'condense': {
+          const proposals: Array<{
+            threadId: string;
+            page: string;
+            section: string;
+            updateType: string;
+          }> = [];
+          context.proposals.forEach((threadProposals, threadId) => {
+            threadProposals.forEach((p) => {
+              proposals.push({
+                threadId,
+                page: p.page || 'unknown',
+                section: p.section || 'unknown',
+                updateType: p.updateType || 'unknown',
+              });
+            });
+          });
+          return truncate(
+            JSON.stringify(
+              {
+                totalProposals: proposals.length,
+                proposals: proposals.slice(0, 10),
+              },
+              null,
+              2
+            )
+          );
+        }
+
+        default:
+          return JSON.stringify({ note: 'No summary available for this step type' });
+      }
+    } catch (error) {
+      return JSON.stringify({
+        error: 'Failed to generate summary',
+        details: getErrorMessage(error),
+      });
     }
   }
 

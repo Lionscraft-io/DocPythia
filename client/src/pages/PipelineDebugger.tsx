@@ -59,6 +59,7 @@ interface PipelineStep {
   outputCount?: number;
   promptUsed?: string;
   error?: string;
+  outputSummary?: string;
 }
 
 interface PipelineRun {

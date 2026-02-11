@@ -21,6 +21,7 @@ import {
   FileText,
   AlertCircle,
   ArrowRight,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -35,6 +36,7 @@ interface PipelineStep {
   outputCount?: number;
   promptUsed?: string;
   error?: string;
+  outputSummary?: string; // JSON summary of step output
 }
 
 interface PipelineProgressProps {
@@ -465,6 +467,48 @@ export default function PipelineProgress({
                               <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
                               <p className="text-sm text-red-700">{stepData.error}</p>
                             </div>
+                          </div>
+                        )}
+
+                        {/* Step Output - Expandable */}
+                        {stepData?.outputSummary && (
+                          <div className="bg-blue-50 rounded-md border border-blue-200 overflow-hidden">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePromptExpanded(`output-${stage.id}`);
+                              }}
+                              className="w-full flex items-center justify-between p-3 hover:bg-blue-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Database className="w-4 h-4 text-blue-500" />
+                                <span className="text-xs font-medium text-blue-700">
+                                  Step Output
+                                </span>
+                              </div>
+                              {expandedPrompts.has(`output-${stage.id}`) ? (
+                                <ChevronUp className="w-4 h-4 text-blue-400" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-blue-400" />
+                              )}
+                            </button>
+                            {expandedPrompts.has(`output-${stage.id}`) && (
+                              <div className="border-t border-blue-200 p-3 bg-white">
+                                <pre className="text-gray-700 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-80 overflow-y-auto">
+                                  {(() => {
+                                    try {
+                                      return JSON.stringify(
+                                        JSON.parse(stepData.outputSummary),
+                                        null,
+                                        2
+                                      );
+                                    } catch {
+                                      return stepData.outputSummary;
+                                    }
+                                  })()}
+                                </pre>
+                              </div>
+                            )}
                           </div>
                         )}
 
