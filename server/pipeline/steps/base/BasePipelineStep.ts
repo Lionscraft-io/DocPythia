@@ -15,6 +15,7 @@ import type {
   StepMetadata,
   PipelineContext,
   ILLMHandler,
+  LLMResponse,
 } from '../../core/interfaces.js';
 import { createLogger, type Logger } from '../../../utils/logger.js';
 
@@ -120,5 +121,76 @@ export abstract class BasePipelineStep implements IPipelineStep {
       throw new Error(`Step ${this.stepId} requires LLM handler but none provided`);
     }
     return this.llmHandler;
+  }
+
+  /**
+   * Helper to log LLM call data for debugging.
+   * Call this after making an LLM call to enable prompt debugging in the UI.
+   *
+   * @param context - Pipeline context
+   * @param promptId - ID of the prompt template used
+   * @param response - LLM response object
+   */
+  protected logLLMCall(context: PipelineContext, promptId: string, response: LLMResponse): void {
+    // Get the raw template
+    const template = context.prompts.get(promptId);
+
+    // Get the last rendered prompt (steps should render before calling LLM)
+    // We store the current state - steps can call this after rendering
+    context.stepPromptLogs.set(this.stepId, {
+      promptId,
+      template: template
+        ? { system: template.system, user: template.user }
+        : { system: '', user: '' },
+      resolved: { system: '', user: '' }, // Will be set by renderAndLogPrompt
+      response: response.text,
+    });
+  }
+
+  /**
+   * Helper to render a prompt and log it for debugging.
+   * Returns the rendered prompt for use in LLM calls.
+   *
+   * @param context - Pipeline context
+   * @param promptId - ID of the prompt template
+   * @param variables - Variables to substitute into the template
+   * @returns Rendered prompt with system and user strings
+   */
+  protected renderAndLogPrompt(
+    context: PipelineContext,
+    promptId: string,
+    variables: Record<string, unknown>
+  ): { system: string; user: string } {
+    // Get the raw template
+    const template = context.prompts.get(promptId);
+
+    // Render the prompt
+    const rendered = context.prompts.render(promptId, variables);
+
+    // Initialize prompt log entry (response will be added later)
+    context.stepPromptLogs.set(this.stepId, {
+      promptId,
+      template: template
+        ? { system: template.system, user: template.user }
+        : { system: '', user: '' },
+      resolved: { system: rendered.system, user: rendered.user },
+      response: '', // Will be set after LLM call
+    });
+
+    return { system: rendered.system, user: rendered.user };
+  }
+
+  /**
+   * Helper to update the LLM response in the prompt log.
+   * Call this after receiving the LLM response.
+   *
+   * @param context - Pipeline context
+   * @param response - LLM response text
+   */
+  protected updatePromptLogResponse(context: PipelineContext, response: string): void {
+    const existing = context.stepPromptLogs.get(this.stepId);
+    if (existing) {
+      existing.response = response;
+    }
   }
 }

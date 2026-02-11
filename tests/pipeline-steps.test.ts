@@ -184,6 +184,7 @@ function createMockContext(
       cacheHits: 0,
       cacheMisses: 0,
     },
+    stepPromptLogs: new Map(),
     errors: [],
     ...overrides,
   };

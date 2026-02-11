@@ -108,6 +108,7 @@ function createTestContext(overrides: Partial<PipelineContext> = {}): PipelineCo
     proposals: new Map(),
     ragResults: new Map(),
     classifications: new Map(),
+    stepPromptLogs: new Map(),
     errors: [],
     metrics: {
       totalDurationMs: 0,

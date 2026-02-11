@@ -106,6 +106,7 @@ export class ProposalGenerateStep extends BasePipelineStep {
     let totalProposals = 0;
     const maxBatchProposals = context.domainConfig.security?.maxProposalsPerBatch || 100;
 
+    let threadIndex = 0;
     for (const thread of threadsWithRag) {
       // Check if we've hit the batch limit
       if (totalProposals >= maxBatchProposals) {
@@ -115,12 +116,15 @@ export class ProposalGenerateStep extends BasePipelineStep {
 
       try {
         const ragDocs = context.ragResults.get(thread.id) || [];
+        const isFirstThread = threadIndex === 0;
         const proposals = await this.generateProposalsForThread(
           context,
           thread,
           ragDocs,
-          llmHandler
+          llmHandler,
+          isFirstThread
         );
+        threadIndex++;
 
         // Apply security filtering
         const filteredProposals = this.applySecurityFilters(proposals, context);
@@ -152,7 +156,8 @@ export class ProposalGenerateStep extends BasePipelineStep {
     context: PipelineContext,
     thread: ConversationThread,
     ragDocs: RagDocument[],
-    llmHandler: ILLMHandler
+    llmHandler: ILLMHandler,
+    isFirstThread: boolean = false
   ): Promise<Proposal[]> {
     // Render the prompt template
     const rendered = context.prompts.render(this.promptId, {
@@ -173,6 +178,19 @@ export class ProposalGenerateStep extends BasePipelineStep {
       const contextRules = this.cachedRuleset.promptContext.map((rule) => `- ${rule}`).join('\n');
       systemPrompt += `\n\n## Tenant-Specific Guidelines\n\nFollow these additional guidelines when generating proposals:\n${contextRules}`;
       this.logger.debug('Injected PROMPT_CONTEXT into system prompt');
+    }
+
+    // Log prompt for debugging (first thread only to avoid bloat)
+    if (isFirstThread) {
+      const template = context.prompts.get(this.promptId);
+      context.stepPromptLogs.set(this.stepId, {
+        promptId: this.promptId,
+        template: template
+          ? { system: template.system, user: template.user }
+          : { system: '', user: '' },
+        resolved: { system: systemPrompt, user: rendered.user },
+        response: '', // Will be updated after LLM call
+      });
     }
 
     // Call LLM for proposal generation
@@ -197,6 +215,11 @@ export class ProposalGenerateStep extends BasePipelineStep {
     context.metrics.llmCalls++;
     if (response.tokensUsed) {
       context.metrics.llmTokensUsed += response.tokensUsed;
+    }
+
+    // Log LLM response for debugging (first thread only)
+    if (isFirstThread) {
+      this.updatePromptLogResponse(context, response.text);
     }
 
     // Handle rejection

@@ -79,6 +79,9 @@ export function createPipelineContext(options: CreateContextOptions): PipelineCo
     // Metadata
     metrics: createInitialMetrics(),
     errors: [],
+
+    // Debug logging for LLM calls
+    stepPromptLogs: new Map(),
   };
 }
 
@@ -97,6 +100,7 @@ export function clonePipelineContext(context: PipelineContext): PipelineContext 
       stepDurations: new Map(context.metrics.stepDurations),
     },
     errors: [...context.errors],
+    stepPromptLogs: new Map(context.stepPromptLogs),
   };
 }
 

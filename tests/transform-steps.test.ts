@@ -81,6 +81,7 @@ const createMockContext = (proposals: Map<string, Proposal[]>): PipelineContext 
     cacheHits: 0,
     cacheMisses: 0,
   },
+  stepPromptLogs: new Map(),
   errors: [],
 });
 

@@ -40,6 +40,11 @@ interface StepLogEntry {
   promptUsed?: string;
   error?: string;
   outputSummary?: string; // Summary of step output for debugging
+  // Prompt debugging fields
+  promptId?: string;
+  promptTemplate?: { system: string; user: string };
+  promptResolved?: { system: string; user: string };
+  llmResponse?: string;
 }
 
 /**
@@ -139,6 +144,17 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         stepLog.status = 'completed';
         stepLog.outputSummary = this.getOutputSummary(step.stepType, context);
 
+        // Capture prompt logs from context (populated by LLM steps)
+        const promptLog = context.stepPromptLogs.get(step.stepId);
+        if (promptLog) {
+          stepLog.promptId = promptLog.promptId;
+          stepLog.promptTemplate = promptLog.template;
+          stepLog.promptResolved = promptLog.resolved;
+          stepLog.llmResponse = promptLog.response;
+          // Clear the log for the next step
+          context.stepPromptLogs.delete(step.stepId);
+        }
+
         stepLogs.push(stepLog);
 
         logger.debug(`Step completed: ${step.stepId}`, {
@@ -153,6 +169,17 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         stepLog.durationMs = stepDuration;
         stepLog.status = 'failed';
         stepLog.error = getErrorMessage(error);
+
+        // Capture prompt logs even on failure (may have partial data)
+        const promptLog = context.stepPromptLogs.get(step.stepId);
+        if (promptLog) {
+          stepLog.promptId = promptLog.promptId;
+          stepLog.promptTemplate = promptLog.template;
+          stepLog.promptResolved = promptLog.resolved;
+          stepLog.llmResponse = promptLog.response;
+          context.stepPromptLogs.delete(step.stepId);
+        }
+
         stepLogs.push(stepLog);
 
         const pipelineError: PipelineError = {

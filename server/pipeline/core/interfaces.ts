@@ -440,6 +440,16 @@ export interface IRagService {
 }
 
 /**
+ * LLM call log entry for debugging
+ */
+export interface StepPromptLog {
+  promptId: string;
+  template: { system: string; user: string };
+  resolved: { system: string; user: string };
+  response: string;
+}
+
+/**
  * Shared context passed through pipeline steps
  */
 export interface PipelineContext {
@@ -468,6 +478,9 @@ export interface PipelineContext {
   // Metadata
   metrics: PipelineMetrics;
   errors: PipelineError[];
+
+  // Debug logging for LLM calls (populated by steps, read by orchestrator)
+  stepPromptLogs: Map<string, StepPromptLog>;
 }
 
 // ============================================================================

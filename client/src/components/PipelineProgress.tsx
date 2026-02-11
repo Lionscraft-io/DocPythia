@@ -37,6 +37,11 @@ interface PipelineStep {
   promptUsed?: string;
   error?: string;
   outputSummary?: string; // JSON summary of step output
+  // Prompt debugging fields
+  promptId?: string;
+  promptTemplate?: { system: string; user: string };
+  promptResolved?: { system: string; user: string };
+  llmResponse?: string;
 }
 
 interface PipelineProgressProps {
@@ -152,6 +157,8 @@ function formatDuration(ms?: number): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
+type PromptViewType = 'template' | 'resolved' | 'response';
+
 export default function PipelineProgress({
   isRunning,
   currentRun,
@@ -160,6 +167,8 @@ export default function PipelineProgress({
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
   const [showAllSteps, setShowAllSteps] = useState(false);
   const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
+  // Track which view is selected for each step's prompt section
+  const [promptViews, setPromptViews] = useState<Map<string, PromptViewType>>(new Map());
 
   const togglePromptExpanded = (promptId: string) => {
     const newExpanded = new Set(expandedPrompts);
@@ -169,6 +178,16 @@ export default function PipelineProgress({
       newExpanded.add(promptId);
     }
     setExpandedPrompts(newExpanded);
+  };
+
+  const getPromptView = (stageId: string): PromptViewType => {
+    return promptViews.get(stageId) || 'template';
+  };
+
+  const setPromptView = (stageId: string, view: PromptViewType) => {
+    const newViews = new Map(promptViews);
+    newViews.set(stageId, view);
+    setPromptViews(newViews);
   };
 
   const steps = currentRun?.steps || [];
@@ -522,44 +541,177 @@ export default function PipelineProgress({
                           </div>
                         )}
 
-                        {/* Prompt Preview - Expandable */}
-                        {prompt && stage.promptId && (
+                        {/* LLM Prompt/Response - Three-way Toggle */}
+                        {(prompt ||
+                          stepData?.promptTemplate ||
+                          stepData?.promptResolved ||
+                          stepData?.llmResponse) && (
                           <div className="bg-white rounded-md border overflow-hidden">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                togglePromptExpanded(stage.promptId!);
+                                togglePromptExpanded(`prompt-${stage.id}`);
                               }}
                               className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
                             >
                               <div className="flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-gray-400" />
                                 <span className="text-xs font-medium text-gray-600">
-                                  Prompt Template: {stage.promptId}
+                                  LLM Prompt & Response
                                 </span>
+                                {stepData?.promptId && (
+                                  <code className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500">
+                                    {stepData.promptId}
+                                  </code>
+                                )}
                               </div>
-                              {expandedPrompts.has(stage.promptId) ? (
+                              {expandedPrompts.has(`prompt-${stage.id}`) ? (
                                 <ChevronUp className="w-4 h-4 text-gray-400" />
                               ) : (
                                 <ChevronDown className="w-4 h-4 text-gray-400" />
                               )}
                             </button>
-                            {expandedPrompts.has(stage.promptId) && (
+                            {expandedPrompts.has(`prompt-${stage.id}`) && (
                               <div className="border-t p-3 bg-gray-50 space-y-3">
-                                <div className="text-xs">
-                                  <span className="text-gray-500 font-medium">System Prompt:</span>
-                                  <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
-                                    {prompt.system}
-                                  </pre>
+                                {/* Toggle Buttons */}
+                                <div className="flex gap-1 p-1 bg-gray-100 rounded-md w-fit">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPromptView(stage.id, 'template');
+                                    }}
+                                    className={cn(
+                                      'px-3 py-1 text-xs font-medium rounded transition-colors',
+                                      getPromptView(stage.id) === 'template'
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                    )}
+                                  >
+                                    Template
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPromptView(stage.id, 'resolved');
+                                    }}
+                                    className={cn(
+                                      'px-3 py-1 text-xs font-medium rounded transition-colors',
+                                      getPromptView(stage.id) === 'resolved'
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                    )}
+                                    disabled={!stepData?.promptResolved}
+                                  >
+                                    Resolved
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPromptView(stage.id, 'response');
+                                    }}
+                                    className={cn(
+                                      'px-3 py-1 text-xs font-medium rounded transition-colors',
+                                      getPromptView(stage.id) === 'response'
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                    )}
+                                    disabled={!stepData?.llmResponse}
+                                  >
+                                    Response
+                                  </button>
                                 </div>
-                                {prompt.user && (
-                                  <div className="text-xs">
-                                    <span className="text-gray-500 font-medium">User Prompt:</span>
-                                    <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
-                                      {prompt.user}
-                                    </pre>
+
+                                {/* Template View */}
+                                {getPromptView(stage.id) === 'template' && (
+                                  <div className="space-y-3">
+                                    {(stepData?.promptTemplate || prompt) && (
+                                      <>
+                                        <div className="text-xs">
+                                          <span className="text-gray-500 font-medium">
+                                            System Template:
+                                          </span>
+                                          <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                            {stepData?.promptTemplate?.system ||
+                                              prompt?.system ||
+                                              '(not available)'}
+                                          </pre>
+                                        </div>
+                                        <div className="text-xs">
+                                          <span className="text-gray-500 font-medium">
+                                            User Template:
+                                          </span>
+                                          <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                            {stepData?.promptTemplate?.user ||
+                                              prompt?.user ||
+                                              '(not available)'}
+                                          </pre>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
                                 )}
+
+                                {/* Resolved Prompt View */}
+                                {getPromptView(stage.id) === 'resolved' &&
+                                  stepData?.promptResolved && (
+                                    <div className="space-y-3">
+                                      <div className="text-xs">
+                                        <span className="text-gray-500 font-medium">
+                                          System Prompt (Resolved):
+                                        </span>
+                                        <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                          {stepData.promptResolved.system || '(empty)'}
+                                        </pre>
+                                      </div>
+                                      <div className="text-xs">
+                                        <span className="text-gray-500 font-medium">
+                                          User Prompt (Resolved):
+                                        </span>
+                                        <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                          {stepData.promptResolved.user || '(empty)'}
+                                        </pre>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {/* Response View */}
+                                {getPromptView(stage.id) === 'response' &&
+                                  stepData?.llmResponse && (
+                                    <div className="text-xs">
+                                      <span className="text-gray-500 font-medium">
+                                        LLM Response:
+                                      </span>
+                                      <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-80 overflow-y-auto border">
+                                        {(() => {
+                                          try {
+                                            return JSON.stringify(
+                                              JSON.parse(stepData.llmResponse),
+                                              null,
+                                              2
+                                            );
+                                          } catch {
+                                            return stepData.llmResponse;
+                                          }
+                                        })()}
+                                      </pre>
+                                    </div>
+                                  )}
+
+                                {/* Fallback if no data */}
+                                {getPromptView(stage.id) === 'resolved' &&
+                                  !stepData?.promptResolved && (
+                                    <p className="text-xs text-gray-500 italic">
+                                      Resolved prompt not available. Run the pipeline to capture
+                                      this data.
+                                    </p>
+                                  )}
+                                {getPromptView(stage.id) === 'response' &&
+                                  !stepData?.llmResponse && (
+                                    <p className="text-xs text-gray-500 italic">
+                                      LLM response not available. Run the pipeline to capture this
+                                      data.
+                                    </p>
+                                  )}
                               </div>
                             )}
                           </div>

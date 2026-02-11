@@ -85,8 +85,8 @@ export class BatchClassifyStep extends BasePipelineStep {
 
     this.logger.info(`Classifying ${context.filteredMessages.length} messages`);
 
-    // Render the prompt template
-    const rendered = context.prompts.render(this.promptId, {
+    // Render the prompt template and log for debugging
+    const rendered = this.renderAndLogPrompt(context, this.promptId, {
       projectName: context.domainConfig.context.projectName,
       domain: context.domainConfig.context.domain,
       categories: this.formatCategories(context.domainConfig.categories),
@@ -110,6 +110,9 @@ export class BatchClassifyStep extends BasePipelineStep {
         purpose: 'classification',
       }
     );
+
+    // Log the LLM response for debugging
+    this.updatePromptLogResponse(context, response.text);
 
     // Transform LLM response into context threads
     context.threads = data.threads.map((thread, idx) => ({
