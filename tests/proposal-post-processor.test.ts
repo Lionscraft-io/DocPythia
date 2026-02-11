@@ -1046,7 +1046,7 @@ describe('MarkdownFormattingPostProcessor', () => {
       const { ListFormattingPostProcessor } =
         await import('../server/pipeline/utils/post-processors/ListFormattingPostProcessor.js');
       const processor = new ListFormattingPostProcessor();
-      const input = 'operations on the .near/data directory.2. **Check Disk Health:**';
+      const input = 'operations on the .app/data directory.2. **Check Disk Health:**';
       const result = processor.process(input, {
         targetFilePath: 'doc.md',
         fileExtension: 'md',
@@ -1358,11 +1358,11 @@ describe('Code Masking Utility', () => {
     const { maskCodeSegments, unmaskCodeSegments } =
       await import('../server/pipeline/utils/post-processors/types.js');
 
-    const input = 'Use `rpc.mainnet.near.org` for mainnet';
+    const input = 'Use `rpc.mainnet.example.org` for mainnet';
     const masked = maskCodeSegments(input);
 
     expect(masked.text).toContain('__INLINE_CODE_');
-    expect(masked.text).not.toContain('`rpc.mainnet.near.org`');
+    expect(masked.text).not.toContain('`rpc.mainnet.example.org`');
     expect(masked.masks.size).toBe(1);
 
     const restored = unmaskCodeSegments(masked);
@@ -1384,11 +1384,11 @@ describe('Code Masking Utility', () => {
 });
 
 describe('Fix #2: Sentence Run-on After Period', () => {
-  it('should fix FastNear.Please pattern', async () => {
+  it('should fix DataSync.Please pattern', async () => {
     const { MarkdownFormattingPostProcessor } =
       await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
     const processor = new MarkdownFormattingPostProcessor();
-    const result = processor.process('FastNear.Please refer to the documentation', {
+    const result = processor.process('DataSync.Please refer to the documentation', {
       targetFilePath: 'doc.md',
       fileExtension: 'md',
       isMarkdown: true,
@@ -1396,7 +1396,7 @@ describe('Fix #2: Sentence Run-on After Period', () => {
       originalText: '',
       previousWarnings: [],
     });
-    expect(result.text).toBe('FastNear. Please refer to the documentation');
+    expect(result.text).toBe('DataSync. Please refer to the documentation');
     expect(result.wasModified).toBe(true);
   });
 
@@ -1519,7 +1519,7 @@ describe('Fix #2: Sentence Run-on After Period', () => {
     const { MarkdownFormattingPostProcessor } =
       await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
     const processor = new MarkdownFormattingPostProcessor();
-    const input = 'NEAR ecosystem.Chunk producers handle';
+    const input = 'Kubernetes ecosystem.Chunk producers handle';
     const result = processor.process(input, {
       targetFilePath: 'doc.md',
       fileExtension: 'md',
@@ -1552,7 +1552,7 @@ describe('Fix #2: Sentence Run-on After Period', () => {
     const { MarkdownFormattingPostProcessor } =
       await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
     const processor = new MarkdownFormattingPostProcessor();
-    const result = processor.process('Use `rpc.mainnet.near.org` for mainnet', {
+    const result = processor.process('Use `rpc.mainnet.example.org` for mainnet', {
       targetFilePath: 'doc.md',
       fileExtension: 'md',
       isMarkdown: true,
@@ -1560,7 +1560,7 @@ describe('Fix #2: Sentence Run-on After Period', () => {
       originalText: '',
       previousWarnings: [],
     });
-    expect(result.text).toBe('Use `rpc.mainnet.near.org` for mainnet');
+    expect(result.text).toBe('Use `rpc.mainnet.example.org` for mainnet');
     expect(result.wasModified).toBe(false);
   });
 
@@ -1700,12 +1700,12 @@ describe('Fix #4: Missing Space After Markdown Link', () => {
   });
 
   // Specific pattern from proposals.txt
-  it('should fix ](https://docs.fastnear.com/docs/snapshots)T pattern from proposals', async () => {
+  it('should fix ](https://docs.example.com/docs/snapshots)T pattern from proposals', async () => {
     const { MarkdownFormattingPostProcessor } =
       await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
     const processor = new MarkdownFormattingPostProcessor();
     const result = processor.process(
-      '[FastNear Snapshots Documentation](https://docs.fastnear.com/docs/snapshots)This resource will guide',
+      '[Snapshots Documentation](https://docs.example.com/docs/snapshots)This resource will guide',
       {
         targetFilePath: 'doc.md',
         fileExtension: 'md',
@@ -1716,7 +1716,7 @@ describe('Fix #4: Missing Space After Markdown Link', () => {
       }
     );
     expect(result.text).toBe(
-      '[FastNear Snapshots Documentation](https://docs.fastnear.com/docs/snapshots) This resource will guide'
+      '[Snapshots Documentation](https://docs.example.com/docs/snapshots) This resource will guide'
     );
     expect(result.wasModified).toBe(true);
   });
@@ -1916,12 +1916,12 @@ describe('Combined New Fixes Integration', () => {
 
     // Combines: sentence run-on, link spacing, period before bold
     const input =
-      'FastNear.Please refer to [docs](https://example.com)This is deprecated.**Note:** Content';
+      'DataSync.Please refer to [docs](https://example.com)This is deprecated.**Note:** Content';
 
     const result = postProcessProposal(input, 'doc.md');
 
     // Sentence run-on fixed
-    expect(result.text).toContain('FastNear. Please');
+    expect(result.text).toContain('DataSync. Please');
     // Link spacing fixed
     expect(result.text).toContain('](https://example.com) This');
     // Period before bold fixed
@@ -2245,11 +2245,11 @@ describe('Additional Code Masking Edge Cases', () => {
     expect(result.wasModified).toBe(false);
   });
 
-  it('should NOT modify FastNear.Please pattern inside fenced code block (Fix 6 is code-masked)', async () => {
+  it('should NOT modify DataSync.Please pattern inside fenced code block (Fix 6 is code-masked)', async () => {
     const { MarkdownFormattingPostProcessor } =
       await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
     const processor = new MarkdownFormattingPostProcessor();
-    const input = '```\nconst msg = "FastNear.Please check the docs";\n```';
+    const input = '```\nconst msg = "DataSync.Please check the docs";\n```';
     const result = processor.process(input, {
       targetFilePath: 'doc.md',
       fileExtension: 'md',
@@ -2455,7 +2455,7 @@ curl http://localhost:8080/health | grep statusO echo "done"
 
 describe('Production Data Issues - Code Blocks Without Newlines (IDs 1218, 1216, 1212)', () => {
   // Issue: Multiple commands concatenated on single line within code blocks
-  // Example: "near login near stake" instead of "near login\nnear stake"
+  // Example: "git pull git push" instead of "git pull\ngit push"
   // FIXED: splitConcatenatedCommands in CodeBlockFormattingPostProcessor
 
   it('should detect and fix concatenated bash commands', async () => {
@@ -2513,7 +2513,7 @@ docker ps docker logs pythia-app
 
     // Shell commands that should be separate
     const input = `\`\`\`bash
-curl -s https://rpc.mainnet.near.org/status | jq '.version' echo "Done"
+curl -s https://api.example.com/status | jq '.version' echo "Done"
 \`\`\``;
 
     const result = processor.process(input, {
@@ -2614,7 +2614,7 @@ describe('Production Data Issues - JSON on Single Line', () => {
     const processor = new CodeBlockFormattingPostProcessor();
 
     const input = `\`\`\`json
-{"network": {"boot_nodes": ["ed25519:...@mainnet.near.org:24567"]}, "rpc": {"addr": "0.0.0.0:3030"}}
+{"network": {"boot_nodes": ["ed25519:...@mainnet.example.org:24567"]}, "rpc": {"addr": "0.0.0.0:3030"}}
 \`\`\``;
 
     const result = processor.process(input, {
@@ -2665,7 +2665,7 @@ describe('Production Data Issues - List Items Concatenated', () => {
     const processor = new ListFormattingPostProcessor();
 
     // Asterisk lists run together
-    const input = `Prerequisites:* Valid NEAR account* Access to RPC node* Sufficient disk space`;
+    const input = `Prerequisites:* Valid admin account* Access to RPC node* Sufficient disk space`;
 
     const result = processor.process(input, {
       targetFilePath: 'doc.md',
@@ -2676,7 +2676,7 @@ describe('Production Data Issues - List Items Concatenated', () => {
       previousWarnings: [],
     });
 
-    expect(result.text).toContain('Prerequisites:\n\n* Valid NEAR');
+    expect(result.text).toContain('Prerequisites:\n\n* Valid admin');
     expect(result.text).toContain('account\n\n* Access to');
     expect(result.text).toContain('node\n\n* Sufficient');
   });
@@ -2688,7 +2688,7 @@ describe('Production Data Issues - List Items Concatenated', () => {
     const processor = new ListFormattingPostProcessor();
 
     // Numbered list items run together
-    const input = `Follow these steps:1. Stop the neard service2. Backup your data directory3. Download the latest snapshot4. Start neard again`;
+    const input = `Follow these steps:1. Stop the validator service2. Backup your data directory3. Download the latest snapshot4. Start the validator again`;
 
     const result = processor.process(input, {
       targetFilePath: 'doc.md',

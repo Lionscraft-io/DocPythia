@@ -296,21 +296,21 @@ Validator Performance**: If a validator underperforms, they may be slashed.`;
   describe('Issue 8: Broken Header Text', () => {
     /**
      * From results file lines 1832-1840
-     * "Near\nBlocks" should be "NearBlocks"
+     * "Git\nHub" should be "GitHub"
      */
 
     it('should fix header split across lines', () => {
-      const input = `## Near
-Blocks
+      const input = `## Git
+Hub
 
-Created by the community, NearBlocks is a comprehensive blockchain explorer.`;
+Created by the community, GitHub is a comprehensive code hosting platform.`;
 
       const result = postProcessProposal(input, 'docs/test.md');
       recordResult('broken-header', input, result.text, result.wasModified);
 
       // Check if header is on one line
-      const hasProperHeader = result.text.includes('## NearBlocks');
-      const hasBrokenHeader = result.text.includes('## Near\nBlocks');
+      const hasProperHeader = result.text.includes('## GitHub');
+      const hasBrokenHeader = result.text.includes('## Git\nHub');
 
       // Document current behavior
       expect(hasBrokenHeader || hasProperHeader).toBeDefined();

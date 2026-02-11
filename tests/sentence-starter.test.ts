@@ -238,10 +238,10 @@ describe('Header Splitting with Sentence Starters', () => {
       expect(result.wasModified).toBe(false);
     });
 
-    it('should preserve NearBlocks', () => {
-      const input = '### NearBlocks Explorer Integration';
+    it('should preserve PostHog', () => {
+      const input = '### PostHog Analytics Integration';
       const result = processor.process(input, context);
-      expect(result.text).toBe('### NearBlocks Explorer Integration');
+      expect(result.text).toBe('### PostHog Analytics Integration');
       expect(result.wasModified).toBe(false);
     });
 
@@ -367,7 +367,7 @@ describe('Real-world examples from production', () => {
   const processor = new MarkdownFormattingPostProcessor();
   const context = { isMarkdown: true, originalText: '', filePath: 'test.md' };
 
-  it('should handle NEAR documentation headers correctly', () => {
+  it('should handle real-world documentation headers correctly', () => {
     const examples = [
       // Should NOT split - CamelCase identifiers
       { input: '## StateSync Configuration', expected: '## StateSync Configuration' },
