@@ -317,9 +317,8 @@ export default function PipelineDebugger() {
       }
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       refetchPending();
-      alert(`Created ${data.messageIds?.length || 0} test message(s). Check Pending Messages.`);
     },
     onError: (error) => {
       alert(`Error: ${error.message}`);
