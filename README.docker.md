@@ -73,7 +73,7 @@ psql -h localhost -p 5433 -U docsai -d docsai
 
 **Default credentials:**
 - User: `docsai`
-- Password: `docsai_secure_password`
+- Password: Set via `POSTGRES_PASSWORD` environment variable (default: `changeme`)
 - Database: `docsai`
 
 ## Development Mode

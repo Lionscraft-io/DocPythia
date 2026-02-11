@@ -39,7 +39,7 @@ API endpoints may be rate-limited in production. Check response headers for rate
     `,
     contact: {
       name: 'API Support',
-      url: config.branding?.projectUrl || 'https://github.com/lionscraft/docsai',
+      url: config.branding?.projectUrl || 'https://github.com/Lionscraft-io/NearDocsAI',
     },
     license: {
       name: 'MIT',

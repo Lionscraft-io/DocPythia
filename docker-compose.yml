@@ -7,9 +7,9 @@ services:
     container_name: docsai-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: docsai
-      POSTGRES_PASSWORD: docsai_secure_password
-      POSTGRES_DB: docsai
+      POSTGRES_USER: ${POSTGRES_USER:-docsai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-docsai}
     volumes:
       - docsai_db_data:/var/lib/postgresql/data
     ports:
@@ -35,10 +35,10 @@ services:
       - "${APP_PORT:-3762}:8080"  # Map host port 3762 to container port 8080
     environment:
       # Database connection (points to db service)
-      DATABASE_URL: postgresql://docsai:docsai_secure_password@db:5432/docsai
+      DATABASE_URL: postgresql://${POSTGRES_USER:-docsai}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-docsai}
 
       # Admin authentication
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-docsai_admin_token_change_me}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-changeme}
 
       # Application settings
       NODE_ENV: production

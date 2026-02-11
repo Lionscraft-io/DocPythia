@@ -2,13 +2,13 @@
 
 **Your bot is ready to configure!**
 
-Bot Token: `8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8`
+Bot Token: `YOUR_TELEGRAM_BOT_TOKEN` (get from @BotFather)
 
 ## Step 1: Register Stream in Database
 
 ```bash
 # From project root
-PGPASSWORD=docsai_secure_password psql -h localhost -p 5433 -U docsai -d docsai -f scripts/permanent/setup-telegram-bot.sql
+PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -p 5433 -U docsai -d docsai -f scripts/permanent/setup-telegram-bot.sql
 ```
 
 This creates the `telegram-bot` stream configuration.
@@ -25,7 +25,7 @@ This creates the `telegram-bot` stream configuration.
 
 ```bash
 # Send a message in your group first, then run:
-curl https://api.telegram.org/bot8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8/getUpdates
+curl https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/getUpdates
 
 # Look for "chat":{"id":-1001234567890}
 # Copy the chat ID (including the minus sign)
@@ -62,7 +62,7 @@ Telegram bot polling started
 
 3. **Verify in database**:
    ```bash
-   PGPASSWORD=docsai_secure_password psql -h localhost -p 5433 -U docsai -d docsai -c "SELECT id, author, channel, LEFT(content, 50) as content FROM unified_messages WHERE stream_id = 'telegram-bot' ORDER BY timestamp DESC LIMIT 5;"
+   PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -p 5433 -U docsai -d docsai -c "SELECT id, author, channel, LEFT(content, 50) as content FROM unified_messages WHERE stream_id = 'telegram-bot' ORDER BY timestamp DESC LIMIT 5;"
    ```
 
 ## Step 6: Process Messages
@@ -112,7 +112,7 @@ If someone sends commands in the group:
 
 1. **Check bot permissions:**
    ```bash
-   curl https://api.telegram.org/bot8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8/getMe
+   curl https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/getMe
    ```
 
 2. **Check privacy settings** with @BotFather:

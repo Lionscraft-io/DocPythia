@@ -7,8 +7,7 @@ import https from 'https';
 import dns from 'dns';
 import { promisify } from 'util';
 
-const BOT_TOKEN =
-  process.env.TELEGRAM_BOT_TOKEN || '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8';
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}/getMe`;
 const API_HOST = 'api.telegram.org';
 

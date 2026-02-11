@@ -10,7 +10,7 @@ VALUES (
   'telegram-bot',
   'telegram-bot',
   jsonb_build_object(
-    'botToken', '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8',
+    'botToken', 'YOUR_TELEGRAM_BOT_TOKEN',
     'mode', 'polling',
     'pollingInterval', 3000,
     'allowedChats', '[]'::jsonb,  -- Empty array = allow all chats

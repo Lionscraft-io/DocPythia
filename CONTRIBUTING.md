@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/lionscraft/docsai/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/Lionscraft-io/NearDocsAI/issues)
 2. If not, create a new issue using the bug report template
 3. Include:
    - Clear description of the bug

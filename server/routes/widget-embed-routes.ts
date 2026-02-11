@@ -4,7 +4,7 @@ const router = Router();
 
 // Widget JavaScript library
 router.get('/widget.js', (req: Request, res: Response) => {
-  const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
+  const domain = process.env.WIDGET_DOMAIN || 'http://localhost:3762';
   const projectName = process.env.PROJECT_NAME || 'DocsAI';
   const widgetNamespace = process.env.WIDGET_NAMESPACE || 'DocsAIWidget';
 
@@ -126,7 +126,7 @@ router.get('/widget.js', (req: Request, res: Response) => {
 
 // Widget demo page
 router.get('/widget-demo', (req: Request, res: Response) => {
-  const domain = process.env.WIDGET_DOMAIN || 'https://experthub.lionscraft.io';
+  const domain = process.env.WIDGET_DOMAIN || 'http://localhost:3762';
   const projectName = process.env.PROJECT_NAME || 'DocsAI';
   const widgetNamespace = process.env.WIDGET_NAMESPACE || 'DocsAIWidget';
 

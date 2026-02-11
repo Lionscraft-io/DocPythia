@@ -13,8 +13,7 @@ const resolve4 = promisify(dns.resolve4);
 const resolve6 = promisify(dns.resolve6);
 const lookup = promisify(dns.lookup);
 
-const BOT_TOKEN =
-  process.env.TELEGRAM_BOT_TOKEN || '8578664234:AAHG0lJzyMHYQVRjSfHTub42CYc9zEreMm8';
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const HOST = 'api.telegram.org';
 const PATH = `/bot${BOT_TOKEN}/getMe`;
 

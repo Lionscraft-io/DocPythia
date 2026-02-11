@@ -14,7 +14,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 const API_URL = process.env.API_URL || 'http://localhost:3762';
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '2221SEi_888asd';
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'changeme';
 const INBOX_DIR = process.env.CSV_INBOX_DIR || '/tmp/csv-test/inbox';
 const PROCESSED_DIR = process.env.CSV_PROCESSED_DIR || '/tmp/csv-test/processed';
 const STREAM_ID = process.env.STREAM_ID || 'csv-test';

@@ -43,3 +43,10 @@ config/*/
 config/instance.json
 !config/*.example.json
 !config/doc-index-README.md
+
+# Local Claude settings (may contain connection strings)
+.claude/settings.local.json
+
+# Draft/temporary documentation
+docs/temp/
+temp_docs/

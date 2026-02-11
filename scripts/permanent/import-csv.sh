@@ -33,7 +33,7 @@ fi
 INBOX_DIR="${CSV_INBOX_DIR:-/tmp/csv-test/inbox}"
 PROCESSED_DIR="${CSV_PROCESSED_DIR:-/tmp/csv-test/processed}"
 API_URL="${API_URL:-http://localhost:3762}"
-ADMIN_TOKEN="${ADMIN_TOKEN:-2221SEi_888asd}"
+ADMIN_TOKEN="${ADMIN_TOKEN:-changeme}"
 STREAM_ID="${STREAM_ID:-csv-test}"
 
 echo "============================================"
