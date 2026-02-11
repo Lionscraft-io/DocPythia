@@ -1,6 +1,3 @@
--- Install pgvector extension for vector embeddings (RAG)
-CREATE EXTENSION IF NOT EXISTS vector;
-
 -- CreateEnum
 CREATE TYPE "SectionType" AS ENUM ('text', 'info', 'warning', 'success');
 
@@ -24,6 +21,9 @@ CREATE TYPE "ProcessingStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'F
 
 -- CreateEnum
 CREATE TYPE "ProposalStatus" AS ENUM ('pending', 'approved', 'ignored');
+
+-- CreateEnum
+CREATE TYPE "BatchStatus" AS ENUM ('draft', 'submitted', 'merged', 'closed');
 
 -- CreateTable
 CREATE TABLE "documentation_sections" (
@@ -187,7 +187,8 @@ CREATE TABLE "import_watermarks" (
 
 -- CreateTable
 CREATE TABLE "processing_watermark" (
-    "id" INTEGER NOT NULL DEFAULT 1,
+    "id" SERIAL NOT NULL,
+    "stream_id" TEXT NOT NULL,
     "watermark_time" TIMESTAMP(3) NOT NULL,
     "last_processed_batch" TIMESTAMP(3),
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -256,6 +257,7 @@ CREATE TABLE "doc_proposals" (
     "section" TEXT,
     "location" JSONB,
     "suggested_text" TEXT,
+    "raw_suggested_text" TEXT,
     "reasoning" TEXT,
     "source_messages" JSONB,
     "status" "ProposalStatus" NOT NULL DEFAULT 'pending',
@@ -267,9 +269,133 @@ CREATE TABLE "doc_proposals" (
     "admin_reviewed_by" TEXT,
     "discard_reason" TEXT,
     "model_used" TEXT,
+    "warnings" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "pr_batch_id" INTEGER,
+    "pr_application_status" TEXT,
+    "pr_application_error" TEXT,
+    "enrichment" JSONB,
 
     CONSTRAINT "doc_proposals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "changeset_batches" (
+    "id" SERIAL NOT NULL,
+    "batch_id" TEXT NOT NULL,
+    "status" "BatchStatus" NOT NULL DEFAULT 'draft',
+    "pr_title" TEXT,
+    "pr_body" TEXT,
+    "pr_url" TEXT,
+    "pr_number" INTEGER,
+    "branch_name" TEXT,
+    "total_proposals" INTEGER NOT NULL,
+    "affected_files" JSONB NOT NULL,
+    "target_repo" TEXT,
+    "source_repo" TEXT,
+    "base_branch" TEXT DEFAULT 'main',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "submitted_at" TIMESTAMP(3),
+    "submitted_by" TEXT,
+
+    CONSTRAINT "changeset_batches_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "batch_proposals" (
+    "id" SERIAL NOT NULL,
+    "batch_id" INTEGER NOT NULL,
+    "proposal_id" INTEGER NOT NULL,
+    "order_index" INTEGER NOT NULL,
+    "added_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "batch_proposals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "proposal_failures" (
+    "id" SERIAL NOT NULL,
+    "batch_id" INTEGER NOT NULL,
+    "proposal_id" INTEGER NOT NULL,
+    "failure_type" TEXT NOT NULL,
+    "error_message" TEXT NOT NULL,
+    "file_path" TEXT NOT NULL,
+    "attempted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "proposal_failures_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "tenant_rulesets" (
+    "id" SERIAL NOT NULL,
+    "tenant_id" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "tenant_rulesets_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "tenant_prompt_overrides" (
+    "id" SERIAL NOT NULL,
+    "tenant_id" TEXT NOT NULL,
+    "prompt_key" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "tenant_prompt_overrides_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ruleset_feedback" (
+    "id" SERIAL NOT NULL,
+    "tenant_id" TEXT NOT NULL,
+    "proposal_id" INTEGER,
+    "action_taken" TEXT NOT NULL,
+    "feedback_text" TEXT NOT NULL,
+    "use_for_improvement" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "processed_at" TIMESTAMP(3),
+
+    CONSTRAINT "ruleset_feedback_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "proposal_review_logs" (
+    "id" SERIAL NOT NULL,
+    "proposal_id" INTEGER NOT NULL,
+    "ruleset_version" TIMESTAMP(3) NOT NULL,
+    "original_content" TEXT,
+    "modifications_applied" JSONB,
+    "rejected" BOOLEAN NOT NULL DEFAULT false,
+    "rejection_reason" TEXT,
+    "quality_flags" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "proposal_review_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "pipeline_run_logs" (
+    "id" SERIAL NOT NULL,
+    "instance_id" TEXT NOT NULL,
+    "batch_id" TEXT NOT NULL,
+    "pipeline_id" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'running',
+    "input_messages" INTEGER NOT NULL,
+    "steps" JSONB NOT NULL,
+    "output_threads" INTEGER,
+    "output_proposals" INTEGER,
+    "total_duration_ms" INTEGER,
+    "llm_calls" INTEGER,
+    "llm_tokens_used" INTEGER,
+    "error_message" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completed_at" TIMESTAMP(3),
+
+    CONSTRAINT "pipeline_run_logs_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -295,6 +421,9 @@ CREATE INDEX "import_watermarks_stream_id_resource_id_idx" ON "import_watermarks
 
 -- CreateIndex
 CREATE UNIQUE INDEX "import_watermarks_stream_id_resource_id_key" ON "import_watermarks"("stream_id", "resource_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "processing_watermark_stream_id_key" ON "processing_watermark"("stream_id");
 
 -- CreateIndex
 CREATE INDEX "unified_messages_timestamp_idx" ON "unified_messages"("timestamp" DESC);
@@ -332,6 +461,72 @@ CREATE INDEX "doc_proposals_status_idx" ON "doc_proposals"("status");
 -- CreateIndex
 CREATE INDEX "doc_proposals_admin_approved_idx" ON "doc_proposals"("admin_approved");
 
+-- CreateIndex
+CREATE INDEX "doc_proposals_pr_batch_id_idx" ON "doc_proposals"("pr_batch_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "changeset_batches_batch_id_key" ON "changeset_batches"("batch_id");
+
+-- CreateIndex
+CREATE INDEX "changeset_batches_status_idx" ON "changeset_batches"("status");
+
+-- CreateIndex
+CREATE INDEX "changeset_batches_submitted_at_idx" ON "changeset_batches"("submitted_at");
+
+-- CreateIndex
+CREATE INDEX "batch_proposals_batch_id_idx" ON "batch_proposals"("batch_id");
+
+-- CreateIndex
+CREATE INDEX "batch_proposals_proposal_id_idx" ON "batch_proposals"("proposal_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "batch_proposals_batch_id_proposal_id_key" ON "batch_proposals"("batch_id", "proposal_id");
+
+-- CreateIndex
+CREATE INDEX "proposal_failures_batch_id_idx" ON "proposal_failures"("batch_id");
+
+-- CreateIndex
+CREATE INDEX "proposal_failures_proposal_id_idx" ON "proposal_failures"("proposal_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "tenant_rulesets_tenant_id_key" ON "tenant_rulesets"("tenant_id");
+
+-- CreateIndex
+CREATE INDEX "tenant_prompt_overrides_tenant_id_idx" ON "tenant_prompt_overrides"("tenant_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "tenant_prompt_overrides_tenant_id_prompt_key_key" ON "tenant_prompt_overrides"("tenant_id", "prompt_key");
+
+-- CreateIndex
+CREATE INDEX "ruleset_feedback_tenant_id_idx" ON "ruleset_feedback"("tenant_id");
+
+-- CreateIndex
+CREATE INDEX "ruleset_feedback_proposal_id_idx" ON "ruleset_feedback"("proposal_id");
+
+-- CreateIndex
+CREATE INDEX "ruleset_feedback_processed_at_idx" ON "ruleset_feedback"("processed_at");
+
+-- CreateIndex
+CREATE INDEX "ruleset_feedback_use_for_improvement_idx" ON "ruleset_feedback"("use_for_improvement");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "proposal_review_logs_proposal_id_key" ON "proposal_review_logs"("proposal_id");
+
+-- CreateIndex
+CREATE INDEX "proposal_review_logs_proposal_id_idx" ON "proposal_review_logs"("proposal_id");
+
+-- CreateIndex
+CREATE INDEX "pipeline_run_logs_instance_id_idx" ON "pipeline_run_logs"("instance_id");
+
+-- CreateIndex
+CREATE INDEX "pipeline_run_logs_batch_id_idx" ON "pipeline_run_logs"("batch_id");
+
+-- CreateIndex
+CREATE INDEX "pipeline_run_logs_created_at_idx" ON "pipeline_run_logs"("created_at");
+
+-- CreateIndex
+CREATE INDEX "pipeline_run_logs_status_idx" ON "pipeline_run_logs"("status");
+
 -- AddForeignKey
 ALTER TABLE "update_history" ADD CONSTRAINT "update_history_updateId_fkey" FOREIGN KEY ("updateId") REFERENCES "pending_updates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -349,3 +544,28 @@ ALTER TABLE "unified_messages" ADD CONSTRAINT "unified_messages_stream_id_fkey" 
 
 -- AddForeignKey
 ALTER TABLE "message_classification" ADD CONSTRAINT "message_classification_message_id_fkey" FOREIGN KEY ("message_id") REFERENCES "unified_messages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "doc_proposals" ADD CONSTRAINT "doc_proposals_pr_batch_id_fkey" FOREIGN KEY ("pr_batch_id") REFERENCES "changeset_batches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "batch_proposals" ADD CONSTRAINT "batch_proposals_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "changeset_batches"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "batch_proposals" ADD CONSTRAINT "batch_proposals_proposal_id_fkey" FOREIGN KEY ("proposal_id") REFERENCES "doc_proposals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "proposal_failures" ADD CONSTRAINT "proposal_failures_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "changeset_batches"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "proposal_failures" ADD CONSTRAINT "proposal_failures_proposal_id_fkey" FOREIGN KEY ("proposal_id") REFERENCES "doc_proposals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ruleset_feedback" ADD CONSTRAINT "ruleset_feedback_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenant_rulesets"("tenant_id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ruleset_feedback" ADD CONSTRAINT "ruleset_feedback_proposal_id_fkey" FOREIGN KEY ("proposal_id") REFERENCES "doc_proposals"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "proposal_review_logs" ADD CONSTRAINT "proposal_review_logs_proposal_id_fkey" FOREIGN KEY ("proposal_id") REFERENCES "doc_proposals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
