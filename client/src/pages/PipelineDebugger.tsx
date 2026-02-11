@@ -16,8 +16,6 @@ import {
   CheckCircle2,
   Clock,
   Layers,
-  ChevronDown,
-  ChevronUp,
   FileText,
   Edit,
   X,
@@ -113,7 +111,6 @@ export default function PipelineDebugger() {
   const apiPrefix = getInstancePrefix();
 
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
-  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
   const [editedSystem, setEditedSystem] = useState('');
   const [editedUser, setEditedUser] = useState('');
@@ -331,16 +328,6 @@ export default function PipelineDebugger() {
   const navigateBack = () => {
     const basePath = apiPrefix ? `${apiPrefix}/admin` : '/admin';
     setLocation(basePath);
-  };
-
-  const toggleStep = (stepName: string) => {
-    const newExpanded = new Set(expandedSteps);
-    if (newExpanded.has(stepName)) {
-      newExpanded.delete(stepName);
-    } else {
-      newExpanded.add(stepName);
-    }
-    setExpandedSteps(newExpanded);
   };
 
   const startEditingPrompt = (prompt: PromptWithOverride) => {
@@ -604,95 +591,19 @@ export default function PipelineDebugger() {
                         </Alert>
                       )}
 
-                      {/* Steps */}
+                      {/* Pipeline Progress Visualization */}
                       <div>
-                        <h4 className="font-semibold text-gray-900 mb-3">Pipeline Steps</h4>
-                        <div className="space-y-2">
-                          {selectedRun.steps.map((step, index) => {
-                            const isExpanded = expandedSteps.has(step.stepName);
-                            return (
-                              <div
-                                key={index}
-                                className={`border rounded-lg overflow-hidden ${
-                                  step.status === 'failed'
-                                    ? 'border-red-200'
-                                    : step.status === 'skipped'
-                                      ? 'border-gray-200 bg-gray-50'
-                                      : 'border-gray-200'
-                                }`}
-                              >
-                                <div
-                                  className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
-                                  onClick={() => toggleStep(step.stepName)}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
-                                      {index + 1}
-                                    </span>
-                                    <span className="font-medium">{step.stepName}</span>
-                                    {step.status === 'completed' && (
-                                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                                    )}
-                                    {step.status === 'failed' && (
-                                      <AlertCircle className="w-4 h-4 text-red-500" />
-                                    )}
-                                    {step.status === 'skipped' && (
-                                      <span className="text-xs text-gray-500">skipped</span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-4">
-                                    <span className="text-sm text-gray-500">
-                                      {formatDuration(step.durationMs)}
-                                    </span>
-                                    {isExpanded ? (
-                                      <ChevronUp className="w-4 h-4 text-gray-400" />
-                                    ) : (
-                                      <ChevronDown className="w-4 h-4 text-gray-400" />
-                                    )}
-                                  </div>
-                                </div>
-
-                                {isExpanded && (
-                                  <div className="border-t p-3 bg-gray-50 space-y-2">
-                                    <div className="grid grid-cols-2 gap-4 text-sm">
-                                      {step.inputCount !== undefined && (
-                                        <div>
-                                          <span className="text-gray-500">Input:</span>
-                                          <span className="ml-2 font-medium">
-                                            {step.inputCount} items
-                                          </span>
-                                        </div>
-                                      )}
-                                      {step.outputCount !== undefined && (
-                                        <div>
-                                          <span className="text-gray-500">Output:</span>
-                                          <span className="ml-2 font-medium">
-                                            {step.outputCount} items
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                    {step.promptUsed && (
-                                      <div className="text-sm">
-                                        <span className="text-gray-500">Prompt used:</span>
-                                        <code className="ml-2 px-1.5 py-0.5 bg-gray-200 rounded text-xs">
-                                          {step.promptUsed}
-                                        </code>
-                                      </div>
-                                    )}
-                                    {step.error && (
-                                      <Alert variant="destructive" className="mt-2">
-                                        <AlertDescription className="text-sm font-mono">
-                                          {step.error}
-                                        </AlertDescription>
-                                      </Alert>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <h4 className="font-semibold text-gray-900 mb-3">Pipeline Progress</h4>
+                        <PipelineProgress
+                          isRunning={selectedRun.status === 'running'}
+                          currentRun={selectedRun}
+                          prompts={promptsData?.prompts?.map((p) => ({
+                            id: p.id,
+                            system: p.override?.system || p.system,
+                            user: p.override?.user || p.user,
+                            metadata: p.metadata,
+                          }))}
+                        />
                       </div>
                     </CardContent>
                   </Card>

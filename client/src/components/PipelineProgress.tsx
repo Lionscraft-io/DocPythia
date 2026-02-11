@@ -17,8 +17,10 @@ import {
   Loader2,
   Clock,
   ChevronUp,
+  ChevronDown,
   FileText,
   AlertCircle,
+  ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -154,6 +156,7 @@ export default function PipelineProgress({
   prompts,
 }: PipelineProgressProps) {
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
+  const [showAllSteps, setShowAllSteps] = useState(false);
 
   const steps = currentRun?.steps || [];
   const showProgress = isRunning || (currentRun && currentRun.status !== 'pending');
@@ -292,115 +295,201 @@ export default function PipelineProgress({
             })}
           </div>
 
-          {/* Stage Labels */}
+          {/* Stage Labels with Input/Output Counts */}
           <div className="flex items-center justify-between mb-4">
-            {PIPELINE_STAGES.map((stage) => (
-              <div key={`label-${stage.id}`} className="w-12 text-center">
-                <span className="text-[10px] text-gray-500 font-medium">{stage.name}</span>
-              </div>
-            ))}
+            {PIPELINE_STAGES.map((stage) => {
+              const stepData = getStepData(stage.stepType, steps);
+              return (
+                <div key={`label-${stage.id}`} className="w-12 text-center">
+                  <span className="text-[10px] text-gray-500 font-medium block">{stage.name}</span>
+                  {stepData &&
+                    (stepData.inputCount !== undefined || stepData.outputCount !== undefined) && (
+                      <span className="text-[9px] text-gray-400 block">
+                        {stepData.inputCount ?? '?'} → {stepData.outputCount ?? '?'}
+                      </span>
+                    )}
+                </div>
+              );
+            })}
           </div>
 
-          {/* Expanded Stage Details */}
-          {expandedStage && (
-            <div className="border-t pt-4 mt-2">
-              {(() => {
-                const stage = PIPELINE_STAGES.find((s) => s.id === expandedStage);
-                const stepData = stage ? getStepData(stage.stepType, steps) : null;
-                const prompt = prompts?.find((p) => p.id === stage?.promptId);
+          {/* Expand All Steps Toggle */}
+          <div className="border-t pt-3 mt-2">
+            <button
+              onClick={() => {
+                setShowAllSteps(!showAllSteps);
+                setExpandedStage(null);
+              }}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors w-full"
+            >
+              {showAllSteps ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+              <span className="font-medium">{showAllSteps ? 'Hide' : 'Show'} Step Details</span>
+              {steps.length > 0 && (
+                <span className="text-gray-400">({steps.length} steps executed)</span>
+              )}
+            </button>
+          </div>
 
-                if (!stage) return null;
+          {/* All Steps List View */}
+          {showAllSteps && (
+            <div className="mt-4 space-y-2">
+              {PIPELINE_STAGES.map((stage, index) => {
+                const stepData = getStepData(stage.stepType, steps);
+                const status = getStepStatus(stage.stepType, steps, isRunning);
+                const prompt = prompts?.find((p) => p.id === stage.promptId);
 
                 return (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <stage.icon className="w-5 h-5 text-gray-600" />
-                        <span className="font-medium">{stage.name} Step</span>
-                        {stepData?.status && (
-                          <Badge
-                            className={cn(
-                              'text-xs',
-                              stepData.status === 'completed' && 'bg-green-100 text-green-800',
-                              stepData.status === 'failed' && 'bg-red-100 text-red-800',
-                              stepData.status === 'running' && 'bg-blue-100 text-blue-800',
-                              stepData.status === 'skipped' && 'bg-gray-100 text-gray-800'
-                            )}
-                          >
-                            {stepData.status}
-                          </Badge>
+                  <div
+                    key={stage.id}
+                    className={cn(
+                      'border rounded-lg overflow-hidden',
+                      status === 'failed' && 'border-red-200',
+                      status === 'skipped' && 'border-gray-200 bg-gray-50 opacity-60',
+                      status === 'completed' && 'border-green-200',
+                      status === 'running' && 'border-blue-200 bg-blue-50',
+                      status === 'pending' && 'border-gray-200'
+                    )}
+                  >
+                    <div
+                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
+                      onClick={() => setExpandedStage(expandedStage === stage.id ? null : stage.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            'w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium',
+                            status === 'completed' && 'bg-green-100 text-green-700',
+                            status === 'failed' && 'bg-red-100 text-red-700',
+                            status === 'running' && 'bg-blue-100 text-blue-700',
+                            status === 'skipped' && 'bg-gray-100 text-gray-500',
+                            status === 'pending' && 'bg-gray-100 text-gray-500'
+                          )}
+                        >
+                          {index + 1}
+                        </span>
+                        <stage.icon
+                          className={cn(
+                            'w-4 h-4',
+                            status === 'completed' && 'text-green-600',
+                            status === 'failed' && 'text-red-600',
+                            status === 'running' && 'text-blue-600',
+                            (status === 'skipped' || status === 'pending') && 'text-gray-400'
+                          )}
+                        />
+                        <span className="font-medium">{stage.name}</span>
+                        <Badge
+                          className={cn(
+                            'text-xs',
+                            status === 'completed' && 'bg-green-100 text-green-800',
+                            status === 'failed' && 'bg-red-100 text-red-800',
+                            status === 'running' && 'bg-blue-100 text-blue-800',
+                            status === 'skipped' && 'bg-gray-100 text-gray-600',
+                            status === 'pending' && 'bg-gray-100 text-gray-600'
+                          )}
+                        >
+                          {status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        {stepData &&
+                          (stepData.inputCount !== undefined ||
+                            stepData.outputCount !== undefined) && (
+                            <span className="flex items-center gap-1">
+                              <span>{stepData.inputCount ?? '-'}</span>
+                              <ArrowRight className="w-3 h-3" />
+                              <span>{stepData.outputCount ?? '-'}</span>
+                            </span>
+                          )}
+                        {stepData?.durationMs !== undefined && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatDuration(stepData.durationMs)}
+                          </span>
+                        )}
+                        {expandedStage === stage.id ? (
+                          <ChevronUp className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
                         )}
                       </div>
-                      <button
-                        onClick={() => setExpandedStage(null)}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <ChevronUp className="w-4 h-4" />
-                      </button>
                     </div>
 
-                    <p className="text-sm text-gray-600">{stage.description}</p>
+                    {/* Expanded Details for this step */}
+                    {expandedStage === stage.id && (
+                      <div className="border-t p-3 bg-gray-50 space-y-3">
+                        <p className="text-sm text-gray-600">{stage.description}</p>
 
-                    {/* Input/Output Counts */}
-                    {stepData &&
-                      (stepData.inputCount !== undefined || stepData.outputCount !== undefined) && (
-                        <div className="flex gap-4 text-sm">
-                          {stepData.inputCount !== undefined && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-gray-500">Input:</span>
-                              <span className="font-medium">{stepData.inputCount} items</span>
+                        {/* Input/Output Details */}
+                        {stepData &&
+                          (stepData.inputCount !== undefined ||
+                            stepData.outputCount !== undefined) && (
+                            <div className="flex gap-6 text-sm">
+                              {stepData.inputCount !== undefined && (
+                                <div>
+                                  <span className="text-gray-500">Input:</span>
+                                  <span className="ml-2 font-medium">
+                                    {stepData.inputCount} items
+                                  </span>
+                                </div>
+                              )}
+                              {stepData.outputCount !== undefined && (
+                                <div>
+                                  <span className="text-gray-500">Output:</span>
+                                  <span className="ml-2 font-medium">
+                                    {stepData.outputCount} items
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           )}
-                          {stepData.outputCount !== undefined && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-gray-500">Output:</span>
-                              <span className="font-medium">{stepData.outputCount} items</span>
+
+                        {/* Error */}
+                        {stepData?.error && (
+                          <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                              <p className="text-sm text-red-700">{stepData.error}</p>
                             </div>
-                          )}
-                          {stepData.durationMs !== undefined && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-gray-400" />
-                              <span className="font-medium">
-                                {formatDuration(stepData.durationMs)}
+                          </div>
+                        )}
+
+                        {/* Prompt Used */}
+                        {stepData?.promptUsed && (
+                          <div className="text-sm">
+                            <span className="text-gray-500">Prompt:</span>
+                            <code className="ml-2 px-1.5 py-0.5 bg-gray-200 rounded text-xs">
+                              {stepData.promptUsed}
+                            </code>
+                          </div>
+                        )}
+
+                        {/* Prompt Preview */}
+                        {prompt && (
+                          <div className="bg-white rounded-md p-3 border">
+                            <div className="flex items-center gap-2 mb-2">
+                              <FileText className="w-4 h-4 text-gray-400" />
+                              <span className="text-xs font-medium text-gray-600">
+                                Prompt Template: {stage.promptId}
                               </span>
                             </div>
-                          )}
-                        </div>
-                      )}
-
-                    {/* Error Message */}
-                    {stepData?.error && (
-                      <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />
-                          <p className="text-sm text-red-700">{stepData.error}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Prompt Preview */}
-                    {prompt && (
-                      <div className="bg-gray-50 rounded-md p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FileText className="w-4 h-4 text-gray-400" />
-                          <span className="text-xs font-medium text-gray-600">
-                            Prompt: {stage.promptId}
-                          </span>
-                        </div>
-                        <div className="space-y-2 text-xs">
-                          <div>
-                            <span className="text-gray-500">System:</span>
-                            <p className="text-gray-700 font-mono bg-white p-2 rounded mt-1 max-h-24 overflow-y-auto">
-                              {prompt.system.substring(0, 500)}
-                              {prompt.system.length > 500 && '...'}
-                            </p>
+                            <div className="text-xs">
+                              <span className="text-gray-500">System prompt preview:</span>
+                              <p className="text-gray-700 font-mono bg-gray-50 p-2 rounded mt-1 max-h-20 overflow-y-auto">
+                                {prompt.system.substring(0, 300)}
+                                {prompt.system.length > 300 && '...'}
+                              </p>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     )}
                   </div>
                 );
-              })()}
+              })}
             </div>
           )}
         </div>
