@@ -22,6 +22,7 @@ import {
 } from '../../core/interfaces.js';
 import { postProcessProposal } from '../../utils/ProposalPostProcessor.js';
 import { parseRuleset, type ParsedRuleset } from '../../types/ruleset.js';
+import { getErrorMessage } from '../../../utils/logger.js';
 
 /**
  * Configuration for ProposalGenerateStep
@@ -132,6 +133,16 @@ export class ProposalGenerateStep extends BasePipelineStep {
         this.logger.debug(`Thread ${thread.id}: generated ${limitedProposals.length} proposals`);
       } catch (error) {
         this.logger.error(`Failed to generate proposals for thread ${thread.id}:`, error);
+
+        // Capture error in the prompt log so it's visible in the Pipeline Debugger response tab
+        const entries = context.stepPromptLogs.get(this.stepId);
+        if (entries && entries.length > 0) {
+          const lastEntry = entries[entries.length - 1];
+          if (!lastEntry.response) {
+            lastEntry.response = `ERROR: ${getErrorMessage(error)}`;
+          }
+        }
+
         context.proposals.set(thread.id, []);
       }
     }

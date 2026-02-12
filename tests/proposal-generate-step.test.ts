@@ -406,6 +406,57 @@ describe('ProposalGenerateStep', () => {
     });
   });
 
+  describe('error capture in prompt log', () => {
+    it('should capture LLM errors in prompt log response field', async () => {
+      const llmHandler = createMockLLMHandler([]);
+      // Make requestJSON throw an error
+      (llmHandler.requestJSON as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Gemini API rate limit exceeded')
+      );
+      const step = createStep(llmHandler);
+
+      const context = createMockContext({
+        threads: [createThread('thread-1')],
+        llmHandler,
+      });
+
+      await step.execute(context);
+
+      // Should have empty proposals (error caught)
+      expect(context.proposals.get('thread-1')).toHaveLength(0);
+
+      // The prompt log entry should have the error captured in the response field
+      const entries = context.stepPromptLogs.get('generate-proposals');
+      expect(entries).toBeDefined();
+      expect(entries).toHaveLength(1);
+      expect(entries![0].response).toContain('ERROR:');
+      expect(entries![0].response).toContain('Gemini API rate limit exceeded');
+      // Template and resolved should still be populated
+      expect(entries![0].template).toBeTruthy();
+      expect(entries![0].resolved).toBeTruthy();
+    });
+
+    it('should capture errors for each failing thread independently', async () => {
+      const llmHandler = createMockLLMHandler([]);
+      (llmHandler.requestJSON as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Schema validation failed')
+      );
+      const step = createStep(llmHandler);
+
+      const context = createMockContext({
+        threads: [createThread('thread-1'), createThread('thread-2')],
+        llmHandler,
+      });
+
+      await step.execute(context);
+
+      const entries = context.stepPromptLogs.get('generate-proposals');
+      expect(entries).toHaveLength(2);
+      expect(entries![0].response).toContain('ERROR:');
+      expect(entries![1].response).toContain('ERROR:');
+    });
+  });
+
   describe('prompt logging', () => {
     it('should log prompt entries for each thread', async () => {
       const llmHandler = createMockLLMHandler([
