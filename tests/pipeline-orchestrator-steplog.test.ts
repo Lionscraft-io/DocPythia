@@ -227,7 +227,9 @@ describe('PipelineOrchestrator Step Logging', () => {
 
   describe('Step log status tracking', () => {
     it('should record completed status for successful steps', async () => {
-      const context = createTestContext();
+      const context = createTestContext({
+        filteredMessages: [{ id: 1, content: 'Test message', author: 'user1' } as any],
+      });
       const mockDb = context.db as any;
 
       await orchestrator.execute(context);
@@ -244,7 +246,9 @@ describe('PipelineOrchestrator Step Logging', () => {
         { stepId: 'failing-step', stepType: 'generate', enabled: true, config: {} },
       ]);
       orchestrator = new PipelineOrchestrator(config, llmHandler, mockStepFactory as any);
-      const context = createTestContext();
+      const context = createTestContext({
+        threads: [{ id: 'thread-1', category: 'test', messageIds: [0], summary: 'test' } as any],
+      });
       const mockDb = context.db as any;
 
       await orchestrator.execute(context);
@@ -334,7 +338,9 @@ describe('PipelineOrchestrator Step Logging', () => {
         { stepId: 'failing-step', stepType: 'generate', enabled: true, config: {} },
       ]);
       orchestrator = new PipelineOrchestrator(config, llmHandler, mockStepFactory as any);
-      const context = createTestContext();
+      const context = createTestContext({
+        threads: [{ id: 'thread-1', category: 'test', messageIds: [0], summary: 'test' } as any],
+      });
       const mockDb = context.db as any;
 
       await orchestrator.execute(context);
@@ -444,7 +450,9 @@ describe('PipelineOrchestrator Step Logging', () => {
       config.errorHandling.stopOnError = true;
       orchestrator = new PipelineOrchestrator(config, llmHandler, mockStepFactory as any);
 
-      const context = createTestContext();
+      const context = createTestContext({
+        threads: [{ id: 'thread-1', category: 'test', messageIds: [0], summary: 'test' } as any],
+      });
       const mockDb = context.db as any;
 
       await orchestrator.execute(context);

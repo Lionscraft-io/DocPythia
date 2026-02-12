@@ -19,6 +19,7 @@ import type {
   PipelineError,
   IPipelineStep,
   ILLMHandler,
+  StepPromptLogEntry,
 } from './interfaces.js';
 import type { Prisma } from '@prisma/client';
 import { createLogger, getErrorMessage } from '../../utils/logger.js';
@@ -40,11 +41,13 @@ interface StepLogEntry {
   promptUsed?: string;
   error?: string;
   outputSummary?: string; // Summary of step output for debugging
-  // Prompt debugging fields
+  // Prompt debugging fields (legacy single-entry, kept for backward compat)
   promptId?: string;
   promptTemplate?: { system: string; user: string };
   promptResolved?: { system: string; user: string };
   llmResponse?: string;
+  // Multi-entry prompt/query log (new format)
+  promptEntries?: StepPromptLogEntry[];
 }
 
 /**
@@ -132,6 +135,17 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         // Capture input counts before execution
         stepLog.inputCount = this.getInputCount(step.stepType, context);
 
+        // Skip steps that have no input to process
+        if (stepLog.inputCount === 0) {
+          stepLog.status = 'skipped';
+          stepLog.durationMs = 0;
+          stepLog.outputCount = 0;
+          stepLogs.push(stepLog);
+
+          logger.info(`Skipping step ${step.stepId}: no input to process`);
+          continue;
+        }
+
         // Execute with retry logic
         await this.executeStepWithRetry(step, context);
 
@@ -144,14 +158,18 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         stepLog.status = 'completed';
         stepLog.outputSummary = this.getOutputSummary(step.stepType, context);
 
-        // Capture prompt logs from context (populated by LLM steps)
-        const promptLog = context.stepPromptLogs.get(step.stepId);
-        if (promptLog) {
-          stepLog.promptId = promptLog.promptId;
-          stepLog.promptTemplate = promptLog.template;
-          stepLog.promptResolved = promptLog.resolved;
-          stepLog.llmResponse = promptLog.response;
-          // Clear the log for the next step
+        // Capture prompt/query logs from context (populated by LLM and RAG steps)
+        const promptEntries = context.stepPromptLogs.get(step.stepId);
+        if (promptEntries && promptEntries.length > 0) {
+          stepLog.promptEntries = promptEntries;
+          // Also populate legacy single fields from first LLM entry (backward compat)
+          const firstLlm = promptEntries.find((e) => e.entryType === 'llm-call');
+          if (firstLlm) {
+            stepLog.promptId = firstLlm.promptId;
+            stepLog.promptTemplate = firstLlm.template;
+            stepLog.promptResolved = firstLlm.resolved;
+            stepLog.llmResponse = firstLlm.response;
+          }
           context.stepPromptLogs.delete(step.stepId);
         }
 
@@ -170,13 +188,17 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         stepLog.status = 'failed';
         stepLog.error = getErrorMessage(error);
 
-        // Capture prompt logs even on failure (may have partial data)
-        const promptLog = context.stepPromptLogs.get(step.stepId);
-        if (promptLog) {
-          stepLog.promptId = promptLog.promptId;
-          stepLog.promptTemplate = promptLog.template;
-          stepLog.promptResolved = promptLog.resolved;
-          stepLog.llmResponse = promptLog.response;
+        // Capture prompt/query logs even on failure (may have partial data)
+        const promptEntries = context.stepPromptLogs.get(step.stepId);
+        if (promptEntries && promptEntries.length > 0) {
+          stepLog.promptEntries = promptEntries;
+          const firstLlm = promptEntries.find((e) => e.entryType === 'llm-call');
+          if (firstLlm) {
+            stepLog.promptId = firstLlm.promptId;
+            stepLog.promptTemplate = firstLlm.template;
+            stepLog.promptResolved = firstLlm.resolved;
+            stepLog.llmResponse = firstLlm.response;
+          }
           context.stepPromptLogs.delete(step.stepId);
         }
 

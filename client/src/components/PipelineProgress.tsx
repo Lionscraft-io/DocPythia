@@ -27,6 +27,18 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 
+interface PromptLogEntry {
+  label: string;
+  entryType: 'llm-call' | 'rag-query';
+  promptId?: string;
+  template?: { system: string; user: string };
+  resolved?: { system: string; user: string };
+  response?: string;
+  query?: string;
+  resultCount?: number;
+  results?: Array<{ filePath: string; title: string; similarity: number }>;
+}
+
 interface PipelineStep {
   stepName: string;
   stepType: string;
@@ -37,11 +49,13 @@ interface PipelineStep {
   promptUsed?: string;
   error?: string;
   outputSummary?: string; // JSON summary of step output
-  // Prompt debugging fields
+  // Prompt debugging fields (legacy single-entry, backward compat)
   promptId?: string;
   promptTemplate?: { system: string; user: string };
   promptResolved?: { system: string; user: string };
   llmResponse?: string;
+  // Multi-entry prompt/query log (new format)
+  promptEntries?: PromptLogEntry[];
 }
 
 interface PipelineProgressProps {
@@ -455,8 +469,16 @@ export default function PipelineProgress({
                       <div className="border-t p-3 bg-gray-50 space-y-3">
                         <p className="text-sm text-gray-600">{stage.description}</p>
 
-                        {/* Input/Output Details */}
-                        {stepData &&
+                        {/* Skipped notice */}
+                        {status === 'skipped' && (
+                          <p className="text-sm text-gray-400 italic">
+                            Step skipped — no input to process.
+                          </p>
+                        )}
+
+                        {/* Input/Output Details (hide for skipped) */}
+                        {status !== 'skipped' &&
+                          stepData &&
                           (stepData.inputCount !== undefined ||
                             stepData.outputCount !== undefined) && (
                             <div className="flex gap-6 text-sm">
@@ -489,8 +511,8 @@ export default function PipelineProgress({
                           </div>
                         )}
 
-                        {/* Step Output - Expandable */}
-                        {stepData?.outputSummary && (
+                        {/* Step Output - Expandable (hide for skipped) */}
+                        {status !== 'skipped' && stepData?.outputSummary && (
                           <div className="bg-blue-50 rounded-md border border-blue-200 overflow-hidden">
                             <button
                               onClick={(e) => {
@@ -531,8 +553,8 @@ export default function PipelineProgress({
                           </div>
                         )}
 
-                        {/* Prompt Used */}
-                        {stepData?.promptUsed && (
+                        {/* Prompt Used (hide for skipped) */}
+                        {status !== 'skipped' && stepData?.promptUsed && (
                           <div className="text-sm">
                             <span className="text-gray-500">Prompt:</span>
                             <code className="ml-2 px-1.5 py-0.5 bg-gray-200 rounded text-xs">
@@ -541,181 +563,399 @@ export default function PipelineProgress({
                           </div>
                         )}
 
-                        {/* LLM Prompt/Response - Three-way Toggle */}
-                        {(prompt ||
-                          stepData?.promptTemplate ||
-                          stepData?.promptResolved ||
-                          stepData?.llmResponse) && (
-                          <div className="bg-white rounded-md border overflow-hidden">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                togglePromptExpanded(`prompt-${stage.id}`);
-                              }}
-                              className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
-                            >
-                              <div className="flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-gray-400" />
-                                <span className="text-xs font-medium text-gray-600">
-                                  LLM Prompt & Response
-                                </span>
-                                {stepData?.promptId && (
-                                  <code className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500">
-                                    {stepData.promptId}
-                                  </code>
-                                )}
-                              </div>
-                              {expandedPrompts.has(`prompt-${stage.id}`) ? (
-                                <ChevronUp className="w-4 h-4 text-gray-400" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4 text-gray-400" />
-                              )}
-                            </button>
-                            {expandedPrompts.has(`prompt-${stage.id}`) && (
-                              <div className="border-t p-3 bg-gray-50 space-y-3">
-                                {/* Toggle Buttons */}
-                                <div className="flex gap-1 p-1 bg-gray-100 rounded-md w-fit">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setPromptView(stage.id, 'template');
-                                    }}
-                                    className={cn(
-                                      'px-3 py-1 text-xs font-medium rounded transition-colors',
-                                      getPromptView(stage.id) === 'template'
-                                        ? 'bg-white text-gray-900 shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                    )}
-                                  >
-                                    Template
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setPromptView(stage.id, 'resolved');
-                                    }}
-                                    className={cn(
-                                      'px-3 py-1 text-xs font-medium rounded transition-colors',
-                                      getPromptView(stage.id) === 'resolved'
-                                        ? 'bg-white text-gray-900 shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                    )}
-                                    disabled={!stepData?.promptResolved}
-                                  >
-                                    Resolved
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setPromptView(stage.id, 'response');
-                                    }}
-                                    className={cn(
-                                      'px-3 py-1 text-xs font-medium rounded transition-colors',
-                                      getPromptView(stage.id) === 'response'
-                                        ? 'bg-white text-gray-900 shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                    )}
-                                    disabled={!stepData?.llmResponse}
-                                  >
-                                    Response
-                                  </button>
+                        {/* Multi-entry Prompt/Query Log (new format) */}
+                        {status !== 'skipped' &&
+                          stepData?.promptEntries &&
+                          stepData.promptEntries.length > 0 && (
+                            <div className="bg-white rounded-md border overflow-hidden">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  togglePromptExpanded(`prompt-${stage.id}`);
+                                }}
+                                className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <FileText className="w-4 h-4 text-gray-400" />
+                                  <span className="text-xs font-medium text-gray-600">
+                                    LLM & RAG Interactions
+                                  </span>
+                                  <Badge className="text-[10px] bg-gray-100 text-gray-600">
+                                    {stepData.promptEntries.length}
+                                  </Badge>
                                 </div>
-
-                                {/* Template View */}
-                                {getPromptView(stage.id) === 'template' && (
-                                  <div className="space-y-3">
-                                    {(stepData?.promptTemplate || prompt) && (
-                                      <>
-                                        <div className="text-xs">
-                                          <span className="text-gray-500 font-medium">
-                                            System Template:
-                                          </span>
-                                          <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
-                                            {stepData?.promptTemplate?.system ||
-                                              prompt?.system ||
-                                              '(not available)'}
-                                          </pre>
-                                        </div>
-                                        <div className="text-xs">
-                                          <span className="text-gray-500 font-medium">
-                                            User Template:
-                                          </span>
-                                          <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
-                                            {stepData?.promptTemplate?.user ||
-                                              prompt?.user ||
-                                              '(not available)'}
-                                          </pre>
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
+                                {expandedPrompts.has(`prompt-${stage.id}`) ? (
+                                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-gray-400" />
                                 )}
+                              </button>
+                              {expandedPrompts.has(`prompt-${stage.id}`) && (
+                                <div className="border-t divide-y">
+                                  {stepData.promptEntries.map((entry, entryIdx) => {
+                                    const entryKey = `${stage.id}-${entryIdx}`;
+                                    const isEntryExpanded = expandedPrompts.has(
+                                      `entry-${entryKey}`
+                                    );
+                                    const entryView = getPromptView(entryKey);
 
-                                {/* Resolved Prompt View */}
-                                {getPromptView(stage.id) === 'resolved' &&
-                                  stepData?.promptResolved && (
+                                    return (
+                                      <div key={entryKey} className="bg-gray-50">
+                                        {/* Entry Header */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            togglePromptExpanded(`entry-${entryKey}`);
+                                          }}
+                                          className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-100 transition-colors"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[10px] text-gray-400 font-mono w-5">
+                                              [{entryIdx + 1}]
+                                            </span>
+                                            {entry.entryType === 'rag-query' ? (
+                                              <Search className="w-3 h-3 text-cyan-500" />
+                                            ) : (
+                                              <Sparkles className="w-3 h-3 text-amber-500" />
+                                            )}
+                                            <span className="text-xs text-gray-700 truncate max-w-[300px]">
+                                              {entry.label}
+                                            </span>
+                                            <Badge
+                                              className={cn(
+                                                'text-[9px]',
+                                                entry.entryType === 'rag-query'
+                                                  ? 'bg-cyan-50 text-cyan-700'
+                                                  : 'bg-amber-50 text-amber-700'
+                                              )}
+                                            >
+                                              {entry.entryType === 'rag-query' ? 'RAG' : 'LLM'}
+                                            </Badge>
+                                          </div>
+                                          {isEntryExpanded ? (
+                                            <ChevronUp className="w-3 h-3 text-gray-400" />
+                                          ) : (
+                                            <ChevronDown className="w-3 h-3 text-gray-400" />
+                                          )}
+                                        </button>
+
+                                        {/* Entry Content */}
+                                        {isEntryExpanded && (
+                                          <div className="px-3 pb-3 space-y-2">
+                                            {/* RAG Query Entry */}
+                                            {entry.entryType === 'rag-query' && (
+                                              <div className="space-y-2">
+                                                <div className="text-xs">
+                                                  <span className="text-gray-500 font-medium">
+                                                    Query:
+                                                  </span>
+                                                  <pre className="text-gray-700 font-mono bg-white p-2 rounded mt-1 text-[11px] border whitespace-pre-wrap">
+                                                    {entry.query || '(empty)'}
+                                                  </pre>
+                                                </div>
+                                                <div className="text-xs">
+                                                  <span className="text-gray-500 font-medium">
+                                                    Results ({entry.resultCount ?? 0} docs):
+                                                  </span>
+                                                  {entry.results && entry.results.length > 0 ? (
+                                                    <table className="w-full mt-1 text-[11px] border rounded overflow-hidden">
+                                                      <thead>
+                                                        <tr className="bg-gray-100 text-gray-600">
+                                                          <th className="text-left px-2 py-1">
+                                                            File
+                                                          </th>
+                                                          <th className="text-left px-2 py-1">
+                                                            Title
+                                                          </th>
+                                                          <th className="text-right px-2 py-1">
+                                                            Similarity
+                                                          </th>
+                                                        </tr>
+                                                      </thead>
+                                                      <tbody>
+                                                        {entry.results.map((r, ri) => (
+                                                          <tr
+                                                            key={ri}
+                                                            className="border-t bg-white"
+                                                          >
+                                                            <td className="px-2 py-1 font-mono text-gray-600 truncate max-w-[200px]">
+                                                              {r.filePath}
+                                                            </td>
+                                                            <td className="px-2 py-1 text-gray-700 truncate max-w-[200px]">
+                                                              {r.title}
+                                                            </td>
+                                                            <td className="px-2 py-1 text-right text-gray-600">
+                                                              {r.similarity.toFixed(3)}
+                                                            </td>
+                                                          </tr>
+                                                        ))}
+                                                      </tbody>
+                                                    </table>
+                                                  ) : (
+                                                    <p className="text-gray-400 italic mt-1">
+                                                      No results
+                                                    </p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* LLM Call Entry */}
+                                            {entry.entryType === 'llm-call' && (
+                                              <div className="space-y-2">
+                                                {/* View Toggle */}
+                                                <div className="flex gap-1 p-1 bg-gray-100 rounded-md w-fit">
+                                                  {(
+                                                    ['template', 'resolved', 'response'] as const
+                                                  ).map((view) => (
+                                                    <button
+                                                      key={view}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setPromptView(entryKey, view);
+                                                      }}
+                                                      className={cn(
+                                                        'px-3 py-1 text-xs font-medium rounded transition-colors capitalize',
+                                                        entryView === view
+                                                          ? 'bg-white text-gray-900 shadow-sm'
+                                                          : 'text-gray-500 hover:text-gray-700'
+                                                      )}
+                                                      disabled={
+                                                        (view === 'resolved' && !entry.resolved) ||
+                                                        (view === 'response' && !entry.response)
+                                                      }
+                                                    >
+                                                      {view}
+                                                    </button>
+                                                  ))}
+                                                </div>
+
+                                                {/* Template */}
+                                                {entryView === 'template' && entry.template && (
+                                                  <div className="space-y-2">
+                                                    <div className="text-xs">
+                                                      <span className="text-gray-500 font-medium">
+                                                        System Template:
+                                                      </span>
+                                                      <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                                        {entry.template.system || '(not available)'}
+                                                      </pre>
+                                                    </div>
+                                                    <div className="text-xs">
+                                                      <span className="text-gray-500 font-medium">
+                                                        User Template:
+                                                      </span>
+                                                      <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                                        {entry.template.user || '(not available)'}
+                                                      </pre>
+                                                    </div>
+                                                  </div>
+                                                )}
+
+                                                {/* Resolved */}
+                                                {entryView === 'resolved' && entry.resolved && (
+                                                  <div className="space-y-2">
+                                                    <div className="text-xs">
+                                                      <span className="text-gray-500 font-medium">
+                                                        System Prompt (Resolved):
+                                                      </span>
+                                                      <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                                        {entry.resolved.system || '(empty)'}
+                                                      </pre>
+                                                    </div>
+                                                    <div className="text-xs">
+                                                      <span className="text-gray-500 font-medium">
+                                                        User Prompt (Resolved):
+                                                      </span>
+                                                      <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                                        {entry.resolved.user || '(empty)'}
+                                                      </pre>
+                                                    </div>
+                                                  </div>
+                                                )}
+
+                                                {/* Response */}
+                                                {entryView === 'response' && entry.response && (
+                                                  <div className="text-xs">
+                                                    <span className="text-gray-500 font-medium">
+                                                      LLM Response:
+                                                    </span>
+                                                    <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-80 overflow-y-auto border">
+                                                      {(() => {
+                                                        try {
+                                                          return JSON.stringify(
+                                                            JSON.parse(entry.response),
+                                                            null,
+                                                            2
+                                                          );
+                                                        } catch {
+                                                          return entry.response;
+                                                        }
+                                                      })()}
+                                                    </pre>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                        {/* Legacy single-entry LLM Prompt/Response (backward compat for old runs) */}
+                        {status !== 'skipped' &&
+                          !stepData?.promptEntries &&
+                          (prompt ||
+                            stepData?.promptTemplate ||
+                            stepData?.promptResolved ||
+                            stepData?.llmResponse) && (
+                            <div className="bg-white rounded-md border overflow-hidden">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  togglePromptExpanded(`prompt-${stage.id}`);
+                                }}
+                                className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <FileText className="w-4 h-4 text-gray-400" />
+                                  <span className="text-xs font-medium text-gray-600">
+                                    LLM Prompt & Response
+                                  </span>
+                                  {stepData?.promptId && (
+                                    <code className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500">
+                                      {stepData.promptId}
+                                    </code>
+                                  )}
+                                </div>
+                                {expandedPrompts.has(`prompt-${stage.id}`) ? (
+                                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                                )}
+                              </button>
+                              {expandedPrompts.has(`prompt-${stage.id}`) && (
+                                <div className="border-t p-3 bg-gray-50 space-y-3">
+                                  <div className="flex gap-1 p-1 bg-gray-100 rounded-md w-fit">
+                                    {(['template', 'resolved', 'response'] as const).map((view) => (
+                                      <button
+                                        key={view}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPromptView(stage.id, view);
+                                        }}
+                                        className={cn(
+                                          'px-3 py-1 text-xs font-medium rounded transition-colors capitalize',
+                                          getPromptView(stage.id) === view
+                                            ? 'bg-white text-gray-900 shadow-sm'
+                                            : 'text-gray-500 hover:text-gray-700'
+                                        )}
+                                        disabled={
+                                          (view === 'resolved' && !stepData?.promptResolved) ||
+                                          (view === 'response' && !stepData?.llmResponse)
+                                        }
+                                      >
+                                        {view}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  {getPromptView(stage.id) === 'template' && (
                                     <div className="space-y-3">
-                                      <div className="text-xs">
-                                        <span className="text-gray-500 font-medium">
-                                          System Prompt (Resolved):
-                                        </span>
-                                        <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
-                                          {stepData.promptResolved.system || '(empty)'}
-                                        </pre>
-                                      </div>
-                                      <div className="text-xs">
-                                        <span className="text-gray-500 font-medium">
-                                          User Prompt (Resolved):
-                                        </span>
-                                        <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
-                                          {stepData.promptResolved.user || '(empty)'}
-                                        </pre>
-                                      </div>
+                                      {(stepData?.promptTemplate || prompt) && (
+                                        <>
+                                          <div className="text-xs">
+                                            <span className="text-gray-500 font-medium">
+                                              System Template:
+                                            </span>
+                                            <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                              {stepData?.promptTemplate?.system ||
+                                                prompt?.system ||
+                                                '(not available)'}
+                                            </pre>
+                                          </div>
+                                          <div className="text-xs">
+                                            <span className="text-gray-500 font-medium">
+                                              User Template:
+                                            </span>
+                                            <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                              {stepData?.promptTemplate?.user ||
+                                                prompt?.user ||
+                                                '(not available)'}
+                                            </pre>
+                                          </div>
+                                        </>
+                                      )}
                                     </div>
                                   )}
 
-                                {/* Response View */}
-                                {getPromptView(stage.id) === 'response' &&
-                                  stepData?.llmResponse && (
-                                    <div className="text-xs">
-                                      <span className="text-gray-500 font-medium">
-                                        LLM Response:
-                                      </span>
-                                      <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-80 overflow-y-auto border">
-                                        {(() => {
-                                          try {
-                                            return JSON.stringify(
-                                              JSON.parse(stepData.llmResponse),
-                                              null,
-                                              2
-                                            );
-                                          } catch {
-                                            return stepData.llmResponse;
-                                          }
-                                        })()}
-                                      </pre>
-                                    </div>
-                                  )}
+                                  {getPromptView(stage.id) === 'resolved' &&
+                                    stepData?.promptResolved && (
+                                      <div className="space-y-3">
+                                        <div className="text-xs">
+                                          <span className="text-gray-500 font-medium">
+                                            System Prompt (Resolved):
+                                          </span>
+                                          <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                            {stepData.promptResolved.system || '(empty)'}
+                                          </pre>
+                                        </div>
+                                        <div className="text-xs">
+                                          <span className="text-gray-500 font-medium">
+                                            User Prompt (Resolved):
+                                          </span>
+                                          <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-64 overflow-y-auto border">
+                                            {stepData.promptResolved.user || '(empty)'}
+                                          </pre>
+                                        </div>
+                                      </div>
+                                    )}
 
-                                {/* Fallback if no data */}
-                                {getPromptView(stage.id) === 'resolved' &&
-                                  !stepData?.promptResolved && (
-                                    <p className="text-xs text-gray-500 italic">
-                                      Resolved prompt not available. Run the pipeline to capture
-                                      this data.
-                                    </p>
-                                  )}
-                                {getPromptView(stage.id) === 'response' &&
-                                  !stepData?.llmResponse && (
-                                    <p className="text-xs text-gray-500 italic">
-                                      LLM response not available. Run the pipeline to capture this
-                                      data.
-                                    </p>
-                                  )}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                                  {getPromptView(stage.id) === 'response' &&
+                                    stepData?.llmResponse && (
+                                      <div className="text-xs">
+                                        <span className="text-gray-500 font-medium">
+                                          LLM Response:
+                                        </span>
+                                        <pre className="text-gray-700 font-mono bg-white p-3 rounded mt-1 overflow-x-auto whitespace-pre-wrap text-[11px] max-h-80 overflow-y-auto border">
+                                          {(() => {
+                                            try {
+                                              return JSON.stringify(
+                                                JSON.parse(stepData.llmResponse),
+                                                null,
+                                                2
+                                              );
+                                            } catch {
+                                              return stepData.llmResponse;
+                                            }
+                                          })()}
+                                        </pre>
+                                      </div>
+                                    )}
+
+                                  {getPromptView(stage.id) === 'resolved' &&
+                                    !stepData?.promptResolved && (
+                                      <p className="text-xs text-gray-500 italic">
+                                        Resolved prompt not available. Run the pipeline to capture
+                                        this data.
+                                      </p>
+                                    )}
+                                  {getPromptView(stage.id) === 'response' &&
+                                    !stepData?.llmResponse && (
+                                      <p className="text-xs text-gray-500 italic">
+                                        LLM response not available. Run the pipeline to capture this
+                                        data.
+                                      </p>
+                                    )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                       </div>
                     )}
                   </div>

@@ -440,13 +440,33 @@ export interface IRagService {
 }
 
 /**
- * LLM call log entry for debugging
+ * LLM call log entry for debugging (legacy single-entry format)
  */
 export interface StepPromptLog {
   promptId: string;
   template: { system: string; user: string };
   resolved: { system: string; user: string };
   response: string;
+}
+
+/**
+ * Multi-entry prompt/query log for pipeline debugging.
+ * Supports both LLM calls and RAG vector searches.
+ */
+export interface StepPromptLogEntry {
+  /** Human-readable label, e.g. "Thread: bug-discussion" or "RAG: thread_xxx" */
+  label: string;
+  /** Type of interaction being logged */
+  entryType: 'llm-call' | 'rag-query';
+  // LLM call fields
+  promptId?: string;
+  template?: { system: string; user: string };
+  resolved?: { system: string; user: string };
+  response?: string;
+  // RAG query fields
+  query?: string;
+  resultCount?: number;
+  results?: Array<{ filePath: string; title: string; similarity: number }>;
 }
 
 /**
@@ -479,8 +499,8 @@ export interface PipelineContext {
   metrics: PipelineMetrics;
   errors: PipelineError[];
 
-  // Debug logging for LLM calls (populated by steps, read by orchestrator)
-  stepPromptLogs: Map<string, StepPromptLog>;
+  // Debug logging for LLM/RAG calls (populated by steps, read by orchestrator)
+  stepPromptLogs: Map<string, StepPromptLogEntry[]>;
 }
 
 // ============================================================================

@@ -94,6 +94,18 @@ export class RagEnrichStep extends BasePipelineStep {
         context.ragResults.set(thread.id, finalDocs);
         totalDocs += finalDocs.length;
 
+        // Log RAG query for pipeline debugger
+        this.appendRagQueryLog(
+          context,
+          `RAG: ${thread.summary?.substring(0, 60) || thread.id}`,
+          searchQuery,
+          finalDocs.map((d) => ({
+            filePath: d.filePath,
+            title: d.title,
+            similarity: d.similarity,
+          }))
+        );
+
         this.logger.debug(`Thread ${thread.id}: found ${finalDocs.length} relevant docs`, {
           query: searchQuery.slice(0, 100),
           similarityRange:
