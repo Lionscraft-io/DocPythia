@@ -479,48 +479,4 @@ describe('Adapter Network Failure Handling', () => {
       expect(messages[0].messageId).toBe('101');
     });
   });
-
-  describe('Suggested Improvements', () => {
-    /**
-     * These tests document what SHOULD happen with proper retry logic.
-     * Currently the adapter throws immediately on network errors.
-     *
-     * TODO: Implement retry logic in adapters using RetryHandler:
-     *
-     * async fetchMessages(watermark?: StreamWatermark): Promise<StreamMessage[]> {
-     *   const retryHandler = new RetryHandler({ maxRetries: 3 });
-     *
-     *   return retryHandler.execute(async () => {
-     *     try {
-     *       const response = await fetch(url, options);
-     *       if (!response.ok) {
-     *         if (response.status >= 500 || response.status === 429) {
-     *           throw RetryHandler.transientError(`API error: ${response.status}`);
-     *         }
-     *         throw RetryHandler.permanentError(`API error: ${response.status}`);
-     *       }
-     *       // ... rest of logic
-     *     } catch (error) {
-     *       if (error instanceof TypeError) { // Network errors
-     *         throw RetryHandler.transientError(error.message);
-     *       }
-     *       throw error;
-     *     }
-     *   });
-     * }
-     */
-
-    it.skip('should retry on transient errors with backoff (TODO: implement in adapter)', async () => {
-      // This test shows desired behavior
-      // Currently skipped because adapter doesn't have retry logic
-    });
-
-    it.skip('should respect rate limit headers (TODO: implement in adapter)', async () => {
-      // Should read Retry-After header and wait accordingly
-    });
-
-    it.skip('should circuit break after repeated failures (TODO: implement)', async () => {
-      // After N consecutive failures, stop trying for a cooldown period
-    });
-  });
 });

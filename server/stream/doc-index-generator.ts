@@ -584,7 +584,7 @@ export async function loadProjectContext(
   const docIndex = await generator.generateIndex();
 
   return {
-    project_name: process.env.PROJECT_NAME || 'Pythia',
+    project_name: process.env.PROJECT_NAME || 'DocPythia',
     project_description:
       process.env.PROJECT_DESCRIPTION || 'AI-powered documentation management system',
     doc_purpose: process.env.DOC_PURPOSE || 'Technical documentation for developers',

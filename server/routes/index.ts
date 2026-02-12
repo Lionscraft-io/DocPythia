@@ -39,7 +39,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     swaggerUi.serve,
     swaggerUi.setup(swaggerSpec, {
       customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: 'Pythia API Documentation',
+      customSiteTitle: 'DocPythia API Documentation',
     })
   );
 

@@ -49,5 +49,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - pgvector for embedding storage
 - Docker support with multi-stage builds
 
-[Unreleased]: https://github.com/Lionscraft-io/Pythia/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/Lionscraft-io/Pythia/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Lionscraft-io/DocPythia/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Lionscraft-io/DocPythia/releases/tag/v1.0.0

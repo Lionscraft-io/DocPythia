@@ -1,4 +1,4 @@
-# Pythia Architecture & Deployment Guide
+# DocPythia Architecture & Deployment Guide
 
 ## 1. System Overview
 
@@ -188,7 +188,7 @@ logs:PutLogEvents
 
 ### S3 Configuration Structure
 ```
-s3://pythia-config/
+s3://docpythia-config/
   config/
     myinstance/
       instance.json    # Instance configuration
@@ -289,7 +289,7 @@ aws apprunner start-deployment --service-arn arn:aws:apprunner:...
 
 ### Version Pinning
 - Production should pin to semantic version tag, not `latest`
-- App Runner config: `ghcr.io/lionscraft/docsai:1.0.0`
+- App Runner config: `ghcr.io/lionscraft/docpythia:1.0.0`
 
 ---
 
@@ -395,8 +395,8 @@ aws logs tail /aws/apprunner/{service-name} --follow
 | Environment | Purpose | Database | Config Bucket |
 |-------------|---------|----------|---------------|
 | Development | Local testing | docker-compose postgres | Local files |
-| Staging | Pre-production | Separate Neon branch | `pythia-config-staging` |
-| Production | Live | Neon production | `pythia-config` |
+| Staging | Pre-production | Separate Neon branch | `docpythia-config-staging` |
+| Production | Live | Neon production | `docpythia-config` |
 
 ---
 

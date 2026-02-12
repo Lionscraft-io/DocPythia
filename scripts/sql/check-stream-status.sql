@@ -1,6 +1,6 @@
 -- ==============================================
 -- Stream Configuration Diagnostic Queries
--- Run against the pythia database
+-- Run against the docpythia database
 -- ==============================================
 
 -- 1. Check what streams are configured

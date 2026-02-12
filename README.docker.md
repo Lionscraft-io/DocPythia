@@ -1,6 +1,6 @@
-# Pythia - Docker Setup
+# DocPythia - Docker Setup
 
-Run Pythia with its own isolated PostgreSQL database using Docker Compose.
+Run DocPythia with its own isolated PostgreSQL database using Docker Compose.
 
 ## Quick Start
 
@@ -65,16 +65,16 @@ The PostgreSQL database is isolated within Docker. To access it:
 
 ```bash
 # Connect to database
-docker-compose exec db psql -U pythia -d pythia
+docker-compose exec db psql -U docpythia -d docpythia
 
 # Or from host (if DB_PORT is exposed in docker-compose.dev.yml)
-psql -h localhost -p 5433 -U pythia -d pythia
+psql -h localhost -p 5433 -U docpythia -d docpythia
 ```
 
 **Default credentials:**
-- User: `pythia`
+- User: `docpythia`
 - Password: Set via `POSTGRES_PASSWORD` environment variable (default: `changeme`)
-- Database: `pythia`
+- Database: `docpythia`
 
 ## Development Mode
 
@@ -96,16 +96,16 @@ Data is persisted in Docker volumes:
 
 ```bash
 # List volumes
-docker volume ls | grep pythia
+docker volume ls | grep docpythia
 
 # Inspect volume
-docker volume inspect pythia_pythia_db_data
+docker volume inspect docpythia_docpythia_db_data
 
 # Backup database
-docker-compose exec db pg_dump -U pythia pythia > backup.sql
+docker-compose exec db pg_dump -U docpythia docpythia > backup.sql
 
 # Restore database
-docker-compose exec -T db psql -U pythia pythia < backup.sql
+docker-compose exec -T db psql -U docpythia docpythia < backup.sql
 ```
 
 ## Troubleshooting
@@ -121,7 +121,7 @@ APP_PORT=3763  # or any available port
 
 ```bash
 # Check database health
-docker-compose exec db pg_isready -U pythia
+docker-compose exec db pg_isready -U docpythia
 
 # View database logs
 docker-compose logs db

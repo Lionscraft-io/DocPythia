@@ -1,4 +1,4 @@
-// Prisma schema for DocsAI
+// Prisma schema for DocPythia
 // Migration from Drizzle ORM - Wayne (2025-10-29)
 
 generator client {

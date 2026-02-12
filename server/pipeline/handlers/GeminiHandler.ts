@@ -118,8 +118,11 @@ export class GeminiHandler implements ILLMHandler {
         }
       );
 
+      // Stringify result for response text - ensure non-empty
+      const responseText = JSON.stringify(result);
+
       const response: LLMResponse = {
-        text: JSON.stringify(result),
+        text: responseText || '{}',
         model,
         cached: false, // Could check cache status from provider
       };
@@ -128,6 +131,7 @@ export class GeminiHandler implements ILLMHandler {
         model,
         purpose: context.purpose,
         durationMs: Date.now() - startTime,
+        responseTextLength: responseText?.length || 0,
       });
 
       return { data: result, response };

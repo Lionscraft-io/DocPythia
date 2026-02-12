@@ -5,8 +5,8 @@ const router = Router();
 // Widget JavaScript library
 router.get('/widget.js', (req: Request, res: Response) => {
   const domain = process.env.WIDGET_DOMAIN || 'http://localhost:3762';
-  const projectName = process.env.PROJECT_NAME || 'Pythia';
-  const widgetNamespace = process.env.WIDGET_NAMESPACE || 'PythiaWidget';
+  const projectName = process.env.PROJECT_NAME || 'DocPythia';
+  const widgetNamespace = process.env.WIDGET_NAMESPACE || 'DocPythiaWidget';
 
   const widgetJs = `
 (function() {
@@ -29,7 +29,7 @@ router.get('/widget.js', (req: Request, res: Response) => {
         createWidget: function(config) {
             // Create widget container
             const widgetContainer = document.createElement('div');
-            widgetContainer.id = 'pythia-widget-container';
+            widgetContainer.id = 'docpythia-widget-container';
             widgetContainer.style.cssText = \`
                 position: fixed;
                 z-index: 10000;
@@ -38,7 +38,7 @@ router.get('/widget.js', (req: Request, res: Response) => {
 
             // Create toggle button
             const toggleButton = document.createElement('button');
-            toggleButton.id = 'pythia-widget-toggle';
+            toggleButton.id = 'docpythia-widget-toggle';
             toggleButton.innerHTML = '💬';
             toggleButton.style.cssText = \`
                 width: 60px;
@@ -55,7 +55,7 @@ router.get('/widget.js', (req: Request, res: Response) => {
 
             // Create widget iframe
             const widgetFrame = document.createElement('iframe');
-            widgetFrame.id = 'pythia-widget-frame';
+            widgetFrame.id = 'docpythia-widget-frame';
             widgetFrame.src = \`\${config.domain}/widget/\${config.expertId}?theme=\${config.theme}&embedded=true\`;
             widgetFrame.style.cssText = \`
                 width: 350px;
@@ -106,7 +106,7 @@ router.get('/widget.js', (req: Request, res: Response) => {
 
     // Auto-init if data attributes are present
     document.addEventListener('DOMContentLoaded', function() {
-        const autoInit = document.querySelector('[data-pythia-widget]');
+        const autoInit = document.querySelector('[data-docpythia-widget]');
         if (autoInit) {
             const config = {
                 expertId: autoInit.getAttribute('data-expert-id') || 'default',
@@ -127,8 +127,8 @@ router.get('/widget.js', (req: Request, res: Response) => {
 // Widget demo page
 router.get('/widget-demo', (req: Request, res: Response) => {
   const domain = process.env.WIDGET_DOMAIN || 'http://localhost:3762';
-  const projectName = process.env.PROJECT_NAME || 'Pythia';
-  const widgetNamespace = process.env.WIDGET_NAMESPACE || 'PythiaWidget';
+  const projectName = process.env.PROJECT_NAME || 'DocPythia';
+  const widgetNamespace = process.env.WIDGET_NAMESPACE || 'DocPythiaWidget';
 
   const demoHtml = `
 <!DOCTYPE html>
@@ -194,7 +194,7 @@ router.get('/widget-demo', (req: Request, res: Response) => {
 
         <div class="code-block">
 &lt;script src="${domain}/widget.js"&gt;&lt;/script&gt;
-&lt;div data-pythia-widget data-expert-id="default" data-theme="light"&gt;&lt;/div&gt;
+&lt;div data-docpythia-widget data-expert-id="default" data-theme="light"&gt;&lt;/div&gt;
         </div>
 
         <h2>📋 Manual Integration</h2>
@@ -271,7 +271,7 @@ router.get('/widget-demo', (req: Request, res: Response) => {
         }
 
         function removeWidget() {
-            const existing = document.getElementById('pythia-widget-container');
+            const existing = document.getElementById('docpythia-widget-container');
             if (existing) {
                 existing.remove();
             }

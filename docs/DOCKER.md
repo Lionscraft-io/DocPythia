@@ -1,6 +1,6 @@
-# Docker Setup for Pythia
+# Docker Setup for DocPythia
 
-This document explains how to build and deploy the Pythia application using Docker for AWS App Runner.
+This document explains how to build and deploy the DocPythia application using Docker for AWS App Runner.
 
 ## Files
 
@@ -13,7 +13,7 @@ This document explains how to build and deploy the Pythia application using Dock
 
 - Docker installed and running
 - AWS CLI configured with appropriate permissions
-- ECR repository created (e.g., `<AWS_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/pythia`)
+- ECR repository created (e.g., `<AWS_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/docpythia`)
 
 ## Local Testing
 
@@ -25,12 +25,12 @@ This document explains how to build and deploy the Pythia application using Dock
 2. **Manual build and run:**
    ```bash
    # Build
-   docker build -t pythia .
+   docker build -t docpythia .
 
    # Run with environment file
    cp .env.example .env
    # Edit .env with your values
-   docker run -p 3000:8080 --env-file .env pythia
+   docker run -p 3000:8080 --env-file .env docpythia
    ```
 
 3. **Test endpoints:**
@@ -63,7 +63,7 @@ OPENAI_API_KEY=your_api_key
 When creating the App Runner service:
 
 - **Source**: Amazon ECR
-- **Image**: `<AWS_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/pythia:latest`
+- **Image**: `<AWS_ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/docpythia:latest`
 - **Port**: 8080
 - **Environment variables**: Set from AWS Secrets Manager or directly in console
 

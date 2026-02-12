@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This guide covers various deployment options for Pythia.
+This guide covers various deployment options for DocPythia.
 
 ## Table of Contents
 
@@ -35,8 +35,8 @@ This guide covers various deployment options for Pythia.
 
 ```bash
 # Clone repository
-git clone https://github.com/your-org/pythia.git
-cd pythia
+git clone https://github.com/your-org/docpythia.git
+cd docpythia
 
 # Copy and configure environment
 cp .env.example .env
@@ -50,16 +50,16 @@ docker-compose up -d
 
 ```bash
 # Build image
-docker build -t pythia:latest .
+docker build -t docpythia:latest .
 
 # Run container
 docker run -d \
-  --name pythia \
+  --name docpythia \
   -p 3762:8080 \
   -e DATABASE_URL="postgresql://user:pass@host:5432/db" \
   -e GEMINI_API_KEY="your-api-key" \
   -e ADMIN_TOKEN="your-secure-token" \
-  pythia:latest
+  docpythia:latest
 ```
 
 ### Docker Compose Production
@@ -76,7 +76,7 @@ services:
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: pythia
+      POSTGRES_DB: docpythia
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -86,12 +86,12 @@ services:
       retries: 5
 
   app:
-    image: pythia:latest
+    image: docpythia:latest
     restart: always
     ports:
       - "8080:8080"
     environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/pythia
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/docpythia
       NODE_ENV: production
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       ADMIN_TOKEN: ${ADMIN_TOKEN}
@@ -131,7 +131,7 @@ npm start
 npm install -g pm2
 
 # Start application
-pm2 start dist/index.js --name pythia
+pm2 start dist/index.js --name docpythia
 
 # Configure startup
 pm2 startup
@@ -140,22 +140,22 @@ pm2 save
 
 ### Systemd Service
 
-Create `/etc/systemd/system/pythia.service`:
+Create `/etc/systemd/system/docpythia.service`:
 
 ```ini
 [Unit]
-Description=Pythia Application
+Description=DocPythia Application
 After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=pythia
-WorkingDirectory=/opt/pythia
+User=docpythia
+WorkingDirectory=/opt/docpythia
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
-EnvironmentFile=/opt/pythia/.env
+EnvironmentFile=/opt/docpythia/.env
 
 [Install]
 WantedBy=multi-user.target
@@ -163,8 +163,8 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable pythia
-sudo systemctl start pythia
+sudo systemctl enable docpythia
+sudo systemctl start docpythia
 ```
 
 ## Cloud Deployments
@@ -174,8 +174,8 @@ sudo systemctl start pythia
 1. Push Docker image to ECR:
    ```bash
    aws ecr get-login-password | docker login --username AWS --password-stdin <account>.dkr.ecr.<region>.amazonaws.com
-   docker tag pythia:latest <account>.dkr.ecr.<region>.amazonaws.com/pythia:latest
-   docker push <account>.dkr.ecr.<region>.amazonaws.com/pythia:latest
+   docker tag docpythia:latest <account>.dkr.ecr.<region>.amazonaws.com/docpythia:latest
+   docker push <account>.dkr.ecr.<region>.amazonaws.com/docpythia:latest
    ```
 
 2. Create App Runner service pointing to ECR image
@@ -230,16 +230,16 @@ fly deploy
 ```nginx
 server {
     listen 80;
-    server_name pythia.example.com;
+    server_name docpythia.example.com;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name pythia.example.com;
+    server_name docpythia.example.com;
 
-    ssl_certificate /etc/letsencrypt/live/pythia.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/pythia.example.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/docpythia.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/docpythia.example.com/privkey.pem;
 
     location / {
         proxy_pass http://localhost:8080;
@@ -258,7 +258,7 @@ server {
 ### Caddy
 
 ```
-pythia.example.com {
+docpythia.example.com {
     reverse_proxy localhost:8080
 }
 ```
@@ -318,12 +318,12 @@ psql -c "SELECT * FROM pg_extension WHERE extname = 'vector';"
 
 ```bash
 # Check logs
-docker logs pythia
+docker logs docpythia
 # or
-journalctl -u pythia -f
+journalctl -u docpythia -f
 
 # Verify environment variables
-docker exec pythia env | grep -E "DATABASE|GEMINI|ADMIN"
+docker exec docpythia env | grep -E "DATABASE|GEMINI|ADMIN"
 ```
 
 ### Health Check

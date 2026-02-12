@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-This document describes the architecture for transforming Pythia from a single-protocol platform into a multi-customer configurable system. The architecture supports independent deployments per customer with configuration-driven branding, documentation sources, and community integrations, without requiring code modifications.
+This document describes the architecture for transforming DocPythia from a single-protocol platform into a multi-customer configurable system. The architecture supports independent deployments per customer with configuration-driven branding, documentation sources, and community integrations, without requiring code modifications.
 
 ## System Context
 
@@ -15,7 +15,7 @@ This document describes the architecture for transforming Pythia from a single-p
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Pythia (Current)                      │
+│                    DocPythia (Current)                      │
 │                                                           │
 │  ┌─────────────┐      ┌──────────────┐                 │
 │  │  Frontend   │──────│  Backend      │                 │
@@ -649,7 +649,7 @@ No shared state between instances.
 1. **Clone Repository**
    ```bash
    git clone <repo-url>
-   cd docsai
+   cd docpythia
    ```
 
 2. **Create Configuration**
@@ -809,7 +809,7 @@ No shared state between instances.
 describe('ConfigLoader', () => {
   test('loads default configuration', () => {
     const config = new ConfigLoader().getConfig();
-    expect(config.project.name).toBe('Pythia');
+    expect(config.project.name).toBe('DocPythia');
   });
 
   test('merges config file with defaults', () => {

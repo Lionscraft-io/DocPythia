@@ -8,7 +8,7 @@ Bot Token: `YOUR_TELEGRAM_BOT_TOKEN` (get from @BotFather)
 
 ```bash
 # From project root
-PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -p 5433 -U docsai -d docsai -f scripts/permanent/setup-telegram-bot.sql
+PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -p 5433 -U docpythia -d docpythia -f scripts/permanent/setup-telegram-bot.sql
 ```
 
 This creates the `telegram-bot` stream configuration.
@@ -62,7 +62,7 @@ Telegram bot polling started
 
 3. **Verify in database**:
    ```bash
-   PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -p 5433 -U docsai -d docsai -c "SELECT id, author, channel, LEFT(content, 50) as content FROM unified_messages WHERE stream_id = 'telegram-bot' ORDER BY timestamp DESC LIMIT 5;"
+   PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -p 5433 -U docpythia -d docpythia -c "SELECT id, author, channel, LEFT(content, 50) as content FROM unified_messages WHERE stream_id = 'telegram-bot' ORDER BY timestamp DESC LIMIT 5;"
    ```
 
 ## Step 6: Process Messages

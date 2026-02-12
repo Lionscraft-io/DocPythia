@@ -481,9 +481,39 @@ describe('ProposalGenerateStep', () => {
       expect(entries).toHaveLength(2);
       expect(entries![0].entryType).toBe('llm-call');
       expect(entries![1].entryType).toBe('llm-call');
-      // Each entry should have a response logged
+      // Each entry should have a response logged with actual content
       expect(entries![0].response).toBeTruthy();
       expect(entries![1].response).toBeTruthy();
+      // Verify response contains the stringified proposals
+      expect(entries![0].response).toContain('proposals');
+      expect(entries![0].response).toContain('INSERT');
+    });
+
+    it('should capture exact response text from LLM handler', async () => {
+      const expectedProposal = {
+        updateType: 'UPDATE',
+        page: 'docs/specific.md',
+        section: 'Details',
+        suggestedText: 'Exact content here',
+        reasoning: 'Specific reason',
+      };
+      const llmHandler = createMockLLMHandler([expectedProposal]);
+      const step = createStep(llmHandler);
+
+      const context = createMockContext({
+        threads: [createThread('single-thread')],
+        llmHandler,
+      });
+
+      await step.execute(context);
+
+      const entries = context.stepPromptLogs.get('generate-proposals');
+      expect(entries).toHaveLength(1);
+      // Verify the response is the exact stringified content
+      const responseJson = JSON.parse(entries![0].response as string);
+      expect(responseJson.proposals).toBeDefined();
+      expect(responseJson.proposals[0].updateType).toBe('UPDATE');
+      expect(responseJson.proposals[0].page).toBe('docs/specific.md');
     });
   });
 });

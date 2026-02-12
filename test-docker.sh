@@ -3,11 +3,11 @@
 # Test script for Docker build and run
 set -e
 
-echo "🧪 Testing Docker build for DocsAI..."
+echo "🧪 Testing Docker build for DocPythia..."
 
 # Build the image
 echo "📦 Building Docker image..."
-docker build -t docsai-test .
+docker build -t docpythia-test .
 
 if [ $? -ne 0 ]; then
     echo "❌ Docker build failed"
@@ -22,13 +22,13 @@ echo "   Starting container on port 3000 (local test)..."
 
 # Run the container with minimal environment variables for testing
 docker run -d \
-  --name docsai-test \
+  --name docpythia-test \
   -p 3000:8080 \
   -e NODE_ENV=production \
   -e PORT=8080 \
   -e DATABASE_URL=postgresql://test:test@localhost:5432/test \
   -e ADMIN_TOKEN=test-token \
-  docsai-test
+  docpythia-test
 
 if [ $? -ne 0 ]; then
     echo "❌ Container failed to start"
@@ -47,7 +47,7 @@ if [ "$response" = "200" ]; then
 else
     echo "❌ Health check failed (HTTP $response)"
     echo "📋 Container logs:"
-    docker logs docsai-test
+    docker logs docpythia-test
 fi
 
 # Test main page
@@ -62,15 +62,15 @@ fi
 
 echo ""
 echo "📋 Container information:"
-docker ps --filter name=docsai-test
+docker ps --filter name=docpythia-test
 
 echo ""
 echo "🧹 Cleaning up..."
-docker stop docsai-test
-docker rm docsai-test
+docker stop docpythia-test
+docker rm docpythia-test
 
 echo ""
 echo "🎉 Docker test complete!"
 echo ""
 echo "💡 To run the container manually:"
-echo "   docker run -p 3000:8080 --env-file .env docsai-test"
+echo "   docker run -p 3000:8080 --env-file .env docpythia-test"

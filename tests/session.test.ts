@@ -46,9 +46,9 @@ describe('Session Management', () => {
 
   describe('COOKIE_NAMES', () => {
     it('should export correct cookie names', () => {
-      expect(COOKIE_NAMES.accessToken).toBe('pythia_access_token');
-      expect(COOKIE_NAMES.refreshToken).toBe('pythia_refresh_token');
-      expect(COOKIE_NAMES.csrfToken).toBe('pythia_csrf_token');
+      expect(COOKIE_NAMES.accessToken).toBe('docpythia_access_token');
+      expect(COOKIE_NAMES.refreshToken).toBe('docpythia_refresh_token');
+      expect(COOKIE_NAMES.csrfToken).toBe('docpythia_csrf_token');
     });
   });
 

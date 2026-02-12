@@ -2427,30 +2427,6 @@ curl http://localhost:8080/health | grep statusO echo "done"
     expect(result.text).toContain('grep status\necho "done"');
     expect(result.text).not.toMatch(/statusO\s*echo/);
   });
-
-  it.skip('should handle O appearing mid-word in technical terms', async () => {
-    // NOTE: This test is skipped because random O in regular text (not code blocks)
-    // is very difficult to fix without false positives. We only fix it in code blocks
-    // where we can detect command boundaries.
-    const { MarkdownFormattingPostProcessor } =
-      await import('../server/pipeline/utils/post-processors/MarkdownFormattingPostProcessor.js');
-    const processor = new MarkdownFormattingPostProcessor();
-
-    // Random O inserted mid-word
-    const input = `The validatorO node requires proper configuration.`;
-
-    const result = processor.process(input, {
-      targetFilePath: 'doc.md',
-      fileExtension: 'md',
-      isMarkdown: true,
-      isHtml: false,
-      originalText: '',
-      previousWarnings: [],
-    });
-
-    // The O shouldn't be there
-    expect(result.text).toBe('The validator node requires proper configuration.');
-  });
 });
 
 describe('Production Data Issues - Code Blocks Without Newlines (IDs 1218, 1216, 1212)', () => {
@@ -2490,7 +2466,7 @@ curl http://localhost/health echo "check complete" git status
 
     // docker commands run together
     const input = `\`\`\`
-docker ps docker logs pythia-app
+docker ps docker logs docpythia-app
 \`\`\``;
 
     const result = processor.process(input, {
@@ -2503,7 +2479,7 @@ docker ps docker logs pythia-app
     });
 
     expect(result.text).toContain('docker ps\n');
-    expect(result.text).toContain('docker logs pythia-app');
+    expect(result.text).toContain('docker logs docpythia-app');
   });
 
   it('should fix concatenated shell commands with pipes', async () => {

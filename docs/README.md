@@ -1,6 +1,6 @@
 # Documentation
 
-Approved documentation for the Pythia project.
+Approved documentation for the DocPythia project.
 
 ## Contents
 

@@ -16,7 +16,7 @@ jobs:
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
-          POSTGRES_DB: pythia_test
+          POSTGRES_DB: docpythia_test
         ports:
           - 5432:5432
         options: >-
@@ -43,7 +43,7 @@ jobs:
       - name: Run database migrations
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/pythia_test
+          DATABASE_URL: postgresql://test:test@localhost:5432/docpythia_test
 
       - name: Type check
         run: npm run check
@@ -54,7 +54,7 @@ jobs:
       - name: Run tests
         run: npm test
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/pythia_test
+          DATABASE_URL: postgresql://test:test@localhost:5432/docpythia_test
           NODE_ENV: test
 
       - name: Upload coverage
@@ -123,7 +123,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.ecr-login.outputs.registry }}/pythia
+          images: ${{ steps.ecr-login.outputs.registry }}/docpythia
           tags: |
             type=raw,value=latest
             type=raw,value=${{ steps.version.outputs.version }}

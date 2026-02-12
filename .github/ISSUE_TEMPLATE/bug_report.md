@@ -34,7 +34,7 @@ If applicable, add screenshots to help explain your problem.
 - **OS**: [e.g., Ubuntu 22.04, macOS 14]
 - **Node.js version**: [e.g., 20.10.0]
 - **Browser** (if frontend issue): [e.g., Chrome 120]
-- **Pythia version**: [e.g., 1.0.0]
+- **DocPythia version**: [e.g., 1.0.0]
 - **Deployment**: [e.g., Docker, direct Node.js]
 
 ## Logs

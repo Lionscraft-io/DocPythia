@@ -1,7 +1,7 @@
 /**
  * Swagger/OpenAPI Configuration
  *
- * This module configures Swagger documentation for the Pythia API.
+ * This module configures Swagger documentation for the DocPythia API.
  * Access the API documentation at /api/docs
  */
 
@@ -20,7 +20,7 @@ API documentation for ${config.project.name} - AI-powered documentation manageme
 
 ## Overview
 
-Pythia helps teams keep their documentation up-to-date by:
+DocPythia helps teams keep their documentation up-to-date by:
 - Scraping community discussions (Zulip, Telegram, etc.)
 - Analyzing messages for documentation relevance
 - Generating update proposals with AI
@@ -39,7 +39,7 @@ API endpoints may be rate-limited in production. Check response headers for rate
     `,
     contact: {
       name: 'API Support',
-      url: config.branding?.projectUrl || 'https://github.com/Lionscraft-io/Pythia',
+      url: config.branding?.projectUrl || 'https://github.com/Lionscraft-io/DocPythia',
     },
     license: {
       name: 'MIT',

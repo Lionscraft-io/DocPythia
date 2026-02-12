@@ -38,9 +38,9 @@ vi.mock('../server/auth/session.js', () => ({
   verifyCsrfToken: (...args: any[]) => mockVerifyCsrfToken(...args),
   refreshSession: (...args: any[]) => mockRefreshSession(...args),
   COOKIE_NAMES: {
-    accessToken: 'pythia_access_token',
-    refreshToken: 'pythia_refresh_token',
-    csrfToken: 'pythia_csrf_token',
+    accessToken: 'docpythia_access_token',
+    refreshToken: 'docpythia_refresh_token',
+    csrfToken: 'docpythia_csrf_token',
   },
 }));
 

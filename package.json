@@ -1,5 +1,5 @@
 {
-  "name": "pythia",
+  "name": "docpythia",
   "version": "1.0.0",
   "description": "AI-powered documentation management system that monitors community discussions and automatically generates documentation updates",
   "type": "module",
@@ -7,11 +7,11 @@
   "author": "Lionscraft <info@lionscraft.io>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Lionscraft-io/Pythia.git"
+    "url": "git+https://github.com/Lionscraft-io/DocPythia.git"
   },
-  "homepage": "https://github.com/Lionscraft-io/Pythia#readme",
+  "homepage": "https://github.com/Lionscraft-io/DocPythia#readme",
   "bugs": {
-    "url": "https://github.com/Lionscraft-io/Pythia/issues"
+    "url": "https://github.com/Lionscraft-io/DocPythia/issues"
   },
   "keywords": [
     "documentation",
@@ -34,7 +34,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "dev:docker": "docker run -d --name pythia-local -p 3000:8080 --env-file .env pythia-local",
+    "dev:docker": "docker run -d --name docpythia-local -p 3000:8080 --env-file .env docpythia-local",
     "kill-port": "bash scripts/permanent/kill-port.sh",
     "test": "vitest run",
     "test:watch": "vitest",

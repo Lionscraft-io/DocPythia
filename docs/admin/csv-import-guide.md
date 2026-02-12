@@ -100,7 +100,7 @@ ADMIN_TOKEN=your_admin_token_here
 **Solution:** Check server logs for errors:
 ```bash
 # Check recent logs
-tail -f /var/log/docsai.log
+tail -f /var/log/docpythia.log
 
 # Or check processing reports
 ls -la /tmp/csv-test/error/

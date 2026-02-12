@@ -1,6 +1,6 @@
-# Contributing to Pythia
+# Contributing to DocPythia
 
-Thank you for your interest in contributing to Pythia! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to DocPythia! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 
@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/Lionscraft-io/Pythia/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/Lionscraft-io/DocPythia/issues)
 2. If not, create a new issue using the bug report template
 3. Include:
    - Clear description of the bug
@@ -46,8 +46,8 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR-USERNAME/pythia.git
-cd pythia
+git clone https://github.com/YOUR-USERNAME/docpythia.git
+cd docpythia
 
 # Install dependencies
 npm install
@@ -152,4 +152,4 @@ npm test -- tests/your-test.test.ts
 
 Contributors will be recognized in our release notes and contributor list.
 
-Thank you for contributing to Pythia!
+Thank you for contributing to DocPythia!

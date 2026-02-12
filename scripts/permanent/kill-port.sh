@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kill all DocsAI application processes
+# Kill all DocPythia application processes
 
 echo "Killing processes on port 3762..."
 lsof -ti :3762 2>/dev/null | xargs -r kill -9 2>/dev/null

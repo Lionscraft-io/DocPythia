@@ -1,4 +1,4 @@
-# Pythia
+# DocPythia
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -26,8 +26,8 @@ An AI-powered documentation management platform that automatically monitors comm
 
 ```bash
 # Clone the repository
-git clone https://github.com/Lionscraft-io/Pythia.git
-cd pythia
+git clone https://github.com/Lionscraft-io/DocPythia.git
+cd docpythia
 
 # Install dependencies
 npm install
@@ -56,8 +56,8 @@ The application will be available at `http://localhost:3762`.
 docker-compose up -d
 
 # Or build manually
-docker build -t pythia .
-docker run -p 3762:8080 --env-file .env pythia
+docker build -t docpythia .
+docker run -p 3762:8080 --env-file .env docpythia
 ```
 
 See [DOCKER.md](./DOCKER.md) for detailed Docker deployment instructions.
@@ -105,7 +105,7 @@ See [docs/MULTI-INSTANCE-SETUP.md](./docs/MULTI-INSTANCE-SETUP.md) for multi-ten
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Pythia Platform                          │
+│                         DocPythia Platform                          │
 ├─────────────────────────────────────────────────────────────────┤
 │  Message Sources          Processing Pipeline        Outputs     │
 │  ┌─────────────┐         ┌─────────────────┐      ┌──────────┐  │

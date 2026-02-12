@@ -164,6 +164,13 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         // Capture prompt/query logs from context (populated by LLM and RAG steps)
         const promptEntries = context.stepPromptLogs.get(step.stepId);
         if (promptEntries && promptEntries.length > 0) {
+          // Debug: log response lengths for each entry
+          for (let i = 0; i < promptEntries.length; i++) {
+            const entry = promptEntries[i];
+            logger.debug(
+              `Step ${step.stepId} entry ${i}: response length = ${entry.response?.length || 0}`
+            );
+          }
           stepLog.promptEntries = promptEntries;
           // Also populate legacy single fields from first LLM entry (backward compat)
           const firstLlm = promptEntries.find((e) => e.entryType === 'llm-call');

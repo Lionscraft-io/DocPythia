@@ -6,7 +6,7 @@
 set -e
 
 echo "========================================="
-echo "Starting DocsAI Application"
+echo "Starting DocPythia"
 echo "========================================="
 echo ""
 

@@ -1,4 +1,4 @@
-# Design Guidelines: Pythia Documentation Platform
+# Design Guidelines: DocPythia Documentation Platform
 
 ## Design Approach
 

@@ -1,12 +1,12 @@
 # Permanent Scripts
 
-Long-term utility scripts for Pythia operations.
+Long-term utility scripts for DocPythia operations.
 
 ## Scripts
 
 ### kill-port.sh
 
-Kills all running Pythia application processes.
+Kills all running DocPythia application processes.
 
 ```bash
 # Via npm (recommended)
