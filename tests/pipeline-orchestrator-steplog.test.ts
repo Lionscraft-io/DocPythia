@@ -468,4 +468,112 @@ describe('PipelineOrchestrator Step Logging', () => {
       expect(steps[1].status).toBe('failed');
     });
   });
+
+  describe('Progressive run log updates', () => {
+    it('should update run log after each completed step', async () => {
+      config = createTestConfig([
+        { stepId: 'keyword-filter', stepType: 'filter', enabled: true, config: {} },
+        { stepId: 'classify-messages', stepType: 'classify', enabled: true, config: {} },
+      ]);
+      orchestrator = new PipelineOrchestrator(config, llmHandler, mockStepFactory as any);
+
+      const context = createTestContext({
+        filteredMessages: [{ id: 1, content: 'Test message', author: 'user1' } as any],
+      });
+      const mockDb = context.db as any;
+
+      // Capture snapshots of steps array (mock stores reference, not copy)
+      const stepSnapshots: { status: string; stepCount: number; stepNames: string[] }[] = [];
+      mockDb.pipelineRunLog.update.mockImplementation(async (args: any) => {
+        stepSnapshots.push({
+          status: args.data.status,
+          stepCount: args.data.steps.length,
+          stepNames: args.data.steps.map((s: any) => s.stepName),
+        });
+        return {};
+      });
+
+      await orchestrator.execute(context);
+
+      // Should have intermediate updates (one per step) + final update = at least 3 calls
+      expect(stepSnapshots.length).toBeGreaterThanOrEqual(3);
+
+      // First intermediate update should have 1 step with status 'running'
+      expect(stepSnapshots[0].status).toBe('running');
+      expect(stepSnapshots[0].stepCount).toBe(1);
+      expect(stepSnapshots[0].stepNames[0]).toBe('keyword-filter');
+
+      // Second intermediate update should have 2 steps with status 'running'
+      expect(stepSnapshots[1].status).toBe('running');
+      expect(stepSnapshots[1].stepCount).toBe(2);
+
+      // Final update should have status 'completed'
+      expect(stepSnapshots[stepSnapshots.length - 1].status).toBe('completed');
+    });
+
+    it('should update run log after skipped steps', async () => {
+      config = createTestConfig([
+        { stepId: 'keyword-filter', stepType: 'filter', enabled: true, config: {} },
+        { stepId: 'classify-messages', stepType: 'classify', enabled: true, config: {} },
+      ]);
+      orchestrator = new PipelineOrchestrator(config, llmHandler, mockStepFactory as any);
+
+      // filteredMessages is empty, so classify step will be skipped
+      const context = createTestContext();
+      const mockDb = context.db as any;
+
+      // Capture snapshots
+      const stepSnapshots: { status: string; steps: any[] }[] = [];
+      mockDb.pipelineRunLog.update.mockImplementation(async (args: any) => {
+        stepSnapshots.push({
+          status: args.data.status,
+          steps: args.data.steps.map((s: any) => ({ stepName: s.stepName, status: s.status })),
+        });
+        return {};
+      });
+
+      await orchestrator.execute(context);
+
+      // At least 3 calls: after filter, after classify (skipped), final
+      expect(stepSnapshots.length).toBeGreaterThanOrEqual(3);
+
+      // Verify skipped step is included in intermediate update
+      const secondSnapshot = stepSnapshots[1];
+      expect(secondSnapshot.status).toBe('running');
+      const skippedStep = secondSnapshot.steps.find((s: any) => s.stepName === 'classify-messages');
+      expect(skippedStep).toBeDefined();
+      expect(skippedStep.status).toBe('skipped');
+    });
+
+    it('should update run log after failed steps', async () => {
+      config = createTestConfig([
+        { stepId: 'failing-step', stepType: 'generate', enabled: true, config: {} },
+      ]);
+      orchestrator = new PipelineOrchestrator(config, llmHandler, mockStepFactory as any);
+
+      const context = createTestContext({
+        threads: [{ id: 'thread-1', category: 'test', messageIds: [0], summary: 'test' } as any],
+      });
+      const mockDb = context.db as any;
+
+      // Capture snapshots
+      const stepSnapshots: { status: string; steps: any[] }[] = [];
+      mockDb.pipelineRunLog.update.mockImplementation(async (args: any) => {
+        stepSnapshots.push({
+          status: args.data.status,
+          steps: args.data.steps.map((s: any) => ({ stepName: s.stepName, status: s.status })),
+        });
+        return {};
+      });
+
+      await orchestrator.execute(context);
+
+      // At least 2 calls: after failed step, final
+      expect(stepSnapshots.length).toBeGreaterThanOrEqual(2);
+
+      // First intermediate update should have the failed step with status 'running'
+      expect(stepSnapshots[0].status).toBe('running');
+      expect(stepSnapshots[0].steps[0].status).toBe('failed');
+    });
+  });
 });
