@@ -43,14 +43,14 @@ const ProposalResponseSchema = z.object({
     z.object({
       updateType: z.enum(['INSERT', 'UPDATE', 'DELETE', 'NONE']),
       page: z.string(),
-      section: z.string().optional(),
-      suggestedText: z.string().optional(),
+      section: z.string().nullish(),
+      suggestedText: z.string().nullish(),
       reasoning: z.string(),
-      sourceMessages: z.array(z.number()).optional(),
+      sourceMessages: z.array(z.number()).nullish(),
     })
   ),
-  proposalsRejected: z.boolean().optional(),
-  rejectionReason: z.string().optional(),
+  proposalsRejected: z.boolean().nullish(),
+  rejectionReason: z.string().nullish(),
 });
 
 type ProposalResponse = z.infer<typeof ProposalResponseSchema>;
@@ -220,6 +220,9 @@ export class ProposalGenerateStep extends BasePipelineStep {
     }
 
     // Log LLM response for debugging
+    this.logger.debug(
+      `Capturing response for entry ${entryIndex}, length: ${response.text?.length || 0}`
+    );
     this.updatePromptLogEntryResponse(context, entryIndex, response.text);
 
     // Handle rejection
@@ -242,9 +245,9 @@ export class ProposalGenerateStep extends BasePipelineStep {
     return data.proposals
       .filter((p) => p.updateType !== 'NONE')
       .map((p) => {
-        // Post-process suggestedText for markdown files
-        const originalText = p.suggestedText;
-        const postProcessed = postProcessProposal(p.suggestedText, p.page);
+        // Post-process suggestedText for markdown files (coerce null → undefined)
+        const originalText = p.suggestedText ?? undefined;
+        const postProcessed = postProcessProposal(originalText, p.page);
 
         // Debug logging to track post-processing
         if (postProcessed.wasModified) {
@@ -262,11 +265,11 @@ export class ProposalGenerateStep extends BasePipelineStep {
         return {
           updateType: p.updateType,
           page: p.page,
-          section: p.section,
-          suggestedText: postProcessed.text || p.suggestedText,
-          rawSuggestedText: originalText, // Preserve original LLM output
+          section: p.section ?? undefined,
+          suggestedText: postProcessed.text || originalText,
+          rawSuggestedText: originalText,
           reasoning: p.reasoning,
-          sourceMessages: p.sourceMessages,
+          sourceMessages: p.sourceMessages ?? undefined,
           warnings: postProcessed.warnings.length > 0 ? postProcessed.warnings : undefined,
         };
       });
