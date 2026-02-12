@@ -90,23 +90,21 @@ export class ProposalGenerateStep extends BasePipelineStep {
       );
     }
 
-    // Only process threads with RAG context
-    const threadsWithRag = context.threads.filter(
-      (t) => context.ragResults.has(t.id) && context.ragResults.get(t.id)!.length > 0
-    );
+    // Process all valuable threads — even those without RAG docs can get INSERT proposals for new pages
+    const threadsToProcess = context.threads.filter((t) => t.category !== 'no-doc-value');
 
-    if (threadsWithRag.length === 0) {
-      this.logger.info('No threads with RAG context, skipping proposal generation');
+    if (threadsToProcess.length === 0) {
+      this.logger.info('No valuable threads, skipping proposal generation');
       this.recordTiming(context, startTime);
       return context;
     }
 
-    this.logger.info(`Generating proposals for ${threadsWithRag.length} threads`);
+    this.logger.info(`Generating proposals for ${threadsToProcess.length} threads`);
 
     let totalProposals = 0;
     const maxBatchProposals = context.domainConfig.security?.maxProposalsPerBatch || 100;
 
-    for (const thread of threadsWithRag) {
+    for (const thread of threadsToProcess) {
       // Check if we've hit the batch limit
       if (totalProposals >= maxBatchProposals) {
         this.logger.warn(`Reached max proposals per batch (${maxBatchProposals}), stopping`);

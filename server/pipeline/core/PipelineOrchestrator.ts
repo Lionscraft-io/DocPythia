@@ -142,6 +142,9 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
           stepLog.outputCount = 0;
           stepLogs.push(stepLog);
 
+          // Update run log progressively so frontend can show step-by-step progress
+          await this.updateRunLog(context, runLogId, 'running', stepLogs, [], startTime);
+
           logger.info(`Skipping step ${step.stepId}: no input to process`);
           continue;
         }
@@ -175,6 +178,9 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
 
         stepLogs.push(stepLog);
 
+        // Update run log progressively so frontend can show step-by-step progress
+        await this.updateRunLog(context, runLogId, 'running', stepLogs, [], startTime);
+
         logger.debug(`Step completed: ${step.stepId}`, {
           durationMs: stepDuration,
           filteredMessages: context.filteredMessages.length,
@@ -203,6 +209,9 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         }
 
         stepLogs.push(stepLog);
+
+        // Update run log progressively so frontend can show step-by-step progress
+        await this.updateRunLog(context, runLogId, 'running', stepLogs, [], startTime);
 
         const pipelineError: PipelineError = {
           stepId: step.stepId,
