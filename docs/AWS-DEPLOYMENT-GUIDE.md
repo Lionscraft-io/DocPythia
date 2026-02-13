@@ -730,9 +730,16 @@ echo "$SERVICE_ARN"
 
 ### 9.6 Verify
 
+> **Note:** The service won't be healthy until an image is pushed to ECR. If you haven't pushed an image yet, either push to `main` to trigger the CI pipeline (step 8.3), or build and push manually first.
+
 ```bash
 curl https://${SERVICE_URL}/api/health
 # Expected: {"status":"ok","timestamp":"..."}
+```
+
+If the health check fails, check the App Runner logs:
+```bash
+aws logs tail "/aws/apprunner/docpythia" --since 10m
 ```
 
 ---
