@@ -500,15 +500,39 @@ cp .env.example .env
 aws s3 mb s3://docpythia-config-${AWS_ACCOUNT_ID} --region $AWS_REGION
 ```
 
-Upload your instance configuration:
+### 5.1 Create your instance configuration
+
+Copy and customize the example config:
 
 ```bash
+mkdir -p config/myinstance
 cp config/instance.example.json config/myinstance/instance.json
-# Edit config/myinstance/instance.json with your settings
+```
 
+Edit `config/myinstance/instance.json` with your settings. Key fields to update:
+
+| Section | Field | Description |
+|---------|-------|-------------|
+| `project` | `name`, `shortName` | Your project's display name and URL slug |
+| `project` | `domain` | Your production domain (e.g., `docs.myproject.com`) |
+| `documentation` | `gitUrl` | GitHub URL of your documentation repository |
+| `documentation` | `branch`, `docsPath` | Branch and folder containing docs |
+| `admin` | `token` | Secure admin API token (use `openssl rand -base64 32`) |
+| `admin` | `allowedOrigins` | List of allowed CORS origins for your domain |
+
+Optional integrations (set `enabled: false` to skip):
+- `community.telegram` — Bot token and channel for Telegram ingestion
+- `community.discord` — Bot token and guild/channel IDs for Discord
+- `community.zulip` — Zulip site URL and credentials
+
+### 5.2 Upload to S3
+
+```bash
 aws s3 cp config/myinstance/instance.json \
   s3://docpythia-config-${AWS_ACCOUNT_ID}/configs/myinstance/instance.json
 ```
+
+> **Note:** The instance name in the S3 path (`myinstance`) becomes the URL path: `https://your-domain.com/myinstance/admin`
 
 ---
 
