@@ -88,6 +88,133 @@ Verify it works:
 aws sts get-caller-identity
 ```
 
+### 2.1 Required IAM Permissions for Setup
+
+The IAM user or role running these setup commands needs the following permissions. You can either use an admin user or create a custom policy with these permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "IAMRoleManagement",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:GetRole",
+        "iam:PutRolePolicy",
+        "iam:AttachRolePolicy",
+        "iam:PassRole",
+        "iam:CreateOpenIDConnectProvider",
+        "iam:GetOpenIDConnectProvider"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ECRManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:DescribeRepositories",
+        "ecr:PutLifecyclePolicy",
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RDSManagement",
+      "Effect": "Allow",
+      "Action": [
+        "rds:CreateDBInstance",
+        "rds:CreateDBSubnetGroup",
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBSubnetGroups",
+        "rds:ModifyDBInstance"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EC2NetworkingForRDS",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:CreateSecurityGroup",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:DescribeAvailabilityZones"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3BucketManagement",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:PutBucketPolicy",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::docpythia-*",
+        "arn:aws:s3:::docpythia-*/*"
+      ]
+    },
+    {
+      "Sid": "SecretsManagerSetup",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": "arn:aws:secretsmanager:*:*:secret:docpythia/*"
+    },
+    {
+      "Sid": "AppRunnerManagement",
+      "Effect": "Allow",
+      "Action": [
+        "apprunner:CreateService",
+        "apprunner:DescribeService",
+        "apprunner:ListServices",
+        "apprunner:StartDeployment",
+        "apprunner:UpdateService",
+        "apprunner:CreateAutoScalingConfiguration",
+        "apprunner:DescribeAutoScalingConfiguration"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudWatchMonitoring",
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups",
+        "logs:CreateLogGroup",
+        "logs:PutRetentionPolicy",
+        "cloudwatch:PutMetricAlarm",
+        "cloudwatch:DescribeAlarms"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SNSAlerts",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:Subscribe",
+        "sns:GetTopicAttributes"
+      ],
+      "Resource": "arn:aws:sns:*:*:docpythia-*"
+    }
+  ]
+}
+```
+
+> **Tip**: For initial setup, using an IAM user with `AdministratorAccess` is simpler. After setup, you can restrict access to only the deploy role for CI/CD.
+
 Set your region as a variable for the rest of this guide:
 
 ```bash
