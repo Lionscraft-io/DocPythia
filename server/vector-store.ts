@@ -64,12 +64,18 @@ export class PgVectorStore implements VectorStore {
     const isRds = url.hostname.includes('rds.amazonaws.com');
     const needsSsl = sslMode === 'require' || isRds;
 
+    // Remove sslmode from URL to avoid conflict with ssl option
+    if (needsSsl) {
+      url.searchParams.delete('sslmode');
+    }
+    const cleanDatabaseUrl = url.toString();
+
     console.log(
-      `[PgVectorStore] SSL config: sslmode=${sslMode}, isRds=${isRds}, needsSsl=${needsSsl}`
+      `[PgVectorStore] SSL config: sslmode=${sslMode}, isRds=${isRds}, needsSsl=${needsSsl}, url=${cleanDatabaseUrl.replace(/:[^:@]+@/, ':***@')}`
     );
 
     this.pool = new Pool({
-      connectionString: databaseUrl,
+      connectionString: cleanDatabaseUrl,
       ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
     });
 
