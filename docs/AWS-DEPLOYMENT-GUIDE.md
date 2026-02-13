@@ -113,16 +113,7 @@ The IAM user or role running these setup commands needs the following permission
       "Sid": "IAMPassRole",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "iam:PassedToService": [
-            "apprunner.amazonaws.com",
-            "build.apprunner.amazonaws.com",
-            "tasks.apprunner.amazonaws.com"
-          ]
-        }
-      }
+      "Resource": "arn:aws:iam::*:role/docpythia-apprunner-*"
     },
     {
       "Sid": "ECRManagement",
