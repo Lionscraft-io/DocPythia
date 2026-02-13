@@ -183,7 +183,8 @@ jobs:
 
       - name: Pull image from GHCR and push to ECR
         run: |
-          GHCR_IMAGE="ghcr.io/${{ github.repository }}:sha-${GITHUB_SHA::7}"
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          GHCR_IMAGE="ghcr.io/${REPO_LOWER}:sha-${GITHUB_SHA::7}"
           ECR_REGISTRY="${{ steps.ecr-login.outputs.registry }}"
 
           docker pull ${GHCR_IMAGE}
