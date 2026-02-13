@@ -468,14 +468,28 @@ psql "postgresql://docpythia:${DB_PASSWORD}@${DB_ENDPOINT}:5432/docpythia" \
 
 ### Run database migrations
 
-From your local machine:
+From your local machine, using the variables from the previous steps:
 
 ```bash
-export DATABASE_URL="postgresql://docpythia:YOUR_PASSWORD@YOUR_ENDPOINT:5432/docpythia"
+# Option A: Use shell variables (if still in same session)
+export DATABASE_URL="postgresql://docpythia:${DB_PASSWORD}@${DB_ENDPOINT}:5432/docpythia"
+
+# Option B: Set values directly (if starting a new session)
+# export DATABASE_URL="postgresql://docpythia:<your-password>@<your-endpoint>:5432/docpythia"
+
+# Verify the connection string
+echo "DATABASE_URL: $DATABASE_URL"
 
 npm ci
 npx prisma generate
 npx prisma migrate deploy
+```
+
+Optionally, save to `.env` for local development:
+
+```bash
+cp .env.example .env
+# Edit .env and set DATABASE_URL to your connection string
 ```
 
 ---
