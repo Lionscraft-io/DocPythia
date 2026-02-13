@@ -46,10 +46,12 @@ export class PgVectorStore implements VectorStore {
     this.instanceId = instanceId;
     this.db = db;
 
-    // Get instance-specific database URL
+    // Get instance-specific database URL (preserve query params like sslmode)
     const config = InstanceConfigLoader.get(instanceId);
     const baseUrl = process.env.DATABASE_URL || '';
-    const databaseUrl = baseUrl.replace(/\/[^/]+$/, `/${config.database.name}`);
+    const url = new URL(baseUrl);
+    url.pathname = url.pathname.replace(/\/[^/]+$/, `/${config.database.name}`);
+    const databaseUrl = url.toString();
 
     if (!databaseUrl) {
       throw new Error('DATABASE_URL environment variable is not set');
