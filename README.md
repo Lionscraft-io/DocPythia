@@ -167,6 +167,7 @@ npm run build
 
 - [Docker Deployment](./DOCKER.md)
 - [AWS Deployment Guide](./docs/AWS-DEPLOYMENT-GUIDE.md)
+- [Stream Configuration Guide](./docs/STREAM-CONFIGURATION.md)
 - [Design Guidelines](./docs/design_guidelines.md)
 
 ## Contributing
