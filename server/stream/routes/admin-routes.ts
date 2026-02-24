@@ -299,6 +299,16 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       // Import streamManager here to avoid circular dependency
       const { streamManager } = await import('../stream-manager.js');
 
+      // Check if the stream has a registered adapter before attempting import
+      if (!streamManager.hasAdapter(streamId)) {
+        logger.warn(`Stream ${streamId} has no registered adapter — skipping import`);
+        return res.status(404).json({
+          error: 'Stream not registered',
+          message: `Stream "${streamId}" has no registered adapter. It may be a test/pipeline stream.`,
+          streamId,
+        });
+      }
+
       // Fetch messages without processing them
       const imported = await streamManager.importStream(streamId, batchSize);
 

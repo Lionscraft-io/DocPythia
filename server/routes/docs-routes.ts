@@ -237,6 +237,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
           added: 0,
           modified: 0,
           deleted: 0,
+          failed: 0,
           filesProcessed: [] as string[],
         };
 
@@ -277,14 +278,28 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
             summary.filesProcessed.push(file.path);
           } catch (fileError: any) {
             logger.error(`Failed to process file ${file.path}:`, fileError.message);
-            // Log error but continue with next file
+            summary.failed++;
             summary.filesProcessed.push(`${file.path} (FAILED: ${fileError.message})`);
           }
         }
 
-        // Update sync state
-        await gitFetcher.updateCommitHash(updateInfo.currentHash);
-        await gitFetcher.updateSyncStatus('success');
+        const successfulImports = summary.added + summary.modified + summary.deleted;
+        const totalFiles = changedFiles.length;
+
+        // Only update commit hash if at least one document was successfully processed
+        // This prevents poisoning the state when all imports fail (e.g. SSL/connection errors)
+        if (successfulImports > 0 || totalFiles === 0) {
+          await gitFetcher.updateCommitHash(updateInfo.currentHash);
+          await gitFetcher.updateSyncStatus('success');
+        } else {
+          logger.error(
+            `All ${summary.failed} document imports failed — commit hash NOT updated to allow retry`
+          );
+          await gitFetcher.updateSyncStatus(
+            'error',
+            `All ${summary.failed} document imports failed`
+          );
+        }
 
         // Invalidate doc-index cache to regenerate with current filter config
         await docIndexGenerator.invalidateCache();
@@ -292,10 +307,12 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
         // Get total document count
         const stats = await instanceVectorStore.getStats();
 
-        logger.info(`Documentation sync completed in ${Date.now() - startTime}ms`);
+        logger.info(
+          `Documentation sync completed in ${Date.now() - startTime}ms: ${successfulImports} succeeded, ${summary.failed} failed`
+        );
 
         res.json({
-          success: true,
+          success: successfulImports > 0 || summary.failed === 0,
           hadUpdates: true,
           currentHash: updateInfo.currentHash,
           previousHash: updateInfo.storedHash,

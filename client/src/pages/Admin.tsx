@@ -492,36 +492,78 @@ export default function Admin() {
       const enabledStreams = streams.filter((s: any) => s.enabled);
 
       let totalImported = 0;
+      let succeeded = 0;
+      const skipped: string[] = [];
+      const failed: string[] = [];
+
       for (let i = 0; i < enabledStreams.length; i++) {
         const stream = enabledStreams[i];
+        const sid = stream.streamId || stream.stream_id;
         setProcessingOverlay({
           visible: true,
           title: 'Pulling Messages',
-          message: `Pulling from ${stream.streamId || stream.stream_id}...`,
+          message: `Pulling from ${sid}...`,
           progress: { current: i, total: enabledStreams.length },
         });
 
-        const response = await adminApiRequest('POST', `${prefix}/api/admin/stream/process`, {
-          streamId: stream.streamId || stream.stream_id,
-          batchSize: 100,
-        });
-        const result = await response.json();
-        totalImported += result.imported || 0;
+        try {
+          const response = await fetch(`${prefix}/api/admin/stream/process`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(sessionStorage.getItem('admin_token')
+                ? { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }
+                : {}),
+            },
+            body: JSON.stringify({ streamId: sid, batchSize: 100 }),
+            credentials: 'include',
+          });
+
+          if (response.status === 404) {
+            // Stream has no registered adapter (test/pipeline stream) — skip it
+            skipped.push(sid);
+            continue;
+          }
+
+          if (!response.ok) {
+            failed.push(sid);
+            continue;
+          }
+
+          const result = await response.json();
+          totalImported += result.imported || 0;
+          succeeded++;
+        } catch {
+          failed.push(sid);
+        }
       }
-      return { totalImported, streamCount: enabledStreams.length, totalStreams: streams.length };
+      return {
+        totalImported,
+        succeeded,
+        skipped,
+        failed,
+        streamCount: enabledStreams.length,
+        totalStreams: streams.length,
+      };
     },
     onSuccess: (data) => {
+      const parts = [`Imported ${data.totalImported} messages from ${data.succeeded} streams`];
+      if (data.skipped.length > 0) parts.push(`${data.skipped.length} skipped (no adapter)`);
+      if (data.failed.length > 0) parts.push(`${data.failed.length} failed`);
+      const summary = parts.join(', ');
+
       setProcessingOverlay({
         visible: true,
         title: 'Pulling Messages',
-        message: `Done! Imported ${data.totalImported} messages from ${data.streamCount} streams.`,
+        message: `Done! ${summary}.`,
       });
       setTimeout(() => {
         setProcessingOverlay({ visible: false, title: '', message: '' });
       }, 2000);
       toast({
-        title: 'Messages Pulled',
-        description: `Imported ${data.totalImported} new messages from ${data.streamCount} enabled streams.`,
+        title: data.failed.length > 0 ? 'Messages Pulled (with errors)' : 'Messages Pulled',
+        description: summary,
+        variant: data.failed.length > 0 ? 'destructive' : 'default',
       });
       refetchStreamStats();
     },

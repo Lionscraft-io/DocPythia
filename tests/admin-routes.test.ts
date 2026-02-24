@@ -82,6 +82,7 @@ vi.mock('../server/stream/services/changeset-batch-service.js', () => ({
 vi.mock('../server/stream/stream-manager.js', () => ({
   streamManager: {
     importStream: vi.fn().mockResolvedValue(10),
+    hasAdapter: vi.fn().mockReturnValue(true),
     getAdapters: vi.fn().mockReturnValue(new Map()),
     initialize: vi.fn().mockResolvedValue(undefined),
   },
@@ -695,6 +696,19 @@ describe('Admin Routes', () => {
       const response = await request(app).post('/api/admin/stream/process').send({});
 
       expect(response.status).toBe(500);
+    });
+
+    it('should return 404 for stream with no registered adapter', async () => {
+      const { streamManager } = await import('../server/stream/stream-manager.js');
+      (streamManager.hasAdapter as any).mockReturnValueOnce(false);
+
+      const response = await request(app).post('/api/admin/stream/process').send({
+        streamId: 'unregistered-stream',
+      });
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe('Stream not registered');
+      expect(response.body.streamId).toBe('unregistered-stream');
     });
   });
 

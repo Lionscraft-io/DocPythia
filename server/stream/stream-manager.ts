@@ -638,6 +638,13 @@ export class StreamManager {
   getAdapter(streamId: string): StreamAdapter | undefined {
     return this.adapters.get(streamId);
   }
+
+  /**
+   * Check if a stream has a registered adapter
+   */
+  hasAdapter(streamId: string): boolean {
+    return this.adapters.has(streamId);
+  }
 }
 
 // Export singleton instance
