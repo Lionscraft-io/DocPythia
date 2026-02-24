@@ -176,14 +176,14 @@ export default function Admin() {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  // Fetch git stats for documentation URL (uses global config, not instance-prefixed)
+  // Fetch git stats for documentation URL (instance-prefixed for correct config lookup)
   const { data: gitStats } = useQuery<{
     gitUrl: string;
     branch: string;
     lastSyncAt: string | null;
     totalDocuments: number;
   }>({
-    queryKey: ['/api/docs/git-stats'],
+    queryKey: [`${apiPrefix}/api/docs/git-stats`],
   });
 
   // Fetch stream processing stats (includes is_processing flag)

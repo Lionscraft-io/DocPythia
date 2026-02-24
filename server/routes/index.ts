@@ -74,6 +74,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Documentation routes (public and admin)
   const docsRoutes = createDocsRoutes(adminAuth);
   app.use('/api/docs', docsRoutes);
+  app.use('/:instance/api/docs', instanceMiddleware, docsRoutes);
 
   // Section routes (history and rollback - admin only)
   // These are registered on /api/sections/:sectionId path
