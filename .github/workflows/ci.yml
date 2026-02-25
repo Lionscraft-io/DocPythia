@@ -164,6 +164,11 @@ jobs:
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
+          if [ -n "${{ secrets.APPRUNNER_SERVICE_ARN }}" ]; then
+            echo "has_apprunner=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_apprunner=false" >> $GITHUB_OUTPUT
+          fi
 
       - uses: actions/checkout@v6
         if: steps.check.outputs.skip != 'true'
@@ -213,7 +218,7 @@ jobs:
           docker push ${ECR_REGISTRY}/${ECR_REPO}:${{ steps.version.outputs.version }}
 
       - name: Deploy to App Runner
-        if: steps.check.outputs.skip != 'true' && secrets.APPRUNNER_SERVICE_ARN != ''
+        if: steps.check.outputs.skip != 'true' && steps.check.outputs.has_apprunner == 'true'
         run: |
           aws apprunner start-deployment \
             --service-arn ${{ secrets.APPRUNNER_SERVICE_ARN }}
