@@ -1,7 +1,7 @@
 import * as React from 'react';
 const { useState, useEffect } = React;
 import { useLocation } from 'wouter';
-import { UpdateCard, type ProposalFeedback } from '@/components/UpdateCard';
+import { UpdateCard } from '@/components/UpdateCard';
 import { StatsCard } from '@/components/StatsCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -404,31 +404,6 @@ export default function Admin() {
     },
   });
 
-  // Save ruleset feedback for quality improvement
-  const feedbackMutation = useMutation({
-    mutationFn: async (feedback: ProposalFeedback) => {
-      return await adminApiRequest('POST', `${apiPrefix}/api/admin/quality/feedback`, {
-        proposalId: feedback.proposalId,
-        action: feedback.action,
-        feedbackText: feedback.feedbackText,
-        useForImprovement: feedback.useForImprovement,
-      });
-    },
-    onSuccess: () => {
-      // Feedback saved silently - no toast unless user wants it
-    },
-    onError: (error: Error) => {
-      console.error('Failed to save feedback:', error);
-      // Silent failure - feedback is optional enhancement
-    },
-  });
-
-  const handleFeedback = (feedback: ProposalFeedback) => {
-    if (feedback.feedbackText.trim() || feedback.useForImprovement) {
-      feedbackMutation.mutate(feedback);
-    }
-  };
-
   const syncDocsMutation = useMutation({
     mutationFn: async (force: boolean = false) => {
       const response = await adminApiRequest('POST', '/api/docs/sync', { force });
@@ -615,12 +590,27 @@ export default function Admin() {
         queryKey: [changesetQueryKey],
       });
     },
-    onError: (error: Error) => {
-      setProcessingOverlay({ visible: false, title: '', message: '' });
-      toast({
-        title: 'Processing Failed',
-        description: error.message || 'Failed to process messages.',
-        variant: 'destructive',
+    onError: () => {
+      // On timeout (504) or network error, the server may still be processing.
+      // Keep the overlay visible and let streamStats polling track progress.
+      refetchStreamStats().then(({ data: stats }) => {
+        if (stats?.is_processing || (stats?.queued ?? 0) > 0) {
+          const processed = stats?.processed || 0;
+          const queued = stats?.queued || 0;
+          setProcessingOverlay({
+            visible: true,
+            title: 'Processing Messages',
+            message: `Processing messages... ${processed} completed, ${queued} remaining`,
+            progress: { current: processed, total: processed + queued },
+          });
+        } else {
+          setProcessingOverlay({ visible: false, title: '', message: '' });
+          toast({
+            title: 'Processing Failed',
+            description: 'Failed to process messages.',
+            variant: 'destructive',
+          });
+        }
       });
     },
   });
@@ -1115,7 +1105,6 @@ export default function Admin() {
                           onApprove={handleApprove}
                           onReject={(id) => handleReject(id, proposal.status)}
                           onEdit={handleEdit}
-                          onFeedback={handleFeedback}
                         />
                       ))}
                     </CardContent>
@@ -1203,7 +1192,6 @@ export default function Admin() {
                           enrichment={proposal.enrichment}
                           onEdit={handleEdit}
                           onReject={(id) => handleReject(id, proposal.status)}
-                          onFeedback={handleFeedback}
                         />
                       ))}
                     </CardContent>
@@ -1290,7 +1278,6 @@ export default function Admin() {
                           gitUrl={gitStats?.gitUrl}
                           enrichment={proposal.enrichment}
                           onReject={(id) => handleReject(id, proposal.status)}
-                          onFeedback={handleFeedback}
                         />
                       ))}
                     </CardContent>
@@ -1379,7 +1366,6 @@ export default function Admin() {
                           onApprove={proposal.status === 'pending' ? handleApprove : undefined}
                           onReject={(id) => handleReject(id, proposal.status)}
                           onEdit={proposal.status !== 'ignored' ? handleEdit : undefined}
-                          onFeedback={handleFeedback}
                         />
                       ))}
                     </CardContent>

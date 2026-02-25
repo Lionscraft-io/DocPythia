@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -159,16 +158,6 @@ function ContentRenderer({ content, className }: { content: string; className?: 
   );
 }
 
-/**
- * Feedback data for ruleset improvement
- */
-export interface ProposalFeedback {
-  proposalId: string;
-  action: 'approved' | 'rejected' | 'ignored';
-  feedbackText: string;
-  useForImprovement: boolean;
-}
-
 interface UpdateCardProps {
   id: string;
   type: 'minor' | 'major' | 'add' | 'delete';
@@ -187,7 +176,6 @@ interface UpdateCardProps {
   onReject?: (id: string) => void;
   onEdit?: (id: string, data: { summary?: string; diffAfter?: string }) => void;
   onViewContext?: () => void;
-  onFeedback?: (feedback: ProposalFeedback) => void;
 }
 
 export function UpdateCard({
@@ -205,7 +193,6 @@ export function UpdateCard({
   onReject,
   onEdit,
   onViewContext,
-  onFeedback,
 }: UpdateCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [editedContent, setEditedContent] = useState(diff?.after || '');
@@ -213,14 +200,6 @@ export function UpdateCard({
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileLoading, setFileLoading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-
-  // Feedback dialog state
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackText, setFeedbackText] = useState('');
-  const [useForImprovement, setUseForImprovement] = useState(true);
-  const [pendingAction, setPendingAction] = useState<'approved' | 'rejected' | 'ignored' | null>(
-    null
-  );
 
   // Build the GitHub URL for the file
   const buildGitHubUrl = (filePath: string): string => {
@@ -264,56 +243,14 @@ export function UpdateCard({
     }
   };
 
-  // Handle approve with optional feedback
+  // Handle approve directly
   const handleApproveClick = () => {
-    if (onFeedback) {
-      setPendingAction('approved');
-      setFeedbackOpen(true);
-    } else {
-      onApprove?.(id);
-    }
+    onApprove?.(id);
   };
 
-  // Handle reject/ignore with optional feedback, or reset to pending directly
+  // Handle reject/ignore directly
   const handleRejectClick = () => {
-    // Reset to pending (from approved or ignored tabs) — no feedback needed
-    if (status === 'approved' || status === 'rejected') {
-      onReject?.(id);
-      return;
-    }
-
-    // Ignore (from pending tab) — show feedback dialog if available
-    if (onFeedback) {
-      setPendingAction('ignored');
-      setFeedbackOpen(true);
-    } else {
-      onReject?.(id);
-    }
-  };
-
-  // Submit feedback (if provided) and complete the action
-  const handleFeedbackSubmit = () => {
-    if (pendingAction && onFeedback && feedbackText.trim()) {
-      onFeedback({
-        proposalId: id,
-        action: pendingAction,
-        feedbackText: feedbackText.trim(),
-        useForImprovement,
-      });
-    }
-
-    // Complete the original action
-    if (pendingAction === 'approved') {
-      onApprove?.(id);
-    } else if (pendingAction === 'rejected' || pendingAction === 'ignored') {
-      onReject?.(id);
-    }
-
-    // Reset state
-    setFeedbackOpen(false);
-    setFeedbackText('');
-    setUseForImprovement(true);
-    setPendingAction(null);
+    onReject?.(id);
   };
 
   return (
@@ -566,61 +503,6 @@ export function UpdateCard({
               className="border-gray-300 text-gray-700"
             >
               Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Feedback Dialog */}
-      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
-        <DialogContent className="max-w-md bg-white [&>button]:text-gray-900 [&>button]:hover:bg-gray-100">
-          <DialogHeader>
-            <DialogTitle className="text-gray-900">
-              {pendingAction === 'approved' ? 'Approve Proposal' : 'Ignore Proposal'}
-            </DialogTitle>
-            <DialogDescription className="text-gray-600">
-              Optionally provide feedback to help improve future proposals.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="feedback" className="text-gray-900">
-                Feedback (optional)
-              </Label>
-              <Textarea
-                id="feedback"
-                placeholder={
-                  pendingAction === 'approved'
-                    ? 'What made this proposal good? Any suggestions for similar proposals?'
-                    : 'Why was this proposal ignored? What would make it better?'
-                }
-                value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
-                rows={4}
-                className="border-gray-300 text-gray-900 bg-white"
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="useForImprovement"
-                checked={useForImprovement}
-                onCheckedChange={(checked) => setUseForImprovement(checked === true)}
-              />
-              <Label htmlFor="useForImprovement" className="text-sm text-gray-700 cursor-pointer">
-                Use this feedback to improve the ruleset
-              </Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={handleFeedbackSubmit}
-              className={
-                pendingAction === 'approved'
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'bg-red-600 hover:bg-red-700 text-white'
-              }
-            >
-              {pendingAction === 'approved' ? 'Approve' : 'Ignore'}
             </Button>
           </DialogFooter>
         </DialogContent>
