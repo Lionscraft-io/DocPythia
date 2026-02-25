@@ -619,7 +619,6 @@ describe('ChangesetBatchService - generatePR workflow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
-    process.env.GITHUB_TOKEN = 'test-github-token';
     service = new ChangesetBatchService(mockPrismaClient as any);
 
     // Reset all mock functions
@@ -647,6 +646,7 @@ describe('ChangesetBatchService - generatePR workflow', () => {
     prTitle: 'Test PR Title',
     prBody: 'Test PR body content',
     submittedBy: 'test-user',
+    gitToken: 'test-github-token',
   };
 
   it('should successfully generate PR with mechanical application', async () => {

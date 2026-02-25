@@ -1662,10 +1662,13 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         })
         .parse(req.body);
 
+      // Get gitToken from instance config if available
+      const gitToken = req.instance?.config?.documentation?.gitToken;
+
       const { ChangesetBatchService } = await import('../services/changeset-batch-service.js');
       const batchService = new ChangesetBatchService(db);
 
-      const result = await batchService.generatePR(batchId, options);
+      const result = await batchService.generatePR(batchId, { ...options, gitToken });
 
       res.status(200).json({
         message: 'Pull request created successfully',

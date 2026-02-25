@@ -26,6 +26,7 @@ interface CreateBatchOptions {
   prTitle: string;
   prBody: string;
   submittedBy: string;
+  gitToken?: string;
 }
 
 interface BatchResult {
@@ -120,9 +121,13 @@ export class ChangesetBatchService {
 
     const proposals = batch.batchProposals.map((bp) => bp.proposal);
 
-    // Initialize GitHub PR service
+    // Initialize GitHub PR service using instance gitToken
+    if (!options.gitToken) {
+      throw new Error('No gitToken configured. Set gitToken in the instance configuration.');
+    }
+
     const githubConfig = {
-      token: process.env.GITHUB_TOKEN!,
+      token: options.gitToken,
       targetRepo: options.targetRepo,
       sourceRepo: options.sourceRepo,
       baseBranch: options.baseBranch || 'main',
