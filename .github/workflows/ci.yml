@@ -152,6 +152,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.deploy == 'true'
     permissions:
       contents: read
+      packages: read
       id-token: write
 
     steps:
