@@ -71,6 +71,8 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
     try {
       // Get instance from request (set by middleware) or use 'default'
       const instanceId = (req as any).instance?.id || 'default';
+      // Use instance-specific DB if available, otherwise global
+      const db = (req as any).instance?.db || prisma;
 
       // Try to get config from instance config first, fallback to env var
       let gitUrl: string;
@@ -88,7 +90,7 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
         logger.debug(`Using env var config: ${gitUrl}`);
       }
 
-      const syncState = await prisma.gitSyncState.findFirst({
+      const syncState = await db.gitSyncState.findFirst({
         where: {
           gitUrl: gitUrl,
         },
@@ -106,8 +108,9 @@ export function createDocsRoutes(adminAuth: RequestHandler): Router {
         });
       }
 
-      // Get document counts
-      const stats = await vectorStore.getStats();
+      // Get document counts using instance-specific vector store
+      const instanceVectorStore = db === prisma ? vectorStore : new PgVectorStore(instanceId, db);
+      const stats = await instanceVectorStore.getStats();
 
       res.json({
         gitUrl: syncState.gitUrl,
