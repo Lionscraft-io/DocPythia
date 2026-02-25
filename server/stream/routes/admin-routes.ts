@@ -22,6 +22,11 @@ import { postProcessProposal } from '../../pipeline/utils/ProposalPostProcessor.
 
 const logger = createLogger('AdminStreamRoutes');
 
+// Filter to exclude test/pipeline streams from production queries
+const EXCLUDE_TEST_STREAMS = {
+  NOT: { streamId: { startsWith: 'pipeline-test' } },
+};
+
 // Helper to get instance ID from request
 function getInstanceId(req: Request): string {
   // First try: Instance middleware (for routes with /:instance prefix)
@@ -99,12 +104,16 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
     try {
       const db = getDb(req);
 
-      // Get total messages
-      const totalMessages = await db.unifiedMessage.count();
+      // Exclude test/pipeline streams from all stats
+      const messageFilter = EXCLUDE_TEST_STREAMS;
+
+      // Get total messages (excluding test streams)
+      const totalMessages = await db.unifiedMessage.count({ where: messageFilter });
 
       // Get messages by processing status
       const statusCounts = await db.unifiedMessage.groupBy({
         by: ['processingStatus'],
+        where: messageFilter,
         _count: true,
       });
 
@@ -113,15 +122,29 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       const failed = statusCounts.find((s) => s.processingStatus === 'FAILED')?._count || 0;
 
       // Get messages with doc value
-      const withDocValue = await db.messageClassification.count();
+      const withDocValue = await db.messageClassification.count({
+        where: { message: messageFilter },
+      });
 
-      // Get proposals (total and by approval status)
-      const totalProposals = await db.docProposal.count();
+      // Get proposals (total and by approval status) — exclude test stream proposals
+      const testStreamConversationIds = await db.messageClassification.findMany({
+        where: { message: { streamId: { startsWith: 'pipeline-test' } } },
+        select: { conversationId: true },
+        distinct: ['conversationId'],
+      });
+      const excludeConvIds = testStreamConversationIds
+        .map((c) => c.conversationId)
+        .filter((id): id is string => id !== null);
+
+      const proposalExclude =
+        excludeConvIds.length > 0 ? { conversationId: { notIn: excludeConvIds } } : {};
+
+      const totalProposals = await db.docProposal.count({ where: proposalExclude });
       const approvedProposals = await db.docProposal.count({
-        where: { adminApproved: true },
+        where: { ...proposalExclude, adminApproved: true },
       });
       const pendingProposals = await db.docProposal.count({
-        where: { adminApproved: false, adminReviewedAt: null },
+        where: { ...proposalExclude, adminApproved: false, adminReviewedAt: null },
       });
 
       // Get processing watermark info
@@ -520,6 +543,21 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
       logger.debug(
         `Proposal ${proposalId} - Current status: ${beforeUpdate?.status}, Requested status: ${status}`
       );
+
+      // Block approval of proposals from test/pipeline streams
+      if (status === 'approved' && beforeUpdate?.conversationId) {
+        const isTestStream = await db.messageClassification.findFirst({
+          where: {
+            conversationId: beforeUpdate.conversationId,
+            message: { streamId: { startsWith: 'pipeline-test' } },
+          },
+        });
+        if (isTestStream) {
+          return res.status(403).json({
+            error: 'Cannot approve proposals from test/pipeline streams',
+          });
+        }
+      }
 
       const updateData = {
         status: status,
@@ -1126,9 +1164,10 @@ export function registerAdminStreamRoutes(app: Express, adminAuth: any) {
         `Query params - category: ${category}, hasProposals: ${req.query.hasProposals}, status: ${statusFilter}, hideEmptyProposals: ${hideEmptyProposals}, search: ${search || 'none'}`
       );
 
-      // Build where clause for filtering
+      // Build where clause for filtering — exclude test/pipeline stream conversations
       const where: any = {
         conversationId: { not: null }, // Exclude no-doc-value messages (conversationId = null)
+        message: EXCLUDE_TEST_STREAMS,
       };
       if (category && category !== 'all') {
         where.category = category;

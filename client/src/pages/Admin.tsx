@@ -25,8 +25,6 @@ import {
   Loader2,
   ArrowUp,
   ArrowDown,
-  FileCode,
-  Play,
   Search,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -785,7 +783,7 @@ export default function Admin() {
               <p className="text-gray-600">Review and manage AI-suggested documentation updates</p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Quality Tools */}
+              {/* Quality Tools — hidden until ready for production
               <Button
                 variant="outline"
                 size="sm"
@@ -804,7 +802,7 @@ export default function Admin() {
                 <Play className="h-4 w-4 mr-2" />
                 Pipeline Debugger
               </Button>
-              <div className="h-6 w-px bg-gray-300 mx-1" />
+              */}
               <Button
                 variant="outline"
                 size="sm"

@@ -140,6 +140,7 @@ describe('Admin Routes', () => {
         { processingStatus: 'FAILED', _count: 50 },
       ]);
       mockPrismaClient.messageClassification.count.mockResolvedValue(500);
+      mockPrismaClient.messageClassification.findMany.mockResolvedValue([]); // no test stream conversations
       mockPrismaClient.docProposal.count
         .mockResolvedValueOnce(100) // total
         .mockResolvedValueOnce(30) // approved
@@ -1494,6 +1495,7 @@ describe('Admin Routes', () => {
       mockPrismaClient.unifiedMessage.count.mockResolvedValue(0);
       mockPrismaClient.unifiedMessage.groupBy.mockResolvedValue([]);
       mockPrismaClient.messageClassification.count.mockResolvedValue(0);
+      mockPrismaClient.messageClassification.findMany.mockResolvedValue([]); // no test stream conversations
       mockPrismaClient.docProposal.count.mockResolvedValue(0);
       mockPrismaClient.processingWatermark.findUnique.mockResolvedValue(null);
 
