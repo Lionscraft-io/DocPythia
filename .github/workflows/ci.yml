@@ -186,16 +186,16 @@ jobs:
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           GHCR_IMAGE="ghcr.io/${REPO_LOWER}:sha-${GITHUB_SHA::7}"
           ECR_REGISTRY="${{ steps.ecr-login.outputs.registry }}"
+          ECR_REPO="${{ vars.ECR_REPO_NAME || 'docpythia' }}"
 
           docker pull ${GHCR_IMAGE}
-          docker tag ${GHCR_IMAGE} ${ECR_REGISTRY}/docpythia:latest
-          docker tag ${GHCR_IMAGE} ${ECR_REGISTRY}/docpythia:${{ steps.version.outputs.version }}
-          docker push ${ECR_REGISTRY}/docpythia:latest
-          docker push ${ECR_REGISTRY}/docpythia:${{ steps.version.outputs.version }}
+          docker tag ${GHCR_IMAGE} ${ECR_REGISTRY}/${ECR_REPO}:latest
+          docker tag ${GHCR_IMAGE} ${ECR_REGISTRY}/${ECR_REPO}:${{ steps.version.outputs.version }}
+          docker push ${ECR_REGISTRY}/${ECR_REPO}:latest
+          docker push ${ECR_REGISTRY}/${ECR_REPO}:${{ steps.version.outputs.version }}
 
-      # Uncomment to enable automatic App Runner deployment
-      # - name: Deploy to App Runner
-      #   if: vars.APPRUNNER_SERVICE_ARN != ''
-      #   run: |
-      #     aws apprunner start-deployment \
-      #       --service-arn ${{ vars.APPRUNNER_SERVICE_ARN }}
+      - name: Deploy to App Runner
+        if: vars.APPRUNNER_SERVICE_ARN != ''
+        run: |
+          aws apprunner start-deployment \
+            --service-arn ${{ vars.APPRUNNER_SERVICE_ARN }}
