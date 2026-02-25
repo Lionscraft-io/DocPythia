@@ -149,28 +149,43 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: [test, package]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.deploy == 'true') && vars.AWS_DEPLOY_ROLE_ARN != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.deploy == 'true'
     permissions:
       contents: read
       id-token: write
 
     steps:
+      - name: Check deploy secrets are configured
+        id: check
+        run: |
+          if [ -z "${{ secrets.AWS_DEPLOY_ROLE_ARN }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::notice::Skipping deploy — AWS_DEPLOY_ROLE_ARN secret not configured"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - uses: actions/checkout@v6
+        if: steps.check.outputs.skip != 'true'
 
       - name: Set up Docker Buildx
+        if: steps.check.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Configure AWS credentials
+        if: steps.check.outputs.skip != 'true'
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Log in to Amazon ECR
+        if: steps.check.outputs.skip != 'true'
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Log in to GitHub Container Registry
+        if: steps.check.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -178,15 +193,18 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get version from package.json
+        if: steps.check.outputs.skip != 'true'
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Pull image from GHCR and push to ECR
+        if: steps.check.outputs.skip != 'true'
         run: |
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           GHCR_IMAGE="ghcr.io/${REPO_LOWER}:sha-${GITHUB_SHA::7}"
           ECR_REGISTRY="${{ steps.ecr-login.outputs.registry }}"
-          ECR_REPO="${{ vars.ECR_REPO_NAME || 'docpythia' }}"
+          ECR_REPO="${{ secrets.ECR_REPO_NAME }}"
+          ECR_REPO="${ECR_REPO:-docpythia}"
 
           docker pull ${GHCR_IMAGE}
           docker tag ${GHCR_IMAGE} ${ECR_REGISTRY}/${ECR_REPO}:latest
@@ -195,7 +213,7 @@ jobs:
           docker push ${ECR_REGISTRY}/${ECR_REPO}:${{ steps.version.outputs.version }}
 
       - name: Deploy to App Runner
-        if: vars.APPRUNNER_SERVICE_ARN != ''
+        if: steps.check.outputs.skip != 'true' && secrets.APPRUNNER_SERVICE_ARN != ''
         run: |
           aws apprunner start-deployment \
-            --service-arn ${{ vars.APPRUNNER_SERVICE_ARN }}
+            --service-arn ${{ secrets.APPRUNNER_SERVICE_ARN }}
